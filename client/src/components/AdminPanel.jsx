@@ -350,11 +350,20 @@ function UsersTab({ t, mode }) {
     fetchingRef.current = true;
     setLoading(true);
 
-    const { data: profiles, error: profErr } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-    console.log("[UsersTab] profiles query:", { count: profiles?.length, error: profErr?.message, rows: profiles });
+    // Fetch profiles via server endpoint (bypasses RLS)
+    let profiles = [];
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch("/api/admin/users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (resp.ok) {
+        profiles = await resp.json();
+      }
+      console.log("[UsersTab] /api/admin/users:", { count: profiles.length });
+    } catch (err) {
+      console.error("[UsersTab] Failed to fetch users:", err);
+    }
 
     let pendingInvites = [];
     try {
@@ -362,7 +371,7 @@ function UsersTab({ t, mode }) {
         .from("invite_log")
         .select("*")
         .order("invited_at", { ascending: false });
-      const profileEmails = new Set((profiles || []).map(p => p.email));
+      const profileEmails = new Set(profiles.map(p => p.email));
       pendingInvites = (logs || [])
         .filter(l => !profileEmails.has(l.email))
         .reduce((acc, l) => {
@@ -374,7 +383,7 @@ function UsersTab({ t, mode }) {
       // invite_log table may not exist yet
     }
 
-    const allUsers = [...(profiles || []), ...pendingInvites];
+    const allUsers = [...profiles, ...pendingInvites];
     console.log("[UsersTab] total users to render:", allUsers.length);
     setUsers(allUsers);
     setLoading(false);

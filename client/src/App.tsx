@@ -125,22 +125,26 @@ function App() {
         return;
       }
       console.log("[Auth] onAuthStateChange event:", _event, "hasSession:", !!session);
-      setSession(session);
+
       if (session?.user) {
+        // Set loading while we fetch the profile so Dashboard never renders with null userProfile
+        setAuthLoading(true);
         const profile = await fetchUserProfile(session.user.id);
+        if (!mounted) return;
         if (profile?.__noProfile) {
-          if (mounted) {
-            setSession(null);
-            setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
-          }
+          setSession(null);
+          setUserProfile(null);
+          setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          setAuthLoading(false);
           return;
         }
-        if (mounted) {
-          console.log("[Auth] onAuthStateChange setting userProfile:", profile);
-          setUserProfile(profile);
-        }
+        console.log("[Auth] onAuthStateChange setting userProfile:", profile);
+        setSession(session);
+        setUserProfile(profile);
+        setAuthLoading(false);
       } else {
-        if (mounted) setUserProfile(null);
+        setSession(null);
+        setUserProfile(null);
       }
     });
 
@@ -170,7 +174,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        {session
+        {session && userProfile
           ? <Dashboard onLogout={() => supabase.auth.signOut()} userProfile={userProfile} />
           : <LoginPage authError={authError} />
         }

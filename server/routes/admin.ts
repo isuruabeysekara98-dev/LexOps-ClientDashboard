@@ -64,6 +64,24 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/users
+// Returns all profiles (bypasses RLS via service role key)
+// ---------------------------------------------------------------------------
+router.get("/users", requireAdmin, async (_req: Request, res: Response) => {
+  const { data, error } = await adminSupabase
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    res.status(500).json({ message: error.message });
+    return;
+  }
+
+  res.json(data || []);
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/invite-user
 // Body: { email, full_name, role, project_ids? }
 // ---------------------------------------------------------------------------
