@@ -10,16 +10,13 @@ import ProposalPage from "@/components/ProposalPage";
 import SetPasswordPage from "@/components/SetPasswordPage";
 
 async function fetchUserProfile(userId: string) {
-  const { data: profile, error, status } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", userId)
     .single();
 
-  console.log("[fetchUserProfile] raw response:", { data: profile, error: error?.message, code: error?.code, status, userId });
-
   if (!profile) {
-    console.warn("[fetchUserProfile] No profile found for", userId, "— signing out");
     await supabase.auth.signOut();
     return { __noProfile: true };
   }
@@ -52,7 +49,6 @@ function App() {
     // Safety net: force authLoading to false after 5 seconds
     const timeout = setTimeout(() => {
       if (mounted && !initialLoadDone.current) {
-        console.log("[Auth] Safety timeout — forcing authLoading false");
         initialLoadDone.current = true;
         setAuthLoading(false);
       }
@@ -60,12 +56,10 @@ function App() {
 
     (async () => {
       try {
-        const { data: { session }, error: sessErr } = await supabase.auth.getSession() as any;
-        console.log("[Auth] getSession result:", { hasSession: !!session, userId: session?.user?.id, error: sessErr });
+        const { data: { session } } = await supabase.auth.getSession() as any;
         if (!mounted) return;
 
         if (!session?.user) {
-          console.log("[Auth] No session — showing login");
           setSession(null);
           return;
         }
@@ -73,9 +67,7 @@ function App() {
         setSession(session);
 
         let profile = await fetchUserProfile(session.user.id);
-        console.log("[Auth] profile fetch result:", profile);
 
-        // No profile found — user was signed out by fetchUserProfile
         if (profile?.__noProfile) {
           if (mounted) {
             setSession(null);
@@ -86,13 +78,10 @@ function App() {
 
         // If profile is null, the session token may be stale — try refreshing
         if (!profile && mounted) {
-          console.log("[Auth] Profile null — attempting session refresh");
           const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
-          console.log("[Auth] refreshSession result:", { hasSession: !!refreshData?.session, error: refreshErr });
           if (refreshData?.session?.user && !refreshErr) {
             setSession(refreshData.session);
             profile = await fetchUserProfile(refreshData.session.user.id);
-            console.log("[Auth] profile after refresh:", profile);
             if (profile?.__noProfile) {
               if (mounted) {
                 setSession(null);
@@ -104,7 +93,6 @@ function App() {
         }
 
         if (mounted) {
-          console.log("[Auth] Setting userProfile:", profile);
           setUserProfile(profile);
         }
       } catch (err) {
@@ -119,15 +107,9 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       if (!mounted) return;
-      // Ignore events until initial load is done to prevent race conditions
-      if (!initialLoadDone.current) {
-        console.log("[Auth] onAuthStateChange ignored (initial load pending), event:", _event);
-        return;
-      }
-      console.log("[Auth] onAuthStateChange event:", _event, "hasSession:", !!session);
+      if (!initialLoadDone.current) return;
 
       if (session?.user) {
-        // Set loading while we fetch the profile so Dashboard never renders with null userProfile
         setAuthLoading(true);
         const profile = await fetchUserProfile(session.user.id);
         if (!mounted) return;
@@ -138,7 +120,6 @@ function App() {
           setAuthLoading(false);
           return;
         }
-        console.log("[Auth] onAuthStateChange setting userProfile:", profile);
         setSession(session);
         setUserProfile(profile);
         setAuthLoading(false);

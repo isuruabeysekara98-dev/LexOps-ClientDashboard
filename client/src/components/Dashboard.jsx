@@ -66,11 +66,12 @@ function normalizeProject(row, related={}) {
     software:  related.software  || [],
     maintenance:related.maintenance||[],
     activity:  related.activity  || [],
+    docRequests: related.docRequests || [],
   };
 }
 
 async function fetchProjectData(projectId) {
-  const [phases,tasks,documents,invoices,software,maintenance,activity] = await Promise.all([
+  const [phases,tasks,documents,invoices,software,maintenance,activity,docRequests] = await Promise.all([
     supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
     supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false}),
@@ -78,6 +79,7 @@ async function fetchProjectData(projectId) {
     supabase.from("software").select("*").eq("project_id",projectId).order("id"),
     supabase.from("maintenance").select("*").eq("project_id",projectId).order("id"),
     supabase.from("activity").select("*").eq("project_id",projectId).order("date",{ascending:false}).limit(20),
+    supabase.from("document_requests").select("*").eq("project_id",projectId).order("requested_at",{ascending:false}),
   ]);
   return {
     phases:    phases.data     || [],
@@ -87,6 +89,7 @@ async function fetchProjectData(projectId) {
     software:  software.data   || [],
     maintenance:maintenance.data||[],
     activity:  activity.data   || [],
+    docRequests: docRequests.data || [],
   };
 }
 
@@ -123,7 +126,7 @@ function SectionLabel({children,t}) {
   return <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14}}>{children}</div>;
 }
 function Card({children,t,style={}}) {
-  return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow,...style}}>{children}</div>;
+  return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,boxShadow:t.shadow,...style}}>{children}</div>;
 }
 function CardPad({children,t,style={}}) {
   return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 24px",boxShadow:t.shadow,...style}}>{children}</div>;
@@ -283,8 +286,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
       <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Task</button>
     </div>
 
-    <Card t={t}>
-      {/* Add task inline form */}
+    <Card t={t} style={{overflowX:"auto"}}>
       {showAdd&&(
         <div>
           <form onSubmit={addTask} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
@@ -354,16 +356,24 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
 function fmtBytes(b){if(!b)return"—";if(b<1024)return`${b} B`;if(b<1048576)return`${(b/1024).toFixed(1)} KB`;return`${(b/1048576).toFixed(1)} MB`;}
 function fmtDate(s){if(!s)return"—";const d=new Date(s);return d.toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"});}
 
-function DocumentsTab({projectId,initialDocuments,onRefresh,t}) {
+function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t,isInternal}) {
   const [docs,setDocs]=useState(initialDocuments||[]);
   const [uploading,setUploading]=useState(false);
   const [deletingId,setDeletingId]=useState(null);
   const [uploadError,setUploadError]=useState("");
   const fileInputRef=useState(()=>({current:null}))[0];
+  const [showReqModal,setShowReqModal]=useState(false);
+  const [reqForm,setReqForm]=useState({title:"",description:""});
+  const [savingReq,setSavingReq]=useState(false);
+  const [docRequests,setDocRequests]=useState(initialDocRequests||[]);
 
   const loadDocs=useCallback(async()=>{
-    const {data}=await supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false});
+    const [{data},{data:r}]=await Promise.all([
+      supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false}),
+      supabase.from("document_requests").select("*").eq("project_id",projectId).order("requested_at",{ascending:false}),
+    ]);
     if(data) setDocs(data);
+    if(r) setDocRequests(r);
   },[projectId]);
 
   useEffect(()=>{loadDocs();},[loadDocs]);
@@ -404,11 +414,70 @@ function DocumentsTab({projectId,initialDocuments,onRefresh,t}) {
 
   const tc={PDF:t.red,DOCX:t.accent,XLSX:t.green,PNG:t.green,JPG:t.green,CSV:t.amber};
 
+  async function addDocRequest(e){
+    e.preventDefault();
+    if(!reqForm.title.trim()) return;
+    setSavingReq(true);
+    await supabase.from("document_requests").insert({project_id:projectId,title:reqForm.title,description:reqForm.description||null});
+    setReqForm({title:"",description:""});
+    setShowReqModal(false);
+    setSavingReq(false);
+    await loadDocs();
+    onRefresh?.();
+  }
+
   return <div style={{display:"flex",flexDirection:"column",gap:14}}>
+    {/* Request Document Modal */}
+    {showReqModal&&(
+      <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+            <span style={{color:t.text,fontSize:15,fontWeight:500}}>Request Document from Client</span>
+            <button onClick={()=>setShowReqModal(false)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+          <form onSubmit={addDocRequest} style={{display:"flex",flexDirection:"column",gap:14}}>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Title</label>
+              <input value={reqForm.title} onChange={e=>setReqForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Signed engagement letter" style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Description</label>
+              <textarea value={reqForm.description} onChange={e=>setReqForm(f=>({...f,description:e.target.value}))} placeholder="What do you need and why?" rows={3} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit",resize:"vertical"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
+              <button type="button" onClick={()=>setShowReqModal(false)} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button type="submit" disabled={savingReq||!reqForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:savingReq||!reqForm.title.trim()?0.5:1}}>{savingReq?"Saving…":"Send Request"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {/* Pending requests (internal view) */}
+    {isInternal&&docRequests.length>0&&(
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <SectionLabel t={t}>Document Requests ({docRequests.filter(r=>!r.fulfilled_at).length} pending)</SectionLabel>
+        {docRequests.map(req=>(
+          <div key={req.id} style={{
+            background:req.fulfilled_at?t.greenSoft:t.amberSoft,
+            border:`1px solid ${req.fulfilled_at?t.green+"25":t.amber+"25"}`,
+            borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+          }}>
+            <div style={{minWidth:0}}>
+              <div style={{color:t.text,fontSize:13,fontWeight:500}}>{req.fulfilled_at?"✓ ":""}{req.title}</div>
+              {req.description&&<div style={{color:t.textSub,fontSize:11,marginTop:2}}>{req.description}</div>}
+            </div>
+            <span style={{color:t.textSub,fontSize:11,flexShrink:0}}>{req.fulfilled_at?"Fulfilled":fmtDate(req.requested_at)}</span>
+          </div>
+        ))}
+      </div>
+    )}
+
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <span style={{color:t.textSub,fontSize:13}}>{docs.length} document{docs.length!==1?"s":""}</span>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         {uploading&&<span style={{color:t.textSub,fontSize:12}}>Uploading…</span>}
+        {isInternal&&<button onClick={()=>setShowReqModal(true)} style={{background:"transparent",color:t.accentLight,border:`1px solid ${t.border}`,borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Request Document</button>}
         <input ref={r=>{fileInputRef.current=r;}} type="file" style={{display:"none"}} onChange={handleFileSelect}/>
         <button onClick={()=>fileInputRef.current?.click()} disabled={uploading} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:uploading?"not-allowed":"pointer",opacity:uploading?0.6:1,fontFamily:"inherit",whiteSpace:"nowrap"}}>
           Upload Document
@@ -416,7 +485,7 @@ function DocumentsTab({projectId,initialDocuments,onRefresh,t}) {
       </div>
     </div>
     {uploadError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12}}>{uploadError}</div>}
-    <Card t={t}>
+    <Card t={t} style={{overflowX:"auto"}}>
       {docs.length===0
         ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No documents uploaded yet.</div>
         :docs.map((doc,i)=>{
@@ -548,7 +617,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
       </div>
     )}
 
-    <Card t={t}>
+    <Card t={t} style={{overflowX:"auto"}}>
       {showAdd&&isInternal&&(
         <div>
           <form onSubmit={addInvoice} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
@@ -892,7 +961,7 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
       <SectionLabel t={t}>{title}</SectionLabel>
       {list.length===0
         ?<div style={{color:t.textSub,fontSize:13,padding:"4px 0"}}>None recorded</div>
-        :<Card t={t}>
+        :<Card t={t} style={{overflowX:"auto"}}>
           {list.map((sw,i)=>{
             const catColor=catColors[sw.category]||t.accent;
             return(
@@ -929,7 +998,7 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
   return <>
     {showModal&&(
       <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",overflowY:"auto",maxHeight:"90vh"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
             <span style={{color:t.text,fontSize:15,fontWeight:500}}>{editing?"Edit Tool":"Add Tool"}</span>
             <button onClick={()=>setShowModal(false)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
@@ -1030,7 +1099,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
   return <>
     {showNew&&(
       <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",overflowY:"auto",maxHeight:"90vh"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
             <span style={{color:t.text,fontSize:15,fontWeight:500}}>New Request</span>
             <button onClick={()=>setShowNew(false)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
@@ -1065,7 +1134,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
           </button>
         ))}
       </div>
-      <Card t={t}>
+      <Card t={t} style={{overflowX:"auto"}}>
         {filtered.length===0
           ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No items to display</div>
           :filtered.map((item,i)=>(
@@ -1183,11 +1252,361 @@ function BookingTab({project,t}) {
   </div>;
 }
 
+// ---------------------------------------------------------------------------
+// Welcome Screen (first login only for clients)
+// ---------------------------------------------------------------------------
+function WelcomeScreen({ userProfile, project, t, onDismiss }) {
+  const firstName = (userProfile?.full_name || "").split(" ")[0] || "there";
+  return (
+    <div style={{
+      position:"fixed",inset:0,zIndex:500,background:t.bg,
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,padding:24,
+    }}>
+      <div style={{width:"100%",maxWidth:560,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
+        <LogoLight h={28}/>
+        <div style={{textAlign:"center"}}>
+          <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 12px",color:t.text}}>
+            Welcome, {firstName}.
+          </h1>
+          {project?.client_summary && (
+            <p style={{color:t.textSub,fontSize:15,lineHeight:1.8,margin:0,maxWidth:480}}>
+              {project.client_summary}
+            </p>
+          )}
+        </div>
+
+        <div style={{
+          display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,width:"100%",
+        }}>
+          {[
+            {step:"1",icon:"⚙",title:"We do the work",desc:"Our team handles the heavy lifting — building, configuring, and testing everything."},
+            {step:"2",icon:"📊",title:"You stay informed",desc:"Track progress, review deliverables, and provide feedback through your portal."},
+            {step:"3",icon:"✓",title:"We deliver results",desc:"Fully implemented solutions, ready to use, with training and ongoing support."},
+          ].map((s,i)=>(
+            <div key={i} style={{
+              background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"24px 20px",
+              textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12,
+            }}>
+              <div style={{
+                width:44,height:44,borderRadius:"50%",background:t.accentSoft,border:`1px solid ${t.accent}30`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+              }}>{s.icon}</div>
+              <div>
+                <div style={{color:t.textSub,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Step {s.step}</div>
+                <div style={{color:t.text,fontSize:14,fontWeight:500,marginBottom:6}}>{s.title}</div>
+                <div style={{color:t.textSub,fontSize:12,lineHeight:1.6}}>{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={onDismiss} style={{
+          background:t.accent,color:"#fff",border:"none",borderRadius:10,
+          padding:"14px 36px",fontSize:15,fontWeight:600,cursor:"pointer",
+          fontFamily:"inherit",transition:"background 0.15s",letterSpacing:"0.01em",
+        }}>
+          View your project →
+        </button>
+
+        <div style={{color:t.textDim,fontSize:11}}>© 2026 LexOps · A Teams Squared Company</div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Overview Tab
+// ---------------------------------------------------------------------------
+function ClientOverviewTab({ project, t, mobile }) {
+  const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable);
+  const statusIcon = (s) => s === "done" ? "✅" : s === "in-progress" ? "🔄" : "⏳";
+  const statusLabel = (s) => s === "done" ? "Complete" : s === "in-progress" ? "In progress" : "Upcoming";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Client Summary Card */}
+      {project.client_summary && (
+        <CardPad t={t} style={{ borderLeft: `3px solid ${t.accent}` }}>
+          <SectionLabel t={t}>About Your Project</SectionLabel>
+          <p style={{ color: t.text, fontSize: 14, lineHeight: 1.8, margin: 0 }}>
+            {project.client_summary}
+          </p>
+        </CardPad>
+      )}
+
+      {/* Stats - simplified for clients */}
+      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(3,1fr)", gap: 12 }}>
+        {[
+          { label: "Progress", value: `${project.progress}%`, sub: project.phase, color: t.accentLight },
+          { label: "Deliverables", value: `${deliverables.filter(d => d.status === "done").length} / ${deliverables.length}`, sub: "completed", color: t.green },
+          { label: "Due Date", value: project.dueDate ? project.dueDate.slice(5).replace("-", " / ") : "—", sub: project.dueDate ? `${Math.max(0, Math.ceil((new Date(project.dueDate) - new Date()) / 86400000))} days remaining` : "", color: t.text },
+        ].map((s, i) => (
+          <div key={i} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
+            <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10 }}>{s.label}</div>
+            <div style={{ color: s.color, fontSize: 24, fontWeight: 300, letterSpacing: "-0.04em", marginBottom: 3 }}>{s.value}</div>
+            <div style={{ color: t.textSub, fontSize: 11 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Deliverables Checklist */}
+      {deliverables.length > 0 && (
+        <Card t={t}>
+          <div style={{ padding: "18px 24px 14px" }}><SectionLabel t={t}>Your Deliverables</SectionLabel></div>
+          <Line t={t} />
+          {deliverables.map((d, i) => (
+            <div key={d.id}>
+              <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", gap: 14 }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{statusIcon(d.status)}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: d.status === "done" ? t.textSub : t.text, fontSize: 14, fontWeight: 500, textDecoration: d.status === "done" ? "line-through" : "none" }}>
+                    {d.title}
+                  </div>
+                  <div style={{ color: t.textSub, fontSize: 12, marginTop: 2 }}>{statusLabel(d.status)}</div>
+                </div>
+              </div>
+              {i < deliverables.length - 1 && <Line t={t} />}
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* Phase Progress */}
+      <Card t={t}>
+        <div style={{ padding: "18px 24px 14px" }}><SectionLabel t={t}>Project Phases</SectionLabel></div>
+        <Line t={t} />
+        {project.phases.map((ph, i) => (
+          <div key={i}>
+            <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                background: ph.status === "complete" ? t.green : ph.status === "active" ? t.accent : "transparent",
+                border: `1.5px solid ${ph.status === "complete" ? t.green : ph.status === "active" ? t.accent : t.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {ph.status === "complete" && <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>✓</span>}
+                {ph.status === "active" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "block" }} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                  <span style={{ color: ph.status === "pending" ? t.textSub : t.text, fontSize: 13, fontWeight: 500 }}>{ph.name}</span>
+                  <Pill t={t} status={ph.status === "complete" ? "complete" : ph.status === "active" ? "active" : "pending"} label={ph.status === "complete" ? "Done" : ph.status === "active" ? "Active" : "Pending"} />
+                </div>
+                <Thin value={ph.progress} t={t} />
+              </div>
+            </div>
+            {i < project.phases.length - 1 && <Line t={t} />}
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Actions Tab (filtered tasks for clients)
+// ---------------------------------------------------------------------------
+function ClientActionsTab({ projectId, initialTasks, t, mobile }) {
+  const [tasks, setTasks] = useState(initialTasks || []);
+
+  const loadTasks = useCallback(async () => {
+    const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id");
+    if (data) setTasks(data);
+  }, [projectId]);
+
+  useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  const needsAction = tasks.filter(tk => tk.status !== "done" && tk.assignee);
+  const inProgress = tasks.filter(tk => tk.status === "in-progress" && !tk.assignee);
+  const upcoming = tasks.filter(tk => tk.status === "todo" && !tk.assignee);
+  const completed = tasks.filter(tk => tk.status === "done");
+
+  const priorityOrder = { high: 0, medium: 1, low: 2 };
+  const sortByPriority = (a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+
+  const TaskGroup = ({ title, subtitle, items, color }) => {
+    if (items.length === 0) return null;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <div style={{ color: color || t.text, fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{title}</div>
+          {subtitle && <div style={{ color: t.textSub, fontSize: 12 }}>{subtitle}</div>}
+        </div>
+        <Card t={t}>
+          {items.sort(sortByPriority).map((task, i) => (
+            <div key={task.id}>
+              <div style={{ padding: mobile ? "14px 16px" : "14px 22px", display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <div style={{
+                    width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                    border: `1.5px solid ${task.status === "done" ? t.green : task.status === "in-progress" ? t.accent : t.textDim}`,
+                    background: task.status === "done" ? t.green : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {task.status === "done" && <span style={{ color: "#fff", fontSize: 9, fontWeight: 800 }}>✓</span>}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: task.status === "done" ? t.textSub : t.text, fontSize: 13, fontWeight: 500, textDecoration: task.status === "done" ? "line-through" : "none" }}>{task.title}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  {task.due && <span style={{ color: t.textSub, fontSize: 11 }}>Due {task.due}</span>}
+                  {task.priority && <Pill t={t} status={task.priority} label={task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} />}
+                </div>
+              </div>
+              {i < items.length - 1 && <Line t={t} />}
+            </div>
+          ))}
+        </Card>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <TaskGroup title="Things we need from you" subtitle="Action items that require your input" items={needsAction} color={t.amber} />
+      <TaskGroup title="In progress by LexOps" subtitle="Currently being worked on by your team" items={inProgress} color={t.accentLight} />
+      <TaskGroup title="Upcoming" items={upcoming} color={t.textSub} />
+      <TaskGroup title="Completed" items={completed} color={t.green} />
+      {tasks.length === 0 && (
+        <CardPad t={t}>
+          <div style={{ textAlign: "center", color: t.textSub, fontSize: 13, padding: "24px 0" }}>No action items at this time.</div>
+        </CardPad>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Documents Tab (with document requests)
+// ---------------------------------------------------------------------------
+function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, onRefresh, t }) {
+  const [docs, setDocs] = useState(initialDocuments || []);
+  const [requests, setRequests] = useState((initialDocRequests || []).filter(r => !r.fulfilled_at));
+  const [uploading, setUploading] = useState(null);
+  const [uploadError, setUploadError] = useState("");
+
+  const loadDocs = useCallback(async () => {
+    const [{ data: d }, { data: r }] = await Promise.all([
+      supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
+      supabase.from("document_requests").select("*").eq("project_id", projectId).order("requested_at", { ascending: false }),
+    ]);
+    if (d) setDocs(d);
+    if (r) setRequests(r.filter(req => !req.fulfilled_at));
+  }, [projectId]);
+
+  useEffect(() => { loadDocs(); }, [loadDocs]);
+
+  async function handleRequestUpload(e, req) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadError("");
+    setUploading(req.id);
+
+    const storagePath = `${projectId}/${file.name}`;
+    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
+    if (upErr) { setUploadError(upErr.message); setUploading(null); return; }
+
+    const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
+    const ext = file.name.split(".").pop().toUpperCase();
+
+    const { data: newDoc } = await supabase.from("documents").insert({
+      project_id: projectId,
+      name: file.name,
+      file_type: ext,
+      file_size: file.size,
+      file_url: publicUrl,
+      storage_path: storagePath,
+      uploaded_at: new Date().toISOString(),
+    }).select("id").single();
+
+    if (newDoc) {
+      await supabase.from("document_requests").update({
+        fulfilled_at: new Date().toISOString(),
+        fulfilled_document_id: newDoc.id,
+      }).eq("id", req.id);
+    }
+
+    await loadDocs();
+    setUploading(null);
+    onRefresh?.();
+  }
+
+  const tc = { PDF: "#f87171", DOCX: "#4a7fa5", XLSX: "#4ade80", PNG: "#4ade80", JPG: "#4ade80", CSV: "#f59e0b" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Pending Document Requests */}
+      {requests.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <SectionLabel t={t}>Requested Documents</SectionLabel>
+          {requests.map(req => (
+            <div key={req.id} style={{
+              background: t.amberSoft, border: `1px solid ${t.amber}25`, borderRadius: 12,
+              padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 16 }}>📋</span>
+                  <span style={{ color: t.text, fontSize: 14, fontWeight: 600 }}>{req.title}</span>
+                </div>
+                {req.description && <div style={{ color: t.textSub, fontSize: 12, lineHeight: 1.5, marginLeft: 24 }}>{req.description}</div>}
+              </div>
+              <div>
+                <input type="file" id={`req-upload-${req.id}`} style={{ display: "none" }}
+                  onChange={e => handleRequestUpload(e, req)} />
+                <label htmlFor={`req-upload-${req.id}`} style={{
+                  background: t.accent, color: "#fff", border: "none", borderRadius: 8,
+                  padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: uploading === req.id ? "not-allowed" : "pointer",
+                  opacity: uploading === req.id ? 0.6 : 1, display: "inline-flex", alignItems: "center", gap: 6,
+                  whiteSpace: "nowrap",
+                }}>
+                  {uploading === req.id ? "Uploading…" : "Upload ↑"}
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {uploadError && <div style={{ background: t.redSoft || "rgba(248,113,113,0.08)", border: `1px solid ${t.red}30`, borderRadius: 8, padding: "8px 14px", color: t.red, fontSize: 12 }}>{uploadError}</div>}
+
+      {/* Existing Documents */}
+      <SectionLabel t={t}>Your Documents ({docs.length})</SectionLabel>
+      <Card t={t} style={{ overflowX: "auto" }}>
+        {docs.length === 0
+          ? <div style={{ color: t.textSub, textAlign: "center", padding: "40px 0", fontSize: 13 }}>No documents yet.</div>
+          : docs.map((doc, i) => {
+            const ext = doc.file_type || (doc.name?.split(".").pop().toUpperCase()) || "FILE";
+            const c = tc[ext] || t.accent;
+            return (
+              <div key={doc.id ?? i}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "15px 22px", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: c + "12", border: `1px solid ${c}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: c, letterSpacing: "0.03em" }}>{ext}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: t.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                      <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{fmtBytes(doc.file_size)} · {fmtDate(doc.uploaded_at)}</div>
+                    </div>
+                  </div>
+                  <a href={doc.file_url} target="_blank" rel="noreferrer" download={doc.name} style={{ background: "transparent", color: t.accentLight, border: `1px solid ${t.border}`, borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 500, textDecoration: "none", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                    Download
+                  </a>
+                </div>
+                {i < docs.length - 1 && <Line t={t} />}
+              </div>
+            );
+          })}
+      </Card>
+    </div>
+  );
+}
+
 export default function LexOpsDashboard({ onLogout, userProfile }) {
-  console.log("[Dashboard] userProfile:", userProfile);
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
-  console.log("[Dashboard] isAdmin:", isAdmin, "| role:", userProfile?.role);
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1197,6 +1616,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const [tab,setTab]=useState("overview");
   const [adminOpen,setAdminOpen]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [showWelcome,setShowWelcome]=useState(false);
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
@@ -1209,8 +1629,6 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
         query=query.in("id",allowedProjectIds);
       }
       const {data:rows,error:queryErr}=await query.order("id");
-      if(queryErr) console.error("[Dashboard] projects query error:",queryErr.code,queryErr.message);
-      console.log("[Dashboard] projects query returned:",rows?.length??0,"rows");
       if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
       const full=await Promise.all(rows.map(async row=>{
         const related=await fetchProjectData(row.id);
@@ -1221,6 +1639,10 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
         if(prev){const updated=full.find(p=>p.id===prev.id);return updated||full[0]||null;}
         return full[0]||null;
       });
+      // Show welcome screen for first-time client users
+      if(isClient && userProfile && !userProfile.has_seen_welcome){
+        setShowWelcome(true);
+      }
       setLoading(false);
     }
     load();
@@ -1249,10 +1671,24 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-  const allTabs=["overview","timeline","tasks","documents","invoices","software","maintenance","book"];
-  const tabLabels={overview:"Overview",timeline:"Timeline",tasks:"Tasks",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+  const isClientView = view === "client";
+  const allTabs = isClientView
+    ? ["overview","actions","documents","invoices","book"]
+    : ["overview","timeline","tasks","documents","invoices","software","maintenance","book"];
+  const tabLabels = isClientView
+    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",invoices:"Invoices",book:"Book a Call"}
+    : {overview:"Overview",timeline:"Timeline",tasks:"Tasks",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+
+  async function dismissWelcome(){
+    setShowWelcome(false);
+    if(userProfile?.id){
+      await supabase.from("profiles").update({has_seen_welcome:true}).eq("id",userProfile.id);
+    }
+  }
+
   return (
     <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,display:"flex",flexDirection:"column",transition:"background 0.25s,color 0.25s"}}>
+      {showWelcome&&<WelcomeScreen userProfile={userProfile} project={selected} t={t} onDismiss={dismissWelcome}/>}
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
       {/* Mobile sidebar overlay */}
       {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}}/>}
@@ -1267,11 +1703,11 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
           {mode==="dark"?<LogoLight h={mobile?16:20}/>:<LogoDark h={mobile?16:20}/>}
           {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:mobile?6:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:mobile?6:10,flexWrap:mobile?"wrap":"nowrap"}}>
           {isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{mobile?"⚙":"Admin"}</button>}
           {!isClient&&<div style={{display:"flex",background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2}}>
             {[["internal",mobile?"Int":"Internal"],["client",mobile?"Client":"Client View"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setView(k)} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
+              <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>}
           <button onClick={()=>setMode(m=>m==="dark"?"light":"dark")} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
@@ -1280,7 +1716,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
           {onLogout&&<button onClick={onLogout} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 8px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",transition:"color 0.15s"}}>{mobile?"↪":"Sign out"}</button>}
         </div>
       </div>
-      <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
+      <div style={{display:"flex",flex:1,overflow:"visible",...(mobile?{minHeight:"calc(100vh - 56px)"}:{height:"calc(100vh - 56px)"})}}>
         {view==="internal"&&(
           <div style={{
             width:280,borderRight:`1px solid ${t.border}`,background:t.surface,display:"flex",flexDirection:"column",flexShrink:0,
@@ -1308,7 +1744,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
             </div>
           </div>
         )}
-        <div style={{flex:1,overflowY:"auto",padding:mobile?"20px 16px":"32px 36px"}}>
+        <div style={{flex:1,overflowY:"auto",padding:mobile?"20px 16px":"32px 36px",paddingBottom:mobile?80:32}}>
           {selected&&(
             <>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:mobile?16:24,gap:8}}>
@@ -1316,7 +1752,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
                   <h1 style={{margin:"0 0 7px",fontSize:mobile?18:22,fontWeight:300,letterSpacing:"-0.04em",color:t.text,lineHeight:1.2}}>{selected.project}</h1>
                   <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
-                    {view==="internal"&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.accentLight}}>{selected.manager}</span></span>}
+                    {!isClientView&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.accentLight}}>{selected.manager}</span></span>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>
                   </div>
                 </div>
@@ -1332,13 +1768,20 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                   ))}
                 </div>
               </div>
-              {tab==="overview"    &&<OverviewTab     project={selected} isInternal={view==="internal"} t={t} mobile={mobile}/>}
-              {tab==="timeline"    &&<TimelineTab     projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="tasks"       &&<TasksTab        projectId={selected.id} initialTasks={selected.tasks} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
-              {tab==="documents"   &&<DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
-              {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="maintenance" &&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
+              {tab==="overview"    && (isClientView
+                ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
+                : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile}/>
+              )}
+              {tab==="timeline"    &&!isClientView&&<TimelineTab projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="tasks"       &&!isClientView&&<TasksTab    projectId={selected.id} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
+              {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} t={t} mobile={mobile}/>}
+              {tab==="documents"   && (isClientView
+                ? <ClientDocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} onRefresh={()=>refreshProject(selected.id)} t={t}/>
+                : <DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>
+              )}
+              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
+              {tab==="software"    &&!isClientView&&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
             </>
           )}

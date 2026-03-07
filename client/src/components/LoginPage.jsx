@@ -69,6 +69,7 @@ export default function LoginPage({ authError: externalError } = {}) {
       <div style={{
         width: "100%",
         maxWidth: 380,
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         gap: 28,

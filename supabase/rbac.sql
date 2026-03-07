@@ -44,7 +44,12 @@ create policy "profiles: staff read all"
     )
   );
 
--- Only admins can insert / update / delete profiles
+-- Users can update their own profile (limited fields like has_seen_welcome)
+create policy "profiles: own update"
+  on public.profiles for update
+  using (auth.uid() = id);
+
+-- Only admins can insert / update / delete profiles (full access)
 create policy "profiles: admin write"
   on public.profiles for all
   using (
@@ -202,5 +207,95 @@ create policy "invite_log: admin full access"
       select 1 from public.profiles p
       where p.id = auth.uid()
         and p.role = 'lexops_admin'
+    )
+  );
+
+
+-- ============================================================
+-- project_setup_flags
+-- ============================================================
+create table if not exists public.project_setup_flags (
+  id          bigserial primary key,
+  project_id  uuid not null,
+  proposal_id uuid references proposals(id),
+  question    text not null,
+  answer      text,
+  resolved    boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.project_setup_flags enable row level security;
+
+create policy "project_setup_flags: staff full access"
+  on public.project_setup_flags for all
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('lexops_admin', 'lexops_member')
+    )
+  );
+
+
+-- ============================================================
+-- Schema additions for client experience redesign
+-- ============================================================
+
+-- Add has_seen_welcome to profiles
+alter table public.profiles add column if not exists has_seen_welcome boolean not null default false;
+
+-- Add client_summary to projects
+alter table public.projects add column if not exists client_summary text;
+
+-- Add is_internal and is_deliverable to tasks
+alter table public.tasks add column if not exists is_internal boolean not null default true;
+alter table public.tasks add column if not exists is_deliverable boolean not null default false;
+
+
+-- ============================================================
+-- document_requests
+-- ============================================================
+create table if not exists public.document_requests (
+  id              bigserial primary key,
+  project_id      integer not null,
+  title           text not null,
+  description     text,
+  requested_at    timestamptz not null default now(),
+  fulfilled_at    timestamptz,
+  fulfilled_document_id bigint references public.documents(id)
+);
+
+alter table public.document_requests enable row level security;
+
+-- Staff can do everything with document requests
+create policy "document_requests: staff full access"
+  on public.document_requests for all
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('lexops_admin', 'lexops_member')
+    )
+  );
+
+-- Clients can read document requests for their projects
+create policy "document_requests: client read own"
+  on public.document_requests for select
+  using (
+    exists (
+      select 1 from public.project_members pm
+      where pm.user_id = auth.uid()
+        and pm.project_id = (document_requests.project_id)::integer
+    )
+  );
+
+-- Clients can update document requests (to mark fulfilled)
+create policy "document_requests: client update own"
+  on public.document_requests for update
+  using (
+    exists (
+      select 1 from public.project_members pm
+      where pm.user_id = auth.uid()
+        and pm.project_id = (document_requests.project_id)::integer
     )
   );

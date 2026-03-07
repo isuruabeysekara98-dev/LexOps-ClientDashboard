@@ -142,7 +142,6 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      console.log("[InviteModal] sending:", form);
       const res = await fetch("/api/admin/invite-user", {
         method: "POST",
         headers: {
@@ -152,11 +151,9 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      console.log("[InviteModal] response:", res.status, json);
       if (!res.ok) { setError(json.message || "Failed to invite user"); setSaving(false); return; }
       onSuccess();
     } catch (err) {
-      console.error("[InviteModal] error:", err);
       setError("Network error");
     }
     setSaving(false);
@@ -177,6 +174,7 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
       <div style={{
         background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
         padding: "28px 28px", width: "100%", maxWidth: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        overflowY: "auto", maxHeight: "90vh",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Invite User</span>
@@ -282,7 +280,7 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
       <div style={{
         background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
         padding: "28px 28px", width: "100%", maxWidth: 520, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-        margin: "auto",
+        margin: "auto", overflowY: "auto", maxHeight: "90vh",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>{isEdit ? "Edit Project" : "New Project"}</span>
@@ -360,9 +358,7 @@ function UsersTab({ t, mode }) {
       if (resp.ok) {
         profiles = await resp.json();
       }
-      console.log("[UsersTab] /api/admin/users:", { count: profiles.length });
     } catch (err) {
-      console.error("[UsersTab] Failed to fetch users:", err);
     }
 
     let pendingInvites = [];
@@ -384,7 +380,6 @@ function UsersTab({ t, mode }) {
     }
 
     const allUsers = [...profiles, ...pendingInvites];
-    console.log("[UsersTab] total users to render:", allUsers.length);
     setUsers(allUsers);
     setLoading(false);
     fetchingRef.current = false;
@@ -413,15 +408,11 @@ function UsersTab({ t, mode }) {
   async function resendInvite(log) {
     setResending(log.id);
     const { data: { session } } = await supabase.auth.getSession();
-    const body = { email: log.email, full_name: log.full_name, role: log.role };
-    console.log("[resendInvite] sending:", body);
     const resp = await fetch("/api/admin/invite-user", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ email: log.email, full_name: log.full_name, role: log.role }),
     });
-    const json = await resp.json().catch(() => ({}));
-    console.log("[resendInvite] response:", resp.status, json);
     setResending(null);
     if (resp.ok) {
       setResent(log.id);
@@ -480,7 +471,7 @@ function UsersTab({ t, mode }) {
       ) : users.length === 0 ? (
         <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>No users found.</div>
       ) : (
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
           {/* Header row */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 160px 120px", gap: 0, borderBottom: `1px solid ${t.border}` }}>
             {["Name / Email", "ID", "Role", "Actions"].map((h, i) => (
@@ -564,7 +555,7 @@ function UsersTab({ t, mode }) {
             ) : inviteLogs.length === 0 ? (
               <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>No invites sent yet.</div>
             ) : (
-              <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+              <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px 100px 90px 120px", borderBottom: `1px solid ${t.border}` }}>
                   {["Name", "Email", "Role", "Invited", "Status", "Actions"].map((h, i) => (
                     <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
@@ -624,11 +615,25 @@ function ProjectsTab({ t }) {
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [flagCounts, setFlagCounts] = useState({});
+  const [flagsProject, setFlagsProject] = useState(null);
+  const [flags, setFlags] = useState([]);
+  const [flagsLoading, setFlagsLoading] = useState(false);
+  const [savingFlag, setSavingFlag] = useState(null);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("projects").select("*").order("id");
+    const [{ data }, { data: fc }] = await Promise.all([
+      supabase.from("projects").select("*").order("id"),
+      supabase.from("project_setup_flags").select("project_id, resolved"),
+    ]);
     setProjects(data || []);
+    // Count unresolved flags per project
+    const counts = {};
+    (fc || []).forEach(f => {
+      if (!f.resolved) counts[f.project_id] = (counts[f.project_id] || 0) + 1;
+    });
+    setFlagCounts(counts);
     setLoading(false);
   }, []);
 
@@ -640,6 +645,22 @@ function ProjectsTab({ t }) {
     await supabase.from("projects").delete().eq("id", id);
     setProjects(p => p.filter(x => x.id !== id));
     setDeleting(null);
+  }
+
+  async function openFlags(project) {
+    setFlagsProject(project);
+    setFlagsLoading(true);
+    const { data } = await supabase.from("project_setup_flags").select("*").eq("project_id", project.id).order("id");
+    setFlags(data || []);
+    setFlagsLoading(false);
+  }
+
+  async function resolveFlag(flag) {
+    setSavingFlag(flag.id);
+    await supabase.from("project_setup_flags").update({ answer: flag.answer, resolved: true }).eq("id", flag.id);
+    setFlags(fs => fs.map(f => f.id === flag.id ? { ...f, resolved: true } : f));
+    setFlagCounts(fc => ({ ...fc, [flagsProject.id]: Math.max(0, (fc[flagsProject.id] || 1) - 1) }));
+    setSavingFlag(null);
   }
 
   const statusColors = {
@@ -659,6 +680,63 @@ function ProjectsTab({ t }) {
         />
       )}
 
+      {flagsProject && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 520, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", overflowY: "auto", maxHeight: "90vh" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+              <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Setup Required — {flagsProject.name}</span>
+              <button onClick={() => setFlagsProject(null)} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            <div style={{ color: t.textSub, fontSize: 12, marginBottom: 18 }}>
+              The AI project structure generator flagged the following items for review. Provide answers and mark each as resolved.
+            </div>
+
+            {flagsLoading ? (
+              <div style={{ color: t.textSub, fontSize: 13, textAlign: "center", padding: "24px 0" }}>Loading…</div>
+            ) : flags.length === 0 ? (
+              <div style={{ color: t.textSub, fontSize: 13, textAlign: "center", padding: "24px 0" }}>No setup flags for this project.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {flags.map(f => (
+                  <div key={f.id} style={{
+                    background: f.resolved ? t.greenSoft : t.amberSoft,
+                    border: `1px solid ${f.resolved ? t.green + "25" : t.amber + "25"}`,
+                    borderRadius: 10, padding: "14px 16px",
+                  }}>
+                    <div style={{ color: t.text, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
+                      {f.resolved && <span style={{ color: t.green, marginRight: 6 }}>✓</span>}
+                      {f.question}
+                    </div>
+                    {!f.resolved && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <input
+                          type="text"
+                          placeholder="Your answer (optional)"
+                          value={f.answer || ""}
+                          onChange={e => setFlags(fs => fs.map(x => x.id === f.id ? { ...x, answer: e.target.value } : x))}
+                          style={{
+                            flex: 1, background: t.surfaceHigh, border: `1px solid ${t.border}`,
+                            borderRadius: 6, padding: "6px 10px", fontSize: 12, color: t.text,
+                            outline: "none", fontFamily: "inherit",
+                          }}
+                        />
+                        <Btn t={t} disabled={savingFlag === f.id} onClick={() => resolveFlag(f)} style={{ padding: "4px 12px", fontSize: 11 }}>
+                          {savingFlag === f.id ? "…" : "Resolve"}
+                        </Btn>
+                      </div>
+                    )}
+                    {f.resolved && f.answer && (
+                      <div style={{ color: t.textSub, fontSize: 12, marginTop: 4 }}>Answer: {f.answer}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <SectionLabel t={t}>All Projects ({projects.length})</SectionLabel>
         <Btn t={t} onClick={() => setShowModal(true)}>+ New Project</Btn>
@@ -675,7 +753,7 @@ function ProjectsTab({ t }) {
           <Btn t={t} onClick={() => setShowModal(true)}>+ Create First Project</Btn>
         </div>
       ) : (
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
           {/* Header */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 130px", borderBottom: `1px solid ${t.border}` }}>
             {["Client", "Project", "Status", "Progress", "Actions"].map((h, i) => (
@@ -690,7 +768,18 @@ function ProjectsTab({ t }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 130px", alignItems: "center" }}>
                   <div style={{ padding: "14px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{p.client_name}</div>
                   <div style={{ padding: "14px 18px" }}>
-                    <div style={{ color: t.text, fontSize: 13 }}>{p.name}</div>
+                    <div style={{ color: t.text, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                      {p.name}
+                      {flagCounts[p.id] > 0 && (
+                        <span style={{
+                          background: t.amberSoft, color: t.amber, border: `1px solid ${t.amber}25`,
+                          borderRadius: 99, padding: "1px 7px", fontSize: 10, fontWeight: 700,
+                          cursor: "pointer", whiteSpace: "nowrap",
+                        }} onClick={() => openFlags(p)} title="Setup flags require attention">
+                          {flagCounts[p.id]} flag{flagCounts[p.id] > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{p.phase}</div>
                   </div>
                   <div style={{ padding: "14px 18px" }}>
@@ -860,7 +949,7 @@ function OnboardingTab({ t }) {
     <>
       {showModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", overflowY: "auto", maxHeight: "90vh" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
               <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>New Proposal</span>
               <button onClick={() => { setShowModal(false); setCopyLink(""); }} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -954,7 +1043,7 @@ function OnboardingTab({ t }) {
           <Btn t={t} onClick={() => { setShowModal(true); setCopyLink(""); }}>+ Create First Proposal</Btn>
         </div>
       ) : (
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 80px", borderBottom: `1px solid ${t.border}` }}>
             {["Client", "Email", "Project", "Status", "Created", ""].map((h, i) => (
               <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
@@ -1049,7 +1138,7 @@ function ClientsTab({ t, mode }) {
     <>
       {assignModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", overflowY: "auto", maxHeight: "90vh" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
               <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Invite to Project</span>
               <button onClick={() => setAssignModal(null)} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
@@ -1081,7 +1170,7 @@ function ClientsTab({ t, mode }) {
       ) : clients.length === 0 ? (
         <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>No client users found.</div>
       ) : (
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px 100px", borderBottom: `1px solid ${t.border}` }}>
             {["Name / Email", "Assigned Projects", "Onboarding", "Status", ""].map((h, i) => (
               <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
@@ -1158,7 +1247,7 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
           <span style={{ color: t.textSub, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Admin Panel</span>
           <div style={{ width: 1, height: 16, background: t.border }} />
           {/* Tabs */}
-          <div style={{ display: "flex", gap: 0 }}>
+          <div style={{ display: "flex", gap: 0, overflowX: "auto", flexWrap: "nowrap" }}>
             {[["users", "Users"], ["projects", "Projects"], ["onboarding", "Onboarding"], ["clients", "Clients"]].map(([key, label]) => (
               <button
                 key={key}

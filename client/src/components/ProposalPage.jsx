@@ -123,7 +123,7 @@ export default function ProposalPage({ token }) {
     return (
       <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
         <Logo />
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow, maxHeight: "90vh", overflowY: "auto" }}>
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
           <h2 style={{ color: t.text, fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Link Invalid or Expired</h2>
           <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>
@@ -173,7 +173,7 @@ export default function ProposalPage({ token }) {
 
     return (
       <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "44px 36px", maxWidth: 480, width: "100%", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "44px 36px", maxWidth: 480, width: "100%", boxShadow: t.shadow, overflowY: "auto", maxHeight: "90vh" }}>
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
             <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 8px" }}>Proposal Accepted</h2>
@@ -246,7 +246,7 @@ export default function ProposalPage({ token }) {
         <span style={{ color: t.textSub, fontSize: 12 }}>For {proposal.client_name}</span>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 16px", paddingBottom: 80 }}>
         {/* Info */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ color: t.textSub, fontSize: 12, marginBottom: 6 }}>Proposal for</div>
@@ -262,15 +262,14 @@ export default function ProposalPage({ token }) {
             <iframe
               src={proposal.pdf_url}
               width="100%"
-              height="700"
-              style={{ display: "block", border: "none" }}
+              style={{ display: "block", border: "none", height: "min(700px, 70vh)" }}
               title="Proposal PDF"
             />
           </div>
         )}
 
         {/* Acceptance form */}
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "32px 28px", boxShadow: t.shadow }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "32px 28px", boxShadow: t.shadow, paddingBottom: 40 }}>
           <h3 style={{ color: t.text, fontSize: 16, fontWeight: 500, margin: "0 0 20px" }}>Accept this Proposal</h3>
           <form onSubmit={handleAccept} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>

@@ -88,7 +88,7 @@ export default function SetPasswordPage() {
       color: t.text,
       padding: 24,
     }}>
-      <div style={{ width: "100%", maxWidth: 380, display: "flex", flexDirection: "column", gap: 28 }}>
+      <div style={{ width: "100%", maxWidth: 380, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 28 }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <LogoLight h={24} />
           <div style={{ textAlign: "center" }}>
