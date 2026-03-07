@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5000/ | head -50)",
+      "Bash(node_modules/.bin/vite build --mode development 2>&1 | tail -50)",
+      "Bash(curl -s http://localhost:5000/src/components/Dashboard.jsx 2>&1 | head -5)",
+      "Bash(curl -s \"http://localhost:5000/src/components/Dashboard.jsx\" 2>&1 | grep -o 'SyntaxError[^\"]*\\\\|ReferenceError[^\"]*\\\\|TypeError[^\"]*' | head -10)",
+      "Bash(node --input-type=module --eval \"\nimport { readFileSync } from 'fs';\nconst src = readFileSync\\('/home/runner/workspace/client/src/components/Dashboard.jsx', 'utf8'\\);\n// Just check for obvious issues\nconst lines = src.split\\('\\\\n'\\);\nlines.forEach\\(\\(line, i\\) => {\n  if \\(line.includes\\('projects.filter'\\) || line.includes\\('projects.map'\\) || line.includes\\('projects.find'\\)\\) {\n    console.log\\(i+1, line.trim\\(\\)\\);\n  }\n}\\);\n\" 2>&1)",
+      "Bash(grep -r 'VITE_SUPABASE' /home/runner/workspace/.env* 2>/dev/null; ls /home/runner/workspace/.env* 2>/dev/null)",
+      "Bash(ls /home/runner/workspace/ && env | grep -i VITE 2>/dev/null || true)",
+      "Bash(env | grep -i supabase; env | grep -i vite; printenv VITE_SUPABASE_URL 2>/dev/null || echo \"NOT SET\")",
+      "Bash(ls -la /home/runner/workspace/.env* /home/runner/workspace/client/.env* 2>/dev/null || echo \"No .env files found\")",
+      "Bash(node -e \"const pkg=require\\('./package.json'\\); console.log\\(JSON.stringify\\({deps:pkg.dependencies, devDeps:pkg.devDependencies}, null, 2\\)\\)\" 2>/dev/null || cat package.json | grep -A50 dependencies)",
+      "Bash(node -e \"console.log\\(require\\('./package.json'\\).type || 'no type field'\\)\")",
+      "Bash(pkill -9 -f \"tsx\" 2>/dev/null; pkill -9 -f \"node.*server\" 2>/dev/null; sleep 1; echo \"done\")",
+      "Bash(npx vite build --mode development 2>&1 | tail -20)",
+      "Bash(npx vite build --mode development 2>&1 | grep -i \"postcss\\\\|error\\\\|warning\\\\|built\")",
+      "Bash(node -e \"console.log\\(require\\('tailwindcss/package.json'\\).version\\); console.log\\('postcss:', require\\('postcss/package.json'\\).version\\)\")",
+      "Bash(npm install postcss@~8.4.49 2>&1 | tail -5)",
+      "Bash(node -e \"console.log\\('postcss:', require\\('postcss/package.json'\\).version\\)\" && npx vite build --mode development 2>&1 | grep -i \"postcss\\\\|error\\\\|built\")",
+      "Bash(npm install postcss@8.4.31 2>&1 | tail -3 && npx vite build --mode development 2>&1 | grep -i \"postcss\\\\|error\\\\|built\")",
+      "Bash(npm install postcss@8.4.27 2>&1 | tail -3 && npx vite build --mode development 2>&1 | grep -i \"postcss\\\\|error\\\\|built\")",
+      "Bash(node -e \"console.log\\(require\\('vite/package.json'\\).version\\)\")",
+      "Bash(npm install postcss@^8.4.47 2>&1 | tail -3)",
+      "Bash(node -e \"console.log\\(require\\('@tailwindcss/vite/package.json'\\).version\\)\")",
+      "Bash(ls node_modules/@tailwindcss/vite/package.json && node -e \"const fs=require\\('fs'\\); const p=JSON.parse\\(fs.readFileSync\\('node_modules/@tailwindcss/vite/package.json','utf8'\\)\\); console.log\\(p.version\\)\")",
+      "Bash(npx vite build --mode development 2>&1 | tail -15)",
+      "Bash(npm install tailwindcss@4 2>&1 | tail -5)",
+      "Bash(timeout 8 npm run dev 2>&1; true)",
+      "Bash(npx vite build --mode development 2>&1 | grep -c \"PostCSS\")"
+    ]
+  }
+}

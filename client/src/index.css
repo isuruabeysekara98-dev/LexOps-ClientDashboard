@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
 
 /* LIGHT MODE */
 :root {
@@ -208,11 +207,20 @@
 
 @layer base {
   * {
+    box-sizing: border-box;
     @apply border-border;
   }
 
+  html,
   body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  #root {
+    height: 100%;
   }
 }
 
