@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const themes = {
@@ -142,6 +142,7 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log("[InviteModal] sending:", form);
       const res = await fetch("/api/admin/invite-user", {
         method: "POST",
         headers: {
@@ -151,9 +152,11 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
         body: JSON.stringify(form),
       });
       const json = await res.json();
+      console.log("[InviteModal] response:", res.status, json);
       if (!res.ok) { setError(json.message || "Failed to invite user"); setSaving(false); return; }
       onSuccess();
     } catch (err) {
+      console.error("[InviteModal] error:", err);
       setError("Network error");
     }
     setSaving(false);
@@ -340,14 +343,18 @@ function UsersTab({ t, mode }) {
   const [inviteLogs, setInviteLogs] = useState([]);
   const [inviteLogOpen, setInviteLogOpen] = useState(false);
   const [inviteLogLoading, setInviteLogLoading] = useState(false);
+  const fetchingRef = useRef(false);
 
   const loadUsers = useCallback(async () => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     setLoading(true);
+
     const { data: profiles, error: profErr } = await supabase
       .from("profiles")
       .select("*")
       .order("created_at", { ascending: false });
-    console.log("[UsersTab] profiles query:", { count: profiles?.length, error: profErr?.message });
+    console.log("[UsersTab] profiles query:", { count: profiles?.length, error: profErr?.message, rows: profiles });
 
     let pendingInvites = [];
     try {
@@ -371,6 +378,7 @@ function UsersTab({ t, mode }) {
     console.log("[UsersTab] total users to render:", allUsers.length);
     setUsers(allUsers);
     setLoading(false);
+    fetchingRef.current = false;
   }, []);
 
   const loadInviteLogs = useCallback(async () => {
@@ -396,11 +404,15 @@ function UsersTab({ t, mode }) {
   async function resendInvite(log) {
     setResending(log.id);
     const { data: { session } } = await supabase.auth.getSession();
+    const body = { email: log.email, full_name: log.full_name, role: log.role };
+    console.log("[resendInvite] sending:", body);
     const resp = await fetch("/api/admin/invite-user", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ email: log.email, full_name: log.full_name, role: log.role }),
+      body: JSON.stringify(body),
     });
+    const json = await resp.json().catch(() => ({}));
+    console.log("[resendInvite] response:", resp.status, json);
     setResending(null);
     if (resp.ok) {
       setResent(log.id);
