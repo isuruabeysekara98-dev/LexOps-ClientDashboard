@@ -36,6 +36,27 @@ async function fetchUserProfile(userId: string) {
 }
 
 function App() {
+  // ── Public routes: check BEFORE any auth hooks ──
+  // These must be completely outside the auth flow.
+  const pathname = window.location.pathname;
+  const hash = window.location.hash;
+
+  // Invite / recovery token in URL hash — show password setup page
+  if (hash && (hash.includes("type=invite") || hash.includes("type=recovery"))) {
+    return <SetPasswordPage />;
+  }
+
+  // Public route: /proposal/:token
+  const proposalMatch = pathname.match(/^\/proposal\/([a-f0-9-]+)$/i);
+  if (proposalMatch) {
+    return <ProposalPage token={proposalMatch[1]} />;
+  }
+
+  // ── Auth flow (only runs for non-public routes) ──
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
   const [session, setSession] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -131,18 +152,6 @@ function App() {
 
     return () => { mounted = false; clearTimeout(timeout); subscription.unsubscribe(); };
   }, []);
-
-  // Invite / recovery token in URL hash — show password setup page
-  const hash = window.location.hash;
-  if (hash && (hash.includes("type=invite") || hash.includes("type=recovery"))) {
-    return <SetPasswordPage />;
-  }
-
-  // Public route: /proposal/:token
-  const proposalMatch = window.location.pathname.match(/^\/proposal\/([a-f0-9-]+)$/i);
-  if (proposalMatch) {
-    return <ProposalPage token={proposalMatch[1]} />;
-  }
 
   if (authLoading) return (
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0f1318"}}>
