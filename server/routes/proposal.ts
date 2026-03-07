@@ -294,6 +294,27 @@ router.post("/accept", async (req: Request, res: Response) => {
   const email = proposal.client_email;
   const fullName = signer_name || proposal.client_name;
 
+  // Update proposal status to accepted (service role bypasses RLS)
+  const { error: statusErr } = await adminSupabase
+    .from("proposals")
+    .update({ status: "accepted" })
+    .eq("id", proposal.id);
+  if (statusErr) console.error("[accept] Proposal status update error:", statusErr.message);
+  else console.log("[accept] Proposal", proposal.id, "marked as accepted");
+
+  // Insert signature record (service role bypasses RLS)
+  if (signer_name) {
+    const { error: sigErr } = await adminSupabase
+      .from("proposal_signatures")
+      .insert({
+        proposal_id: proposal.id,
+        signer_name: signer_name,
+        signer_email: email,
+      });
+    if (sigErr) console.error("[accept] Signature insert error:", sigErr.message);
+    else console.log("[accept] Signature recorded for", signer_name);
+  }
+
   // Send the invite email via Supabase Auth
   const { data, error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: SITE_URL,

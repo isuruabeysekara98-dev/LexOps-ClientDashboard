@@ -951,6 +951,16 @@ function OnboardingTab({ t }) {
     setDeleting(null);
   }
 
+  async function markAccepted(pr) {
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch("/api/proposal/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ token: pr.token, signer_name: pr.client_name }),
+    });
+    await loadAll();
+  }
+
   function copyToClipboard(text) {
     navigator.clipboard.writeText(text).catch(() => {});
   }
@@ -1061,7 +1071,7 @@ function OnboardingTab({ t }) {
         </div>
       ) : (
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 80px", borderBottom: `1px solid ${t.border}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 120px", borderBottom: `1px solid ${t.border}` }}>
             {["Client", "Email", "Project", "Status", "Created", ""].map((h, i) => (
               <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
@@ -1070,15 +1080,16 @@ function OnboardingTab({ t }) {
             const proj = projects.find(p => p.id === pr.project_id);
             return (
               <div key={pr.id}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 80px", alignItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 120px", alignItems: "center" }}>
                   <div style={{ padding: "14px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{pr.client_name}</div>
                   <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 12 }}>{pr.client_email}</div>
                   <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 12 }}>{proj?.name || "—"}</div>
                   <div style={{ padding: "14px 18px" }}><StatusPill status={pr.status} /></div>
                   <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 11 }}>{new Date(pr.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</div>
-                  <div style={{ padding: "14px 18px", display: "flex", gap: 6 }}>
+                  <div style={{ padding: "14px 18px", display: "flex", gap: 5, flexWrap: "wrap" }}>
                     <button onClick={() => copyToClipboard(`${window.location.origin}/proposal/${pr.token}`)} title="Copy link" style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.textSub, fontSize: 12 }}>🔗</button>
                     <button onClick={() => sendProposalEmail(pr)} disabled={emailSending === pr.id} title={emailSent === pr.id ? "Sent!" : "Send via email"} style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: emailSending === pr.id ? "not-allowed" : "pointer", color: emailSent === pr.id ? t.green : t.textSub, fontSize: 12, opacity: emailSending === pr.id ? 0.5 : 1 }}>{emailSent === pr.id ? "✓" : "✉"}</button>
+                    {pr.status !== "accepted" && <button onClick={() => markAccepted(pr)} title="Mark as accepted" style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.green, fontSize: 13 }}>✓</button>}
                     <button onClick={() => deleteProposal(pr.id)} disabled={deleting === pr.id} title="Delete" style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.red, fontSize: 15, opacity: deleting === pr.id ? 0.4 : 1 }}>×</button>
                   </div>
                 </div>

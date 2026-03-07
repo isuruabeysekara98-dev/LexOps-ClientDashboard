@@ -83,20 +83,9 @@ export default function ProposalPage({ token }) {
     if (!signerName.trim() || !agreed) return;
     setSubmitting(true);
 
-    await supabase.from("proposal_signatures").insert({
-      proposal_id: proposal.id,
-      signer_name: signerName.trim(),
-      signer_email: proposal.client_email,
-    });
-
-    await supabase
-      .from("proposals")
-      .update({ status: "accepted" })
-      .eq("id", proposal.id);
-
-    // Trigger the invite email via the server endpoint (no auth needed for this call — server uses service role)
+    // Server handles: status update, signature insert, user invite, email notifications
     try {
-      await fetch("/api/proposal/accept", {
+      const resp = await fetch("/api/proposal/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,8 +93,12 @@ export default function ProposalPage({ token }) {
           signer_name: signerName.trim(),
         }),
       });
-    } catch (_) {
-      // Non-critical — invite can be sent manually
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        console.error("[proposal] Accept failed:", data.message);
+      }
+    } catch (err) {
+      console.error("[proposal] Accept request failed:", err);
     }
 
     setAccepted(true);

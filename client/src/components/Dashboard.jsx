@@ -1275,42 +1275,20 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
       fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,padding:24,
     }}>
-      <div style={{width:"100%",maxWidth:560,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
-        <LogoLight h={28}/>
+      <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
+        <LogoDark h={28}/>
         <div style={{textAlign:"center"}}>
-          <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 12px",color:t.text}}>
+          <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 16px",color:t.text}}>
             Welcome, {firstName}.
           </h1>
-          {project?.client_summary && (
-            <p style={{color:t.textSub,fontSize:15,lineHeight:1.8,margin:0,maxWidth:480}}>
+          {project?.client_summary ? (
+            <p style={{color:t.textSub,fontSize:15,lineHeight:1.8,margin:"0 0 16px",maxWidth:480}}>
               {project.client_summary}
             </p>
-          )}
-        </div>
-
-        <div style={{
-          display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,width:"100%",
-        }}>
-          {[
-            {step:"1",icon:"⚙",title:"We do the work",desc:"Our team handles the heavy lifting — building, configuring, and testing everything."},
-            {step:"2",icon:"📊",title:"You stay informed",desc:"Track progress, review deliverables, and provide feedback through your portal."},
-            {step:"3",icon:"✓",title:"We deliver results",desc:"Fully implemented solutions, ready to use, with training and ongoing support."},
-          ].map((s,i)=>(
-            <div key={i} style={{
-              background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"24px 20px",
-              textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:12,
-            }}>
-              <div style={{
-                width:44,height:44,borderRadius:"50%",background:t.accentSoft,border:`1px solid ${t.accent}30`,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
-              }}>{s.icon}</div>
-              <div>
-                <div style={{color:t.textSub,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Step {s.step}</div>
-                <div style={{color:t.text,fontSize:14,fontWeight:500,marginBottom:6}}>{s.title}</div>
-                <div style={{color:t.textSub,fontSize:12,lineHeight:1.6}}>{s.desc}</div>
-              </div>
-            </div>
-          ))}
+          ) : null}
+          <p style={{color:t.textSub,fontSize:14,lineHeight:1.8,margin:0,maxWidth:480}}>
+            Your project is now live on LexOps. Use this portal to track progress, access documents, and stay connected with your team.
+          </p>
         </div>
 
         <button onClick={onDismiss} style={{
