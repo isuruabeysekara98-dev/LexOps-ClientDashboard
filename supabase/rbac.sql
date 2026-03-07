@@ -96,3 +96,84 @@ create policy "project_members: admin write"
         and p.role = 'lexops_admin'
     )
   );
+
+
+-- ============================================================
+-- projects
+-- ============================================================
+alter table public.projects enable row level security;
+
+-- LexOps staff can read all projects
+create policy "projects: staff read all"
+  on public.projects for select
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('lexops_admin', 'lexops_member')
+    )
+  );
+
+-- Clients can read projects they are assigned to
+create policy "projects: client read own"
+  on public.projects for select
+  using (
+    exists (
+      select 1 from public.project_members pm
+      where pm.user_id = auth.uid()
+        and pm.project_id = (projects.id)::integer
+    )
+  );
+
+-- Only admins can insert / update / delete projects
+create policy "projects: admin write"
+  on public.projects for all
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'lexops_admin'
+    )
+  );
+
+
+-- ============================================================
+-- invoices
+-- ============================================================
+-- Add file_url column if it does not already exist
+alter table public.invoices add column if not exists file_url text;
+
+alter table public.invoices enable row level security;
+
+-- LexOps staff can read all invoices
+create policy "invoices: staff read all"
+  on public.invoices for select
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role in ('lexops_admin', 'lexops_member')
+    )
+  );
+
+-- Clients can read invoices for their assigned projects
+create policy "invoices: client read own"
+  on public.invoices for select
+  using (
+    exists (
+      select 1 from public.project_members pm
+      where pm.user_id = auth.uid()
+        and pm.project_id = (invoices.project_id)::integer
+    )
+  );
+
+-- Only admins can insert / update / delete invoices
+create policy "invoices: admin write"
+  on public.invoices for all
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'lexops_admin'
+    )
+  );

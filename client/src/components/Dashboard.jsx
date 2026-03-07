@@ -438,9 +438,86 @@ function DocumentsTab({projectId,initialDocuments,onRefresh,t}) {
   </div>;
 }
 
-function InvoicesTab({invoices,isInternal,t}) {
-  const total=invoices.reduce((s,i)=>s+i.amount,0);
-  const paid=invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+i.amount,0);
+const INVOICE_STATUSES=[["upcoming","Upcoming"],["pending","Pending"],["paid","Paid"]];
+const EMPTY_INVOICE={invoice_number:"",description:"",amount:"",status:"upcoming",due_date:""};
+
+function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t}) {
+  const [invoices,setInvoices]=useState(initialInvoices||[]);
+  const [showAdd,setShowAdd]=useState(false);
+  const [newForm,setNewForm]=useState(EMPTY_INVOICE);
+  const [editingId,setEditingId]=useState(null);
+  const [editForm,setEditForm]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [uploadingId,setUploadingId]=useState(null);
+  const fileRef=useState(()=>({current:null,invoiceId:null}))[0];
+
+  const loadInvoices=useCallback(async()=>{
+    const {data}=await supabase.from("invoices").select("*").eq("project_id",projectId).order("id");
+    if(data) setInvoices(data);
+  },[projectId]);
+
+  useEffect(()=>{loadInvoices();},[loadInvoices]);
+
+  async function addInvoice(e){
+    e.preventDefault();
+    if(!newForm.invoice_number.trim()) return;
+    setSaving(true);
+    await supabase.from("invoices").insert({...newForm,amount:Number(newForm.amount)||0,project_id:projectId});
+    setNewForm(EMPTY_INVOICE);
+    setShowAdd(false);
+    await loadInvoices();
+    setSaving(false);
+    onRefresh?.();
+  }
+
+  function startEdit(inv){
+    setEditingId(inv.id);
+    setEditForm({description:inv.description||"",status:inv.status||"upcoming",due_date:inv.due_date||""});
+  }
+
+  async function saveEdit(e,id){
+    e.preventDefault();
+    setSaving(true);
+    await supabase.from("invoices").update(editForm).eq("id",id);
+    setEditingId(null);
+    await loadInvoices();
+    setSaving(false);
+    onRefresh?.();
+  }
+
+  async function deleteInvoice(id){
+    await supabase.from("invoices").delete().eq("id",id);
+    setInvoices(inv=>inv.filter(x=>x.id!==id));
+    onRefresh?.();
+  }
+
+  async function handlePdfUpload(e,inv){
+    const file=e.target.files?.[0];
+    if(!file) return;
+    e.target.value="";
+    setUploadingId(inv.id);
+    const storagePath=`${projectId}/invoices/${file.name}`;
+    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
+    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setUploadingId(null);return;}
+    const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
+    await supabase.from("invoices").update({file_url:publicUrl}).eq("id",inv.id);
+    await loadInvoices();
+    setUploadingId(null);
+    onRefresh?.();
+  }
+
+  const total=invoices.reduce((s,i)=>s+(i.amount||0),0);
+  const paid=invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+(i.amount||0),0);
+
+  const inlineInput=(value,onChange,placeholder,style={})=>(
+    <input value={value} onChange={onChange} placeholder={placeholder} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,...style}}/>
+  );
+  const inlineSelect=(value,onChange)=>(
+    <select value={value} onChange={onChange} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+      {INVOICE_STATUSES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+    </select>
+  );
+
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {isInternal&&(
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
@@ -452,22 +529,80 @@ function InvoicesTab({invoices,isInternal,t}) {
         ))}
       </div>
     )}
+
+    {isInternal&&(
+      <div style={{display:"flex",justifyContent:"flex-end"}}>
+        <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Invoice</button>
+      </div>
+    )}
+
     <Card t={t}>
-      {invoices.map((inv,i)=>(
-        <div key={i}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 22px"}}>
-            <div>
-              <div style={{color:t.text,fontSize:13,fontWeight:500}}>{inv.description}</div>
-              <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.id} · Due {inv.date}</div>
+      {showAdd&&isInternal&&(
+        <div>
+          <form onSubmit={addInvoice} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
+            {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice #",{flex:"0 1 100px"})}
+            {inlineInput(newForm.description,e=>setNewForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 180px"})}
+            {inlineInput(newForm.amount,e=>setNewForm(f=>({...f,amount:e.target.value})),"Amount",{flex:"0 1 90px",type:"number"})}
+            {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
+            {inlineInput(newForm.due_date,e=>setNewForm(f=>({...f,due_date:e.target.value})),"Due date",{flex:"0 1 120px",type:"date"})}
+            <div style={{display:"flex",gap:6}}>
+              <button type="submit" disabled={saving||!newForm.invoice_number.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.invoice_number.trim()?0.5:1}}>
+                {saving?"…":"Save"}
+              </button>
+              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_INVOICE);}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:16}}>
-              <span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${inv.amount.toLocaleString()}</span>
-              <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
-            </div>
-          </div>
-          {i<invoices.length-1&&<Line t={t}/>}
+          </form>
+          <Line t={t}/>
         </div>
-      ))}
+      )}
+
+      {invoices.length===0&&!showAdd
+        ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No invoices yet.</div>
+        :invoices.map((inv,i)=>{
+          const isEditing=editingId===inv.id;
+          const label=inv.file_url
+            ?<a href={inv.file_url} target="_blank" rel="noreferrer" style={{color:t.accentLight,textDecoration:"none",fontWeight:500,fontSize:13}}>{inv.description||inv.invoice_number}</a>
+            :<span style={{color:t.text,fontSize:13,fontWeight:500}}>{inv.description||inv.invoice_number}</span>;
+          return(
+            <div key={inv.id}>
+              {isEditing?(
+                <form onSubmit={e=>saveEdit(e,inv.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
+                  {inlineInput(editForm.description,e=>setEditForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 180px"})}
+                  {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
+                  {inlineInput(editForm.due_date,e=>setEditForm(f=>({...f,due_date:e.target.value})),"Due date",{flex:"0 1 120px",type:"date"})}
+                  <div style={{display:"flex",gap:6}}>
+                    <button type="submit" disabled={saving} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving?0.5:1}}>
+                      {saving?"…":"Save"}
+                    </button>
+                    <button type="button" onClick={()=>setEditingId(null)} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  </div>
+                </form>
+              ):(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 22px",gap:12}}>
+                  <div style={{minWidth:0}}>
+                    {label}
+                    <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                    <span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>
+                    <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
+                    {isInternal&&(
+                      <>
+                        <input type="file" accept=".pdf" style={{display:"none"}} ref={r=>{if(fileRef.invoiceId===inv.id)fileRef.current=r;}} onChange={e=>handlePdfUpload(e,inv)}/>
+                        <button onClick={()=>{fileRef.invoiceId=inv.id;setTimeout(()=>{const input=document.createElement("input");input.type="file";input.accept=".pdf";input.onchange=e=>handlePdfUpload(e,inv);input.click();},0);}} disabled={uploadingId===inv.id} title="Upload PDF" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:uploadingId===inv.id?"not-allowed":"pointer",color:t.accentLight,fontFamily:"inherit",opacity:uploadingId===inv.id?0.4:1}}>
+                          {uploadingId===inv.id?"…":"PDF ↑"}
+                        </button>
+                        <button onClick={()=>startEdit(inv)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
+                        <button onClick={()=>deleteInvoice(inv.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              {i<invoices.length-1&&<Line t={t}/>}
+            </div>
+          );
+        })}
     </Card>
   </div>;
 }
@@ -1056,7 +1191,9 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
         if(allowedProjectIds.length===0){setProjects([]);setLoading(false);return;}
         query=query.in("id",allowedProjectIds);
       }
-      const {data:rows}=await query.order("id");
+      const {data:rows,error:queryErr}=await query.order("id");
+      if(queryErr) console.error("[Dashboard] projects query error:",queryErr.code,queryErr.message);
+      console.log("[Dashboard] projects query returned:",rows?.length??0,"rows");
       if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
       const full=await Promise.all(rows.map(async row=>{
         const related=await fetchProjectData(row.id);
@@ -1163,7 +1300,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               {tab==="timeline"    &&<TimelineTab     projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="tasks"       &&<TasksTab        projectId={selected.id} initialTasks={selected.tasks} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="documents"   &&<DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="invoices"    &&<InvoicesTab     invoices={selected.invoices} isInternal={view==="internal"} t={t}/>}
+              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="maintenance" &&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
