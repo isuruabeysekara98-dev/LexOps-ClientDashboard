@@ -344,10 +344,12 @@ router.post("/accept", async (req: Request, res: Response) => {
 
   // Ensure project membership exists
   if (projectId) {
-    await adminSupabase.from("project_members").upsert(
+    console.log("[accept] Linking project_members:", { project_id: projectId, user_id: newUserId });
+    const { error: memberErr } = await adminSupabase.from("project_members").upsert(
       { project_id: projectId, user_id: newUserId, role: "member" },
       { onConflict: "project_id,user_id" }
     );
+    if (memberErr) console.error("[accept] project_members upsert error:", memberErr.message);
 
     // Fire-and-forget: generate project structure from proposal PDF
     if (proposal.storage_path) {

@@ -66,7 +66,7 @@ create policy "profiles: admin write"
 -- ============================================================
 create table if not exists public.project_members (
   id          bigserial primary key,
-  project_id  integer not null,   -- matches the numeric id in the projects data
+  project_id  uuid not null,
   user_id     uuid not null references public.profiles (id) on delete cascade,
   role        text not null check (role in ('owner', 'member', 'viewer')),
   created_at  timestamptz not null default now(),
@@ -126,7 +126,7 @@ create policy "projects: client read own"
     exists (
       select 1 from public.project_members pm
       where pm.user_id = auth.uid()
-        and pm.project_id = (projects.id)::integer
+        and pm.project_id = projects.id
     )
   );
 
@@ -168,7 +168,7 @@ create policy "invoices: client read own"
     exists (
       select 1 from public.project_members pm
       where pm.user_id = auth.uid()
-        and pm.project_id = (invoices.project_id)::integer
+        and pm.project_id = invoices.project_id
     )
   );
 

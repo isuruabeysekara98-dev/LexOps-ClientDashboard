@@ -1643,10 +1643,12 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
       setLoading(true);
       let query=supabase.from("projects").select("*, clients(name)");
       if(isClient){
-        if(allowedProjectIds.length===0){setProjects([]);setLoading(false);return;}
+        console.log("[Dashboard] Client allowedProjectIds:", allowedProjectIds);
+        if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);setLoading(false);return;}
         query=query.in("id",allowedProjectIds);
       }
       const {data:rows,error:queryErr}=await query.order("id");
+      if(isClient) console.log("[Dashboard] Projects query result:", {rows, error: queryErr});
       if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
       const full=await Promise.all(rows.map(async row=>{
         const related=await fetchProjectData(row.id);
