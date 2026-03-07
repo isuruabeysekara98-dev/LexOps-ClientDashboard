@@ -23,19 +23,29 @@ async function generateProjectStructure(projectId: number, proposalStoragePath: 
     return;
   }
 
-  // Fetch PDF from Supabase Storage
-  const { data: fileData, error: fileErr } = await adminSupabase
+  // Fetch PDF from Supabase Storage via signed URL
+  console.log("[ai-structure] Downloading PDF from storage path:", proposalStoragePath);
+  const { data: signedData, error: signedErr } = await adminSupabase
     .storage
-    .from("proposals")
-    .download(proposalStoragePath);
+    .from("project-documents")
+    .createSignedUrl(proposalStoragePath, 60);
 
-  if (fileErr || !fileData) {
-    console.error("[ai-structure] Failed to download PDF:", fileErr?.message);
+  if (signedErr || !signedData?.signedUrl) {
+    console.error("[ai-structure] Failed to create signed URL:", signedErr?.message);
+    await insertFallbackFlags(projectId, "Could not download proposal PDF");
+    return;
+  }
+  console.log("[ai-structure] Signed URL created successfully");
+
+  const pdfResponse = await fetch(signedData.signedUrl);
+  console.log("[ai-structure] PDF fetch status:", pdfResponse.status);
+  if (!pdfResponse.ok) {
+    console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText);
     await insertFallbackFlags(projectId, "Could not download proposal PDF");
     return;
   }
 
-  const buffer = Buffer.from(await fileData.arrayBuffer());
+  const buffer = Buffer.from(await pdfResponse.arrayBuffer());
   const base64Pdf = buffer.toString("base64");
 
   const anthropic = new Anthropic({ apiKey });

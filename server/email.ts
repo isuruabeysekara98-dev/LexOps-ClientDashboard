@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const FROM = "LexOps <noreply@lex-ops.io>";
 const REPLY_TO = "hello@teamsquared.io";
@@ -45,6 +45,10 @@ const subText = (text: string) =>
   `<p style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">${text}</p>`;
 
 async function send(to: string, subject: string, html: string) {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipping "${subject}" to ${to}`);
+    return;
+  }
   try {
     await resend.emails.send({ from: FROM, replyTo: REPLY_TO, to, subject, html });
   } catch (err: any) {
