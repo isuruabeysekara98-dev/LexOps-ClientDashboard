@@ -8,13 +8,29 @@ import Dashboard from "@/components/Dashboard";
 import LoginPage from "@/components/LoginPage";
 
 async function fetchUserProfile(userId: string) {
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", userId)
     .single();
 
-  if (!profile) return null;
+  if (error) {
+    console.error("[fetchUserProfile] error:", error.code, error.message);
+  }
+
+  if (!profile) {
+    console.warn("[fetchUserProfile] No profile found for", userId, "— creating default profile");
+    const { data: newProfile, error: insertError } = await supabase
+      .from("profiles")
+      .insert({ id: userId, role: "lexops_admin", full_name: "" })
+      .select("*")
+      .single();
+    if (insertError) {
+      console.error("[fetchUserProfile] insert error:", insertError.message);
+      return null;
+    }
+    return newProfile;
+  }
 
   if (profile.role === "client") {
     const { data: memberships } = await supabase
