@@ -237,13 +237,13 @@ function InviteModal({ onClose, onSuccess, t, mode }) {
 // Project Modal (create + edit)
 // ---------------------------------------------------------------------------
 const EMPTY_PROJECT_FORM = {
-  client_name: "", project: "", phase: "", due_date: "",
+  client_name: "", name: "", phase: "", due_date: "",
   manager: "", budget: "", summary: "", status: "active", progress: 0,
 };
 
 function ProjectModal({ project, onClose, onSuccess, t }) {
   const [form, setForm] = useState(project
-    ? { ...project, budget: String(project.budget ?? ""), progress: project.progress ?? 0 }
+    ? { ...project, name: project.name || project.project || "", budget: String(project.budget ?? ""), progress: project.progress ?? 0 }
     : { ...EMPTY_PROJECT_FORM }
   );
   const [saving, setSaving] = useState(false);
@@ -289,7 +289,7 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
         <form onSubmit={handleSubmit}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
             {field("Client Name",  <Input t={t} value={form.client_name} onChange={set("client_name")} placeholder="Acme Corp" />, true)}
-            {field("Project Name", <Input t={t} value={form.project}     onChange={set("project")}     placeholder="CRM Implementation" />, true)}
+            {field("Project Name", <Input t={t} value={form.name}         onChange={set("name")}         placeholder="CRM Implementation" />, true)}
             {field("Phase",        <Input t={t} value={form.phase}       onChange={set("phase")}       placeholder="Implementation" />, true)}
             {field("Due Date",     <Input t={t} type="date" value={form.due_date} onChange={set("due_date")} />, true)}
             {field("Manager",      <Input t={t} value={form.manager}     onChange={set("manager")}     placeholder="Jane Smith" />, true)}
@@ -512,7 +512,7 @@ function ProjectsTab({ t }) {
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 130px", alignItems: "center" }}>
                   <div style={{ padding: "14px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{p.client_name}</div>
                   <div style={{ padding: "14px 18px" }}>
-                    <div style={{ color: t.text, fontSize: 13 }}>{p.project}</div>
+                    <div style={{ color: t.text, fontSize: 13 }}>{p.name}</div>
                     <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{p.phase}</div>
                   </div>
                   <div style={{ padding: "14px 18px" }}>
