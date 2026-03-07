@@ -21,17 +21,9 @@ async function fetchUserProfile(userId: string) {
   }
 
   if (!profile) {
-    console.warn("[fetchUserProfile] No profile found for", userId, "— creating default profile");
-    const { data: newProfile, error: insertError } = await supabase
-      .from("profiles")
-      .insert({ id: userId, role: "lexops_admin", full_name: "" })
-      .select("*")
-      .single();
-    if (insertError) {
-      console.error("[fetchUserProfile] insert error:", insertError.message);
-      return null;
-    }
-    return newProfile;
+    console.warn("[fetchUserProfile] No profile found for", userId, "— signing out");
+    await supabase.auth.signOut();
+    return { __noProfile: true };
   }
 
   if (profile.role === "client") {
@@ -52,6 +44,7 @@ function App() {
   const [session, setSession] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -75,6 +68,12 @@ function App() {
         let profile = await fetchUserProfile(session.user.id);
         console.log("[Auth] profile fetch result:", profile);
 
+        // No profile found — user was signed out by fetchUserProfile
+        if (profile?.__noProfile) {
+          if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          return;
+        }
+
         // If profile is null, the session token may be stale — try refreshing
         if (!profile && mounted) {
           console.log("[Auth] Profile null — attempting session refresh");
@@ -84,6 +83,10 @@ function App() {
             setSession(refreshData.session);
             profile = await fetchUserProfile(refreshData.session.user.id);
             console.log("[Auth] profile after refresh:", profile);
+            if (profile?.__noProfile) {
+              if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+              return;
+            }
           }
         }
 
@@ -103,6 +106,10 @@ function App() {
       setSession(session);
       if (session?.user) {
         const profile = await fetchUserProfile(session.user.id);
+        if (profile?.__noProfile) {
+          if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          return;
+        }
         if (mounted) setUserProfile(profile);
       } else {
         setUserProfile(null);
@@ -137,7 +144,7 @@ function App() {
         <Toaster />
         {session
           ? <Dashboard onLogout={() => supabase.auth.signOut()} userProfile={userProfile} />
-          : <LoginPage />
+          : <LoginPage authError={authError} />
         }
       </TooltipProvider>
     </QueryClientProvider>

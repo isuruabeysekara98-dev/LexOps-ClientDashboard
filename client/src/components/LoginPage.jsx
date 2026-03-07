@@ -24,7 +24,7 @@ function LogoLight({ h = 24 }) {
   );
 }
 
-export default function LoginPage() {
+export default function LoginPage({ authError: externalError } = {}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -121,7 +121,7 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {(error || externalError) && (
               <div style={{
                 background: "rgba(248,113,113,0.08)",
                 border: "1px solid rgba(248,113,113,0.2)",
@@ -130,7 +130,7 @@ export default function LoginPage() {
                 color: t.red,
                 fontSize: 12,
               }}>
-                {error}
+                {error || externalError}
               </div>
             )}
 

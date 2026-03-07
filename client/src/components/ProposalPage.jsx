@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const anonSupabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from "@/lib/supabase.js";
 
 const t = {
   bg: "#0f1318", surface: "#161c24", surfaceHigh: "#1c2330",
@@ -40,7 +36,7 @@ export default function ProposalPage({ token }) {
 
   useEffect(() => {
     async function load() {
-      const { data, error: err } = await anonSupabase
+      const { data, error: err } = await supabase
         .from("proposals")
         .select("*")
         .eq("token", token)
@@ -57,7 +53,7 @@ export default function ProposalPage({ token }) {
       if (data.status === "accepted") {
         setAccepted(true);
       } else if (data.status === "sent") {
-        await anonSupabase
+        await supabase
           .from("proposals")
           .update({ status: "viewed" })
           .eq("id", data.id);
@@ -65,7 +61,7 @@ export default function ProposalPage({ token }) {
       }
 
       if (data.project_id) {
-        const { data: proj } = await anonSupabase
+        const { data: proj } = await supabase
           .from("projects")
           .select("name, client_name")
           .eq("id", data.project_id)
@@ -83,13 +79,13 @@ export default function ProposalPage({ token }) {
     if (!signerName.trim() || !agreed) return;
     setSubmitting(true);
 
-    await anonSupabase.from("proposal_signatures").insert({
+    await supabase.from("proposal_signatures").insert({
       proposal_id: proposal.id,
       signer_name: signerName.trim(),
       signer_email: proposal.client_email,
     });
 
-    await anonSupabase
+    await supabase
       .from("proposals")
       .update({ status: "accepted" })
       .eq("id", proposal.id);
@@ -143,7 +139,7 @@ export default function ProposalPage({ token }) {
     if (acctPassword.length < 8) { setAcctError("Password must be at least 8 characters."); return; }
     if (acctPassword !== acctConfirm) { setAcctError("Passwords do not match."); return; }
     setAcctLoading(true);
-    const { error: signUpErr } = await anonSupabase.auth.signUp({
+    const { error: signUpErr } = await supabase.auth.signUp({
       email: proposal.client_email,
       password: acctPassword,
       options: { data: { full_name: proposal.client_name, role: "client" } },
