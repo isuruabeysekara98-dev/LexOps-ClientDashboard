@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase.js";
 import Dashboard from "@/components/Dashboard";
 import LoginPage from "@/components/LoginPage";
+import ProposalPage from "@/components/ProposalPage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -49,32 +50,46 @@ async function fetchUserProfile(userId: string) {
 function App() {
   const [session, setSession] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
     supabase.auth.getSession().then(async ({ data: { session } }: any) => {
+      if (!mounted) return;
       setSession(session);
       if (session?.user) {
         const profile = await fetchUserProfile(session.user.id);
-        setUserProfile(profile);
+        if (mounted) setUserProfile(profile);
       }
-      setLoading(false);
+      if (mounted) setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
+      if (!mounted) return;
       setSession(session);
       if (session?.user) {
         const profile = await fetchUserProfile(session.user.id);
-        setUserProfile(profile);
+        if (mounted) setUserProfile(profile);
       } else {
         setUserProfile(null);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
-  if (loading) return null;
+  // Public route: /proposal/:token
+  const proposalMatch = window.location.pathname.match(/^\/proposal\/([a-f0-9-]+)$/i);
+  if (proposalMatch) {
+    return <ProposalPage token={proposalMatch[1]} />;
+  }
+
+  if (authLoading) return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0f1318"}}>
+      <div style={{width:32,height:32,border:"2px solid rgba(255,255,255,0.07)",borderTop:"2px solid #4a7fa5",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 
   return (
     <QueryClientProvider client={queryClient}>

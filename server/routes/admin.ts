@@ -8,6 +8,8 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
+
 // ---------------------------------------------------------------------------
 // Middleware: extract Bearer token, verify user, confirm lexops_admin role
 // ---------------------------------------------------------------------------
@@ -60,6 +62,7 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
 
   // Send the invite email via Supabase Auth
   const { data, error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
+    redirectTo: SITE_URL,
     data: { full_name, role },
   });
 

@@ -1,6 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AdminPanel from "./AdminPanel";
 import { supabase } from "@/lib/supabase.js";
+
+function useIsMobile(breakpoint=768){
+  const [mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<breakpoint);
+  useEffect(()=>{
+    const mq=window.matchMedia(`(max-width:${breakpoint-1}px)`);
+    const handler=(e)=>setMobile(e.matches);
+    mq.addEventListener("change",handler);
+    setMobile(mq.matches);
+    return()=>mq.removeEventListener("change",handler);
+  },[breakpoint]);
+  return mobile;
+}
 
 const themes = {
   dark: {
@@ -133,7 +145,7 @@ function SidebarRow({p,active,onClick,t}) {
   </div>;
 }
 
-function OverviewTab({project,isInternal,t}) {
+function OverviewTab({project,isInternal,t,mobile}) {
   const daysLeft=Math.ceil((new Date(project.dueDate)-new Date())/86400000);
   const done=project.tasks.filter(tk=>tk.status==="done").length;
   const stats=[
@@ -146,7 +158,7 @@ function OverviewTab({project,isInternal,t}) {
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
-    <div style={{display:"grid",gridTemplateColumns:`repeat(${stats.length},1fr)`,gap:12}}>
+    <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":`repeat(${stats.length},1fr)`,gap:12}}>
       {stats.map((s,i)=>(
         <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
           <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
@@ -196,7 +208,7 @@ function OverviewTab({project,isInternal,t}) {
 const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
 const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo"};
 
-function TasksTab({projectId,initialTasks,isInternal,onRefresh,t}) {
+function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
   const [tasks,setTasks]=useState(initialTasks||[]);
   const [filter,setFilter]=useState("all");
   const [showAdd,setShowAdd]=useState(false);
@@ -313,7 +325,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t}) {
                   </div>
                 </form>
               ):(
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 18px",gap:12}}>
+                <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"13px 18px",gap:mobile?10:12}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
                     <div style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
                       {task.status==="done"&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
@@ -323,7 +335,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t}) {
                       {isInternal&&task.assignee&&<div style={{color:t.textDim,fontSize:11,marginTop:1}}>{task.assignee}</div>}
                     </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
                     <span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due}</span>
                     <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
                     <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
@@ -441,7 +453,7 @@ function DocumentsTab({projectId,initialDocuments,onRefresh,t}) {
 const INVOICE_STATUSES=[["upcoming","Upcoming"],["pending","Pending"],["paid","Paid"]];
 const EMPTY_INVOICE={invoice_number:"",description:"",amount:"",status:"upcoming",due_date:""};
 
-function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t}) {
+function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) {
   const [invoices,setInvoices]=useState(initialInvoices||[]);
   const [showAdd,setShowAdd]=useState(false);
   const [newForm,setNewForm]=useState(EMPTY_INVOICE);
@@ -520,7 +532,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t}) {
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {isInternal&&(
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
         {[{label:"Total Value",value:`${total.toLocaleString()}`,color:t.text},{label:"Collected",value:`${paid.toLocaleString()}`,color:t.green},{label:"Outstanding",value:`${(total-paid).toLocaleString()}`,color:t.amber}].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
@@ -578,13 +590,16 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t}) {
                   </div>
                 </form>
               ):(
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 22px",gap:12}}>
-                  <div style={{minWidth:0}}>
-                    {label}
-                    <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
+                <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"16px 22px",gap:mobile?10:12}}>
+                  <div style={{minWidth:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <div style={{minWidth:0}}>
+                      {label}
+                      <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
+                    </div>
+                    {mobile&&<span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em",flexShrink:0}}>${(inv.amount||0).toLocaleString()}</span>}
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
-                    <span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
+                    {!mobile&&<span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {isInternal&&(
                       <>
@@ -947,7 +962,7 @@ const MNT_PRIORITIES=[["high","High"],["medium","Medium"],["low","Low"]];
 const MNT_STATUSES=[["open","Open"],["in-progress","In Progress"],["resolved","Resolved"]];
 const EMPTY_MNT={title:"",type:"bug",priority:"medium",notes:""};
 const EMPTY_EDIT_MNT={status:"open",notes:"",resolved:""};
-function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t}) {
+function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mobile}) {
   const [items,setItems]=useState(initialMaintenance||[]);
   const [filter,setFilter]=useState("all");
   const [showNew,setShowNew]=useState(false);
@@ -1034,7 +1049,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t}) {
       </div>
     )}
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
         {[{label:"Open",val:counts.open,color:t.amber},{label:"In Progress",val:counts["in-progress"],color:t.accentLight},{label:"Resolved",val:counts.resolved,color:t.green}].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"16px 20px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
@@ -1068,8 +1083,8 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t}) {
                   </div>
                 </div>
               ):(
-                <div style={{padding:"16px 22px"}}>
-                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:8}}>
+                <div style={{padding:mobile?"14px 16px":"16px 22px"}}>
+                  <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"flex-start",justifyContent:"space-between",gap:mobile?10:16,marginBottom:8}}>
                     <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
                       <span style={{fontSize:16,marginTop:1,flexShrink:0}}>{typeIcon[item.type]||"📋"}</span>
                       <div>
@@ -1080,8 +1095,8 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t}) {
                         </div>
                       </div>
                     </div>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                      <div style={{textAlign:"right"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
+                      <div style={{textAlign:mobile?"left":"right"}}>
                         <div style={{color:t.textSub,fontSize:11}}>Reported {item.reported}</div>
                         {item.resolved&&<div style={{color:t.textSub,fontSize:11}}>Resolved {item.resolved}</div>}
                       </div>
@@ -1181,6 +1196,8 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const [selected,setSelected]=useState(null);
   const [tab,setTab]=useState("overview");
   const [adminOpen,setAdminOpen]=useState(false);
+  const [sidebarOpen,setSidebarOpen]=useState(false);
+  const mobile=useIsMobile(768);
   const t=themes[mode];
 
   useEffect(()=>{
@@ -1231,28 +1248,38 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   return (
     <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,display:"flex",flexDirection:"column",transition:"background 0.25s,color 0.25s"}}>
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
-      <div style={{background:t.surface,borderBottom:`1px solid ${t.border}`,padding:"0 28px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:t.shadow}}>
-        <div style={{display:"flex",alignItems:"center",gap:20}}>
-          {mode==="dark"?<LogoLight h={20}/>:<LogoDark h={20}/>}
-          <div style={{width:1,height:16,background:t.border}}/>
-          <span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span>
+      {/* Mobile sidebar overlay */}
+      {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}}/>}
+      {/* Nav bar */}
+      <div style={{background:t.surface,borderBottom:`1px solid ${t.border}`,padding:mobile?"0 14px":"0 28px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:t.shadow}}>
+        <div style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
+          {mobile&&view==="internal"&&(
+            <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:20,cursor:"pointer",padding:4,lineHeight:1,display:"flex",alignItems:"center"}}>
+              {sidebarOpen?"✕":"☰"}
+            </button>
+          )}
+          {mode==="dark"?<LogoLight h={mobile?16:20}/>:<LogoDark h={mobile?16:20}/>}
+          {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>Admin</button>}
+        <div style={{display:"flex",alignItems:"center",gap:mobile?6:10}}>
+          {isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{mobile?"⚙":"Admin"}</button>}
           {!isClient&&<div style={{display:"flex",background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2}}>
-            {[["internal","Internal"],["client","Client View"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setView(k)} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
+            {[["internal",mobile?"Int":"Internal"],["client",mobile?"Client":"Client View"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setView(k)} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>}
           <button onClick={()=>setMode(m=>m==="dark"?"light":"dark")} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
             {mode==="dark"?"☀":"☾"}
           </button>
-          {onLogout&&<button onClick={onLogout} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:8,padding:"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",transition:"color 0.15s"}}>Sign out</button>}
+          {onLogout&&<button onClick={onLogout} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 8px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",transition:"color 0.15s"}}>{mobile?"↪":"Sign out"}</button>}
         </div>
       </div>
       <div style={{display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 56px)"}}>
         {view==="internal"&&(
-          <div style={{width:280,borderRight:`1px solid ${t.border}`,background:t.surface,display:"flex",flexDirection:"column",flexShrink:0}}>
+          <div style={{
+            width:280,borderRight:`1px solid ${t.border}`,background:t.surface,display:"flex",flexDirection:"column",flexShrink:0,
+            ...(mobile?{position:"fixed",top:56,bottom:0,left:0,zIndex:150,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform 0.25s ease",boxShadow:sidebarOpen?"4px 0 20px rgba(0,0,0,0.3)":"none"}:{}),
+          }}>
             <div style={{padding:"20px 20px 16px"}}>
               <div style={{color:t.textSub,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:14}}>Projects</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -1268,49 +1295,52 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
             <div style={{flex:1,overflowY:"auto"}}>
               {projects.map((p,i)=>(
                 <div key={p.id}>
-                  <SidebarRow p={p} active={selected?.id===p.id} onClick={()=>{setSelected(p);setTab("overview");}} t={t}/>
+                  <SidebarRow p={p} active={selected?.id===p.id} onClick={()=>{setSelected(p);setTab("overview");if(mobile)setSidebarOpen(false);}} t={t}/>
                   {i<projects.length-1&&<Line t={t}/>}
                 </div>
               ))}
             </div>
           </div>
         )}
-        <div style={{flex:1,overflowY:"auto",padding:"32px 36px"}}>
+        <div style={{flex:1,overflowY:"auto",padding:mobile?"20px 16px":"32px 36px"}}>
           {selected&&(
             <>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:24}}>
-                <div>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:mobile?16:24,gap:8}}>
+                <div style={{minWidth:0}}>
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
-                  <h1 style={{margin:"0 0 7px",fontSize:22,fontWeight:300,letterSpacing:"-0.04em",color:t.text,lineHeight:1.2}}>{selected.project}</h1>
-                  <div style={{display:"flex",gap:18,alignItems:"center"}}>
+                  <h1 style={{margin:"0 0 7px",fontSize:mobile?18:22,fontWeight:300,letterSpacing:"-0.04em",color:t.text,lineHeight:1.2}}>{selected.project}</h1>
+                  <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
                     {view==="internal"&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.accentLight}}>{selected.manager}</span></span>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>
                   </div>
                 </div>
                 <Pill t={t} status={selected.status} label={selected.status==="complete"?"Complete":selected.phase}/>
               </div>
-              <div style={{borderBottom:`1px solid ${t.border}`,marginBottom:24,overflowX:"auto",display:"flex",scrollbarWidth:"none"}}>
-                {allTabs.map(tb=>(
-                  <button key={tb} onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:"8px 18px",fontSize:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0}}>
-                    {tabLabels[tb]}
-                  </button>
-                ))}
+              <div style={{borderBottom:`1px solid ${t.border}`,marginBottom:mobile?16:24,overflowX:"auto",display:"flex",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+                <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
+                <div className="hide-scrollbar" style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",width:"100%"}}>
+                  {allTabs.map(tb=>(
+                    <button key={tb} onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:mobile?"8px 12px":"8px 18px",fontSize:mobile?12:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0}}>
+                      {tabLabels[tb]}
+                    </button>
+                  ))}
+                </div>
               </div>
-              {tab==="overview"    &&<OverviewTab     project={selected} isInternal={view==="internal"} t={t}/>}
+              {tab==="overview"    &&<OverviewTab     project={selected} isInternal={view==="internal"} t={t} mobile={mobile}/>}
               {tab==="timeline"    &&<TimelineTab     projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="tasks"       &&<TasksTab        projectId={selected.id} initialTasks={selected.tasks} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="tasks"       &&<TasksTab        projectId={selected.id} initialTasks={selected.tasks} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="documents"   &&<DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="maintenance" &&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="maintenance" &&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={view==="internal"} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
             </>
           )}
         </div>
       </div>
-      <div style={{borderTop:`1px solid ${t.border}`,padding:"10px 28px",background:t.surface,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{borderTop:`1px solid ${t.border}`,padding:mobile?"10px 14px":"10px 28px",background:t.surface,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{color:t.textDim,fontSize:11}}>© 2026 LexOps · A Teams Squared Company</span>
-        <span style={{color:t.textDim,fontSize:11}}>hello@teamsquared.io</span>
+        {!mobile&&<span style={{color:t.textDim,fontSize:11}}>hello@teamsquared.io</span>}
       </div>
     </div>
   );

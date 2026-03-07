@@ -549,6 +549,379 @@ function ProjectsTab({ t }) {
 }
 
 // ---------------------------------------------------------------------------
+// Status Pill (reused across tabs)
+// ---------------------------------------------------------------------------
+const STATUS_PILL_COLORS = {
+  draft:    { bg: "transparent", color: "#8b96a4", b: "rgba(255,255,255,0.07)" },
+  sent:     { bg: "rgba(74,127,165,0.1)", color: "#6a9fc0", b: "#4a7fa530" },
+  viewed:   { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
+  accepted: { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+};
+
+function StatusPill({ status }) {
+  const v = STATUS_PILL_COLORS[status] || STATUS_PILL_COLORS.draft;
+  return (
+    <span style={{
+      background: v.bg, color: v.color, border: `1px solid ${v.b}`,
+      borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600,
+      display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: "50%", background: v.color, flexShrink: 0 }} />
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Onboarding Tab (Proposals)
+// ---------------------------------------------------------------------------
+function OnboardingTab({ t }) {
+  const [proposals, setProposals] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ project_id: "", client_name: "", client_email: "" });
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [copyLink, setCopyLink] = useState("");
+  const [deleting, setDeleting] = useState(null);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [{ data: p }, { data: pr }] = await Promise.all([
+      supabase.from("proposals").select("*").order("created_at", { ascending: false }),
+      supabase.from("projects").select("id, name, client_name").order("id"),
+    ]);
+    setProposals(p || []);
+    setProjects(pr || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.client_name.trim() || !form.client_email.trim()) return;
+    setError("");
+    setSaving(true);
+
+    // Insert proposal row first to get the id
+    const { data: row, error: insErr } = await supabase
+      .from("proposals")
+      .insert({
+        project_id: form.project_id || null,
+        client_name: form.client_name,
+        client_email: form.client_email,
+        status: "draft",
+      })
+      .select("*")
+      .single();
+
+    if (insErr) { setError(insErr.message); setSaving(false); return; }
+
+    // Upload PDF if provided
+    if (file) {
+      const storagePath = `proposals/${row.id}/${file.name}`;
+      const { error: upErr } = await supabase.storage
+        .from("project-documents")
+        .upload(storagePath, file, { upsert: true });
+
+      if (upErr) { setError("PDF upload failed: " + upErr.message); setSaving(false); return; }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("project-documents")
+        .getPublicUrl(storagePath);
+
+      await supabase.from("proposals")
+        .update({ pdf_url: publicUrl, storage_path: storagePath, status: "sent" })
+        .eq("id", row.id);
+
+      row.pdf_url = publicUrl;
+      row.status = "sent";
+    } else {
+      await supabase.from("proposals").update({ status: "sent" }).eq("id", row.id);
+      row.status = "sent";
+    }
+
+    setCopyLink(`${window.location.origin}/proposal/${row.token}`);
+    setForm({ project_id: "", client_name: "", client_email: "" });
+    setFile(null);
+    setSaving(false);
+    await loadAll();
+  }
+
+  async function deleteProposal(id) {
+    if (!window.confirm("Delete this proposal?")) return;
+    setDeleting(id);
+    await supabase.from("proposals").delete().eq("id", id);
+    setProposals(p => p.filter(x => x.id !== id));
+    setDeleting(null);
+  }
+
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
+  const field = (label, child) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</label>
+      {child}
+    </div>
+  );
+
+  return (
+    <>
+      {showModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+              <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>New Proposal</span>
+              <button onClick={() => { setShowModal(false); setCopyLink(""); }} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            {copyLink ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ color: t.green, fontSize: 13, fontWeight: 600 }}>✓ Proposal created & sent</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Shareable Link</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input readOnly value={copyLink} style={{ flex: 1, background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit" }} onClick={e => e.target.select()} />
+                    <Btn t={t} onClick={() => copyToClipboard(copyLink)}>Copy</Btn>
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 8 }}>
+                  <Btn t={t} variant="ghost" onClick={() => { setShowModal(false); setCopyLink(""); }}>Done</Btn>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {field("Project",
+                  <Select t={t} value={form.project_id}
+                    onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+                    options={[["", "— Select project —"], ...projects.map(p => [p.id, p.client_name ? `${p.client_name} – ${p.name}` : p.name])]}
+                    style={{ width: "100%" }}
+                  />
+                )}
+                {field("Client Name", <Input t={t} value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Jane Smith" />)}
+                {field("Client Email", <Input t={t} type="email" value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} placeholder="jane@example.com" />)}
+                {field("Proposal PDF",
+                  <input type="file" accept=".pdf" onChange={e => setFile(e.target.files?.[0] || null)}
+                    style={{ fontSize: 12, color: t.textSub, fontFamily: "inherit" }}
+                  />
+                )}
+                {error && (
+                  <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12 }}>
+                    {error}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+                  <Btn t={t} variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn>
+                  <Btn t={t} disabled={saving || !form.client_name.trim() || !form.client_email.trim()} style={{ minWidth: 120 }}>
+                    {saving ? "Creating…" : "Create & Send"}
+                  </Btn>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <SectionLabel t={t}>Proposals ({proposals.length})</SectionLabel>
+        <Btn t={t} onClick={() => { setShowModal(true); setCopyLink(""); setError(""); }}>+ New Proposal</Btn>
+      </div>
+
+      {loading ? (
+        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
+      ) : proposals.length === 0 ? (
+        <div style={{ background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 12, padding: "48px 0", textAlign: "center" }}>
+          <div style={{ color: t.textSub, fontSize: 13, marginBottom: 16 }}>No proposals yet.</div>
+          <Btn t={t} onClick={() => { setShowModal(true); setCopyLink(""); }}>+ Create First Proposal</Btn>
+        </div>
+      ) : (
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 80px", borderBottom: `1px solid ${t.border}` }}>
+            {["Client", "Email", "Project", "Status", "Created", ""].map((h, i) => (
+              <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
+            ))}
+          </div>
+          {proposals.map((pr, i) => {
+            const proj = projects.find(p => p.id === pr.project_id);
+            return (
+              <div key={pr.id}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 100px 110px 80px", alignItems: "center" }}>
+                  <div style={{ padding: "14px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{pr.client_name}</div>
+                  <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 12 }}>{pr.client_email}</div>
+                  <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 12 }}>{proj?.name || "—"}</div>
+                  <div style={{ padding: "14px 18px" }}><StatusPill status={pr.status} /></div>
+                  <div style={{ padding: "14px 18px", color: t.textSub, fontSize: 11 }}>{new Date(pr.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</div>
+                  <div style={{ padding: "14px 18px", display: "flex", gap: 6 }}>
+                    <button onClick={() => copyToClipboard(`${window.location.origin}/proposal/${pr.token}`)} title="Copy link" style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.textSub, fontSize: 12 }}>🔗</button>
+                    <button onClick={() => deleteProposal(pr.id)} disabled={deleting === pr.id} title="Delete" style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.red, fontSize: 15, opacity: deleting === pr.id ? 0.4 : 1 }}>×</button>
+                  </div>
+                </div>
+                {i < proposals.length - 1 && <Line t={t} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Clients Tab
+// ---------------------------------------------------------------------------
+function ClientsTab({ t, mode }) {
+  const [clients, setClients] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [memberships, setMemberships] = useState([]);
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [assignModal, setAssignModal] = useState(null); // client profile
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true);
+    const [{ data: profiles }, { data: projs }, { data: members }, { data: props }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("role", "client").order("created_at"),
+      supabase.from("projects").select("id, name, client_name").order("id"),
+      supabase.from("project_members").select("*").order("id"),
+      supabase.from("proposals").select("client_email, status").order("created_at", { ascending: false }),
+    ]);
+    setClients(profiles || []);
+    setProjects(projs || []);
+    setMemberships(members || []);
+    setProposals(props || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  function getClientProjects(userId) {
+    const pids = memberships.filter(m => m.user_id === userId).map(m => m.project_id);
+    return projects.filter(p => pids.includes(p.id));
+  }
+
+  function getOnboardingStatus(email) {
+    const match = proposals.find(p => p.client_email === email);
+    if (!match) return "not started";
+    return match.status === "accepted" ? "accepted" : match.status === "viewed" ? "proposal sent" : match.status === "sent" ? "proposal sent" : "not started";
+  }
+
+  async function assignProject(userId) {
+    if (!selectedProjectId) return;
+    setAssigning(true);
+    await supabase.from("project_members").upsert(
+      { project_id: selectedProjectId, user_id: userId, role: "member" },
+      { onConflict: "project_id,user_id" }
+    );
+    setAssignModal(null);
+    setSelectedProjectId("");
+    setAssigning(false);
+    await loadAll();
+  }
+
+  const onboardColors = {
+    "not started": { bg: "transparent", color: "#8b96a4", b: "rgba(255,255,255,0.07)" },
+    "proposal sent": { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
+    "accepted": { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  };
+
+  return (
+    <>
+      {assignModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+              <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Invite to Project</span>
+              <button onClick={() => setAssignModal(null)} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ color: t.textSub, fontSize: 12, marginBottom: 16 }}>
+              Assigning <strong style={{ color: t.text }}>{assignModal.full_name || assignModal.email}</strong> to a project:
+            </div>
+            <Select t={t} value={selectedProjectId}
+              onChange={e => setSelectedProjectId(e.target.value)}
+              options={[["", "— Select project —"], ...projects.map(p => [p.id, p.client_name ? `${p.client_name} – ${p.name}` : p.name])]}
+              style={{ width: "100%", marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Btn t={t} variant="ghost" onClick={() => setAssignModal(null)}>Cancel</Btn>
+              <Btn t={t} disabled={assigning || !selectedProjectId} onClick={() => assignProject(assignModal.id)}>
+                {assigning ? "Assigning…" : "Assign"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <SectionLabel t={t}>Client Users ({clients.length})</SectionLabel>
+      </div>
+
+      {loading ? (
+        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
+      ) : clients.length === 0 ? (
+        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>No client users found.</div>
+      ) : (
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px 100px", borderBottom: `1px solid ${t.border}` }}>
+            {["Name / Email", "Assigned Projects", "Onboarding", "Status", ""].map((h, i) => (
+              <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
+            ))}
+          </div>
+          {clients.map((cl, i) => {
+            const cProjects = getClientProjects(cl.id);
+            const obStatus = getOnboardingStatus(cl.email);
+            const obColor = onboardColors[obStatus] || onboardColors["not started"];
+            return (
+              <div key={cl.id}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px 100px", alignItems: "center" }}>
+                  <div style={{ padding: "14px 18px" }}>
+                    <div style={{ color: t.text, fontSize: 13, fontWeight: 500 }}>{cl.full_name || "—"}</div>
+                    <div style={{ color: t.textSub, fontSize: 11, marginTop: 2 }}>{cl.email}</div>
+                  </div>
+                  <div style={{ padding: "14px 18px" }}>
+                    {cProjects.length === 0
+                      ? <span style={{ color: t.textSub, fontSize: 12 }}>None</span>
+                      : cProjects.map((p, j) => (
+                          <div key={j} style={{ color: t.text, fontSize: 12, marginBottom: 2 }}>{p.name}</div>
+                        ))
+                    }
+                  </div>
+                  <div style={{ padding: "14px 18px" }}>
+                    <span style={{
+                      background: obColor.bg, color: obColor.color, border: `1px solid ${obColor.b}`,
+                      borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600,
+                      display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+                    }}>
+                      <span style={{ width: 4, height: 4, borderRadius: "50%", background: obColor.color, flexShrink: 0 }} />
+                      {obStatus.charAt(0).toUpperCase() + obStatus.slice(1)}
+                    </span>
+                  </div>
+                  <div style={{ padding: "14px 18px" }}>
+                    <RolePill role={cl.role} mode={mode} />
+                  </div>
+                  <div style={{ padding: "14px 18px" }}>
+                    <Btn t={t} variant="ghost" onClick={() => { setAssignModal(cl); setSelectedProjectId(""); }} style={{ padding: "4px 8px", fontSize: 11 }}>
+                      + Project
+                    </Btn>
+                  </div>
+                </div>
+                {i < clients.length - 1 && <Line t={t} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // AdminPanel (main export)
 // ---------------------------------------------------------------------------
 export default function AdminPanel({ onClose, mode = "dark" }) {
@@ -572,7 +945,7 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
           <div style={{ width: 1, height: 16, background: t.border }} />
           {/* Tabs */}
           <div style={{ display: "flex", gap: 0 }}>
-            {[["users", "Users"], ["projects", "Projects"]].map(([key, label]) => (
+            {[["users", "Users"], ["projects", "Projects"], ["onboarding", "Onboarding"], ["clients", "Clients"]].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
@@ -605,8 +978,10 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "32px 36px" }}>
-        {activeTab === "users"    && <UsersTab    t={t} mode={mode} />}
-        {activeTab === "projects" && <ProjectsTab t={t} />}
+        {activeTab === "users"      && <UsersTab      t={t} mode={mode} />}
+        {activeTab === "projects"   && <ProjectsTab   t={t} />}
+        {activeTab === "onboarding" && <OnboardingTab  t={t} />}
+        {activeTab === "clients"    && <ClientsTab     t={t} mode={mode} />}
       </div>
     </div>
   );
