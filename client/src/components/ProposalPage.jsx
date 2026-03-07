@@ -55,10 +55,12 @@ export default function ProposalPage({ token }) {
       if (data.status === "accepted") {
         setAccepted(true);
       } else if (data.status === "sent") {
-        await supabase
-          .from("proposals")
-          .update({ status: "viewed" })
-          .eq("id", data.id);
+        // Notify server (updates status + emails admins)
+        fetch("/api/proposal/viewed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        }).catch(() => {});
         data.status = "viewed";
       }
 

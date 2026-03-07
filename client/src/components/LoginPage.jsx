@@ -11,6 +11,7 @@ const t = {
   accent: "#4a7fa5",
   accentLight: "#6a9fc0",
   red: "#f87171",
+  green: "#4ade80",
   shadow: "0 1px 3px rgba(0,0,0,0.4)",
 };
 
@@ -29,6 +30,11 @@ export default function LoginPage({ authError: externalError } = {}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   useEffect(() => { document.title = "LexOps | Sign In"; }, []);
 
@@ -39,6 +45,28 @@ export default function LoginPage({ authError: externalError } = {}) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setError(error.message);
     setLoading(false);
+  }
+
+  async function handleReset(e) {
+    e.preventDefault();
+    setResetError("");
+    setResetLoading(true);
+    try {
+      const resp = await fetch("/api/auth/send-password-reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        setResetError(data.message || "Something went wrong");
+      } else {
+        setResetSent(true);
+      }
+    } catch {
+      setResetError("Network error. Please try again.");
+    }
+    setResetLoading(false);
   }
 
   const inputStyle = {
@@ -78,10 +106,10 @@ export default function LoginPage({ authError: externalError } = {}) {
           <LogoLight h={24} />
           <div style={{ textAlign: "center" }}>
             <div style={{ color: t.text, fontSize: 18, fontWeight: 400, letterSpacing: "-0.02em", marginBottom: 4 }}>
-              Sign in to Client Portal
+              {forgotMode ? "Reset your password" : "Sign in to Client Portal"}
             </div>
             <div style={{ color: t.textSub, fontSize: 13 }}>
-              Enter your credentials to continue
+              {forgotMode ? "Enter your email and we'll send you a reset link" : "Enter your credentials to continue"}
             </div>
           </div>
         </div>
@@ -93,70 +121,165 @@ export default function LoginPage({ authError: externalError } = {}) {
           padding: "28px 28px",
           boxShadow: t.shadow,
         }}>
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Email
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Password
-              </label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                style={inputStyle}
-              />
-            </div>
-
-            {(error || externalError) && (
-              <div style={{
-                background: "rgba(248,113,113,0.08)",
-                border: "1px solid rgba(248,113,113,0.2)",
-                borderRadius: 8,
-                padding: "10px 14px",
-                color: t.red,
-                fontSize: 12,
-              }}>
-                {error || externalError}
+          {forgotMode ? (
+            resetSent ? (
+              <div style={{ textAlign: "center", padding: "12px 0" }}>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.green }}>
+                  ✓
+                </div>
+                <div style={{ color: t.text, fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Check your email</div>
+                <div style={{ color: t.textSub, fontSize: 13, marginBottom: 20 }}>We've sent a password reset link to <strong style={{ color: t.text }}>{resetEmail}</strong></div>
+                <button
+                  onClick={() => { setForgotMode(false); setResetSent(false); setResetEmail(""); setResetError(""); }}
+                  style={{
+                    background: "transparent", color: t.accentLight, border: "none",
+                    fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+                  }}
+                >
+                  ← Back to sign in
+                </button>
               </div>
-            )}
+            ) : (
+              <form onSubmit={handleReset} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={resetEmail}
+                    onChange={e => setResetEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    style={inputStyle}
+                  />
+                </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                marginTop: 4,
-                background: loading ? t.surfaceHigh : t.accent,
-                color: loading ? t.textSub : "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "11px 0",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "background 0.15s",
-                fontFamily: "inherit",
-              }}
-            >
-              {loading ? "Signing in…" : "Sign in"}
-            </button>
-          </form>
+                {resetError && (
+                  <div style={{
+                    background: "rgba(248,113,113,0.08)",
+                    border: "1px solid rgba(248,113,113,0.2)",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    color: t.red,
+                    fontSize: 12,
+                  }}>
+                    {resetError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  style={{
+                    marginTop: 4,
+                    background: resetLoading ? t.surfaceHigh : t.accent,
+                    color: resetLoading ? t.textSub : "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "11px 0",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: resetLoading ? "not-allowed" : "pointer",
+                    transition: "background 0.15s",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {resetLoading ? "Sending…" : "Send reset link"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(false); setResetError(""); }}
+                  style={{
+                    background: "transparent", color: t.accentLight, border: "none",
+                    fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500,
+                    padding: 0, textAlign: "center",
+                  }}
+                >
+                  ← Back to sign in
+                </button>
+              </form>
+            )
+          ) : (
+            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setForgotMode(true); setResetEmail(email); }}
+                    style={{
+                      background: "transparent", border: "none", color: t.accentLight,
+                      fontSize: 11, cursor: "pointer", fontFamily: "inherit", fontWeight: 500, padding: 0,
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  style={inputStyle}
+                />
+              </div>
+
+              {(error || externalError) && (
+                <div style={{
+                  background: "rgba(248,113,113,0.08)",
+                  border: "1px solid rgba(248,113,113,0.2)",
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  color: t.red,
+                  fontSize: 12,
+                }}>
+                  {error || externalError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  marginTop: 4,
+                  background: loading ? t.surfaceHigh : t.accent,
+                  color: loading ? t.textSub : "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "11px 0",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  transition: "background 0.15s",
+                  fontFamily: "inherit",
+                }}
+              >
+                {loading ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+          )}
         </div>
 
         <div style={{ textAlign: "center", color: t.textSub, fontSize: 11 }}>

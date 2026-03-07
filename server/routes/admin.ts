@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
+import { sendAdminInvite, sendMemberInvite, sendClientProjectInvite } from "../email";
 
 const router = Router();
 
@@ -125,6 +126,30 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
     invited_by: adminUser.id,
     status: "pending",
   });
+
+  // Send branded invite email via Resend
+  const actionLink = (data.user as any).action_link || `${SITE_URL}`;
+  const name = full_name || "there";
+  try {
+    if (role === "lexops_admin") {
+      await sendAdminInvite(email, name, actionLink);
+    } else if (role === "lexops_member") {
+      await sendMemberInvite(email, name, actionLink);
+    } else if (role === "client") {
+      let projectName = "your project";
+      if (project_ids.length > 0) {
+        const { data: proj } = await adminSupabase
+          .from("projects")
+          .select("name")
+          .eq("id", project_ids[0])
+          .single();
+        if (proj?.name) projectName = proj.name;
+      }
+      await sendClientProjectInvite(email, name, projectName, actionLink);
+    }
+  } catch (emailErr: any) {
+    console.error("[invite-user] Email send failed:", emailErr.message);
+  }
 
   res.json({ success: true, user: data.user });
 });

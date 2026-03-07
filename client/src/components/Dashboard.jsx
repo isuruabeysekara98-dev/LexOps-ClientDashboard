@@ -419,6 +419,11 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     if(!reqForm.title.trim()) return;
     setSavingReq(true);
     await supabase.from("document_requests").insert({project_id:projectId,title:reqForm.title,description:reqForm.description||null});
+    // Notify clients via email
+    fetch("/api/notify/document-request",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({project_id:projectId,title:reqForm.title,description:reqForm.description||""}),
+    }).catch(()=>{});
     setReqForm({title:"",description:""});
     setShowReqModal(false);
     setSavingReq(false);
@@ -730,6 +735,13 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
     e.preventDefault();
     setSaving(true);
     await supabase.from("phases").update({...editForm,progress:Number(editForm.progress)||0}).eq("id",id);
+    // Notify clients when phase marked complete
+    if(editForm.status==="complete"){
+      fetch("/api/notify/phase-complete",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({project_id:projectId,phase_name:editForm.name}),
+      }).catch(()=>{});
+    }
     setEditingId(null);
     await loadPhases();
     setSaving(false);
@@ -1527,6 +1539,11 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
         fulfilled_at: new Date().toISOString(),
         fulfilled_document_id: newDoc.id,
       }).eq("id", req.id);
+      // Notify admins that document was uploaded
+      fetch("/api/notify/document-uploaded",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({project_id:projectId,document_name:file.name}),
+      }).catch(()=>{});
     }
 
     await loadDocs();
@@ -1610,7 +1627,8 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [mode,setMode]=useState("dark");
+  const [mode,setMode]=useState(()=>{try{return localStorage.getItem("lexops-theme")||"light";}catch{return "light";}});
+  const [profileOpen,setProfileOpen]=useState(false);
   const [view,setView]=useState(isClient ? "client" : "internal");
   const [selected,setSelected]=useState(null);
   const [tab,setTab]=useState("overview");
@@ -1710,10 +1728,50 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>}
-          <button onClick={()=>setMode(m=>m==="dark"?"light":"dark")} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
+          <button onClick={()=>setMode(m=>{const next=m==="dark"?"light":"dark";try{localStorage.setItem("lexops-theme",next);}catch{}return next;})} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
             {mode==="dark"?"☀":"☾"}
           </button>
-          {onLogout&&<button onClick={onLogout} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 8px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",transition:"color 0.15s"}}>{mobile?"↪":"Sign out"}</button>}
+          {/* Profile avatar + dropdown */}
+          <div style={{position:"relative"}}>
+            <button onClick={()=>setProfileOpen(o=>!o)} style={{
+              width:34,height:34,borderRadius:"50%",background:t.accent,border:"none",
+              display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+              fontSize:12,fontWeight:700,color:"#fff",letterSpacing:"0.02em",flexShrink:0,
+            }}>
+              {(userProfile?.full_name||"").split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase()||"?"}
+            </button>
+            {profileOpen&&(
+              <>
+                <div onClick={()=>setProfileOpen(false)} style={{position:"fixed",inset:0,zIndex:199}}/>
+                <div style={{
+                  position:"absolute",right:0,top:42,zIndex:200,width:240,
+                  background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,
+                  boxShadow:"0 8px 32px rgba(0,0,0,0.25)",overflow:"hidden",
+                }}>
+                  <div style={{padding:"16px 18px",borderBottom:`1px solid ${t.border}`}}>
+                    <div style={{color:t.text,fontSize:14,fontWeight:600,marginBottom:2}}>{userProfile?.full_name||"User"}</div>
+                    <div style={{color:t.textSub,fontSize:12,marginBottom:10}}>{userProfile?.email||""}</div>
+                    <span style={{
+                      display:"inline-flex",alignItems:"center",gap:4,
+                      background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,
+                      borderRadius:99,padding:"2px 9px",fontSize:11,fontWeight:600,
+                    }}>
+                      {userProfile?.role==="lexops_admin"?"Admin":userProfile?.role==="lexops_member"?"Team Member":"Client"}
+                    </span>
+                  </div>
+                  {onLogout&&(
+                    <button onClick={()=>{setProfileOpen(false);onLogout();}} style={{
+                      width:"100%",padding:"12px 18px",background:"transparent",border:"none",
+                      color:t.red,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",
+                      fontFamily:"inherit",
+                    }}>
+                      Sign out
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
       <div style={{display:"flex",flex:1,overflow:"visible",...(mobile?{minHeight:"calc(100vh - 56px)"}:{height:"calc(100vh - 56px)"})}}>

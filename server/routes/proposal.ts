@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { createClient } from "@supabase/supabase-js";
 import Anthropic from "@anthropic-ai/sdk";
+import { sendClientProposalInvite, sendProposalAccepted, sendProposalLink, sendProposalViewed } from "../email";
 
 const router = Router();
 
@@ -215,6 +216,56 @@ async function insertFallbackFlags(projectId: number, reason: string) {
   ]);
 }
 
+// Helper: get all admin emails for notifications
+async function getAdminEmails(): Promise<string[]> {
+  const { data } = await adminSupabase
+    .from("profiles")
+    .select("email")
+    .eq("role", "lexops_admin");
+  return (data || []).map((p: any) => p.email).filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/proposal/send-link
+// Public endpoint — sends the proposal link email via Resend
+// ---------------------------------------------------------------------------
+router.post("/send-link", async (req: Request, res: Response) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400).json({ message: "token is required" });
+    return;
+  }
+
+  const { data: proposal, error: pErr } = await adminSupabase
+    .from("proposals")
+    .select("*, projects(name)")
+    .eq("token", token)
+    .single();
+
+  if (pErr || !proposal) {
+    res.status(404).json({ message: "Proposal not found" });
+    return;
+  }
+
+  const proposalUrl = `${SITE_URL}/proposal/${proposal.token}`;
+  const projectName = proposal.projects?.name || proposal.client_name || "your project";
+
+  try {
+    await sendProposalLink(
+      proposal.client_email,
+      proposal.client_name || "there",
+      projectName,
+      proposalUrl
+    );
+  } catch (err: any) {
+    console.error("[send-link] Email failed:", err.message);
+    res.status(500).json({ message: "Failed to send email" });
+    return;
+  }
+
+  res.json({ success: true });
+});
+
 // ---------------------------------------------------------------------------
 // POST /api/proposal/accept
 // Public endpoint — called when a client signs a proposal.
@@ -306,7 +357,61 @@ router.post("/accept", async (req: Request, res: Response) => {
     }
   }
 
+  // Send branded invite email to the client
+  const actionLink = (data.user as any).action_link || SITE_URL;
+  const projectName = proposal.client_name ? `${proposal.client_name} Project` : "your project";
+  try {
+    await sendClientProposalInvite(email, fullName, projectName, actionLink);
+  } catch (emailErr: any) {
+    console.error("[accept] Client invite email failed:", emailErr.message);
+  }
+
+  // Notify all admins that proposal was accepted
+  getAdminEmails().then(async (admins) => {
+    for (const adminEmail of admins) {
+      sendProposalAccepted(adminEmail, fullName, projectName).catch(() => {});
+    }
+  }).catch(() => {});
+
   res.json({ success: true, user_id: newUserId });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proposal/viewed
+// Public endpoint — marks proposal as viewed and notifies admins
+// ---------------------------------------------------------------------------
+router.post("/viewed", async (req: Request, res: Response) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400).json({ message: "token is required" });
+    return;
+  }
+
+  const { data: proposal } = await adminSupabase
+    .from("proposals")
+    .select("*")
+    .eq("token", token)
+    .single();
+
+  if (!proposal) {
+    res.status(404).json({ message: "Proposal not found" });
+    return;
+  }
+
+  // Update status to viewed if currently sent
+  if (proposal.status === "sent") {
+    await adminSupabase.from("proposals").update({ status: "viewed" }).eq("id", proposal.id);
+  }
+
+  // Notify admins
+  const projectName = proposal.client_name ? `${proposal.client_name} Project` : "a project";
+  getAdminEmails().then(async (admins) => {
+    for (const adminEmail of admins) {
+      sendProposalViewed(adminEmail, proposal.client_name || "A client", projectName).catch(() => {});
+    }
+  }).catch(() => {});
+
+  res.json({ success: true });
 });
 
 export default router;
