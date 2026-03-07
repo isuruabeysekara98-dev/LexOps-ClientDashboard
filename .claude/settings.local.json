@@ -27,7 +27,11 @@
       "Bash(npx vite build --mode development 2>&1 | tail -15)",
       "Bash(npm install tailwindcss@4 2>&1 | tail -5)",
       "Bash(timeout 8 npm run dev 2>&1; true)",
-      "Bash(npx vite build --mode development 2>&1 | grep -c \"PostCSS\")"
+      "Bash(npx vite build --mode development 2>&1 | grep -c \"PostCSS\")",
+      "Bash(fuser -k 5000/tcp 2>/dev/null; sleep 2 && npm start)",
+      "Bash(fuser -k 5000/tcp 2>/dev/null; sleep 3 && npm start)",
+      "Bash(pkill -f \"node.*5000\" 2>/dev/null; pkill -f \"tsx server\" 2>/dev/null; sleep 2 && fuser 5000/tcp 2>/dev/null || echo \"Port 5000 is free\")",
+      "Bash(fuser 5000/tcp 2>/dev/null && fuser -k 5000/tcp; sleep 2; fuser 5000/tcp 2>/dev/null || echo \"Port 5000 is free\")"
     ]
   }
 }
