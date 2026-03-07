@@ -149,12 +149,12 @@ function SidebarRow({p,active,onClick,t}) {
 }
 
 function OverviewTab({project,isInternal,t,mobile}) {
-  const daysLeft=Math.ceil((new Date(project.dueDate)-new Date())/86400000);
+  const daysLeft=project.dueDate ? Math.ceil((new Date(project.dueDate)-new Date())/86400000) : 0;
   const done=project.tasks.filter(tk=>tk.status==="done").length;
   const stats=[
-    {label:"Progress",value:`${project.progress}%`,sub:project.phase,accent:true},
-    {label:"Due Date",value:project.dueDate.slice(5).replace("-"," / "),sub:daysLeft>0?`${daysLeft} days remaining`:"Past due"},
-    ...(isInternal?[{label:"Budget",value:`${project.budget.toLocaleString()}`,sub:`${project.spent.toLocaleString()} spent · ${Math.round(project.spent/project.budget*100)}%`}]:[]),
+    {label:"Progress",value:`${project.progress ?? 0}%`,sub:project.phase || "—",accent:true},
+    {label:"Due Date",value:project.dueDate ? project.dueDate.slice(5).replace("-"," / ") : "TBD",sub:project.dueDate ? (daysLeft>0?`${daysLeft} days remaining`:"Past due") : ""},
+    ...(isInternal?[{label:"Budget",value:`$${(project.budget ?? 0).toLocaleString()}`,sub:`$${(project.spent ?? 0).toLocaleString()} spent · ${project.budget ? Math.round((project.spent ?? 0)/project.budget*100) : 0}%`}]:[]),
     {label:"Tasks",value:`${done} / ${project.tasks.length}`,sub:"completed"},
   ];
   const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
@@ -607,7 +607,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {isInternal&&(
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
-        {[{label:"Total Value",value:`${total.toLocaleString()}`,color:t.text},{label:"Collected",value:`${paid.toLocaleString()}`,color:t.green},{label:"Outstanding",value:`${(total-paid).toLocaleString()}`,color:t.amber}].map((s,i)=>(
+        {[{label:"Total Value",value:`$${(total||0).toLocaleString()}`,color:t.text},{label:"Collected",value:`$${(paid||0).toLocaleString()}`,color:t.green},{label:"Outstanding",value:`$${((total-paid)||0).toLocaleString()}`,color:t.amber}].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
             <div style={{color:s.color,fontSize:24,fontWeight:300,letterSpacing:"-0.04em"}}>{s.value}</div>

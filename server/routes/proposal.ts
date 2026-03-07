@@ -365,12 +365,46 @@ router.post("/accept", async (req: Request, res: Response) => {
 
   // Ensure project membership exists
   if (projectId) {
-    console.log("[accept] Linking project_members:", { project_id: projectId, user_id: newUserId });
+    console.log("[accept] Linking project_members:", {
+      project_id: projectId,
+      project_id_type: typeof projectId,
+      user_id: newUserId,
+      user_id_type: typeof newUserId,
+    });
+
+    // Try upsert first
     const { error: memberErr } = await adminSupabase.from("project_members").upsert(
-      { project_id: projectId, user_id: newUserId, role: "member" },
+      { project_id: String(projectId), user_id: String(newUserId), role: "member" },
       { onConflict: "project_id,user_id" }
     );
-    if (memberErr) console.error("[accept] project_members upsert error:", memberErr.message);
+
+    if (memberErr) {
+      console.error("[accept] project_members upsert FAILED:", JSON.stringify(memberErr));
+      // Fallback: try plain insert
+      console.log("[accept] Attempting fallback insert...");
+      const { error: insertErr } = await adminSupabase.from("project_members").insert({
+        project_id: String(projectId),
+        user_id: String(newUserId),
+        role: "member",
+      });
+      if (insertErr) {
+        console.error("[accept] project_members fallback insert FAILED:", JSON.stringify(insertErr));
+      } else {
+        console.log("[accept] Fallback insert succeeded");
+      }
+    } else {
+      console.log("[accept] project_members upsert succeeded");
+    }
+
+    // Verify the row exists
+    const { data: verifyRows, error: verifyErr } = await adminSupabase
+      .from("project_members")
+      .select("*")
+      .eq("user_id", String(newUserId));
+    console.log("[accept] Verification — project_members for user:", {
+      rows: verifyRows,
+      error: verifyErr ? JSON.stringify(verifyErr) : null,
+    });
 
     // Fire-and-forget: generate project structure from proposal PDF
     if (proposal.storage_path) {
