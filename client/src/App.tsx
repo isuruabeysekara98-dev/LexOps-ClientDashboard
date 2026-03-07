@@ -63,12 +63,34 @@ function App() {
 
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession() as any;
+        const { data: { session }, error: sessErr } = await supabase.auth.getSession() as any;
+        console.log("[Auth] getSession result:", { hasSession: !!session, userId: session?.user?.id, error: sessErr });
         if (!mounted) return;
         setSession(session);
-        if (!session?.user) return;
-        const profile = await fetchUserProfile(session.user.id);
-        if (mounted) setUserProfile(profile);
+        if (!session?.user) {
+          console.log("[Auth] No session — showing login");
+          return;
+        }
+
+        let profile = await fetchUserProfile(session.user.id);
+        console.log("[Auth] profile fetch result:", profile);
+
+        // If profile is null, the session token may be stale — try refreshing
+        if (!profile && mounted) {
+          console.log("[Auth] Profile null — attempting session refresh");
+          const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
+          console.log("[Auth] refreshSession result:", { hasSession: !!refreshData?.session, error: refreshErr });
+          if (refreshData?.session?.user && !refreshErr) {
+            setSession(refreshData.session);
+            profile = await fetchUserProfile(refreshData.session.user.id);
+            console.log("[Auth] profile after refresh:", profile);
+          }
+        }
+
+        if (mounted) {
+          console.log("[Auth] Setting userProfile:", profile);
+          setUserProfile(profile);
+        }
       } catch (err) {
         console.error("[Auth] getSession error:", err);
       } finally {
