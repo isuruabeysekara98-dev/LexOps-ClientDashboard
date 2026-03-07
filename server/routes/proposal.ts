@@ -282,6 +282,7 @@ router.post("/send-link", async (req: Request, res: Response) => {
 // Looks up the proposal by token, then sends the Supabase invite email.
 // ---------------------------------------------------------------------------
 router.post("/accept", async (req: Request, res: Response) => {
+  console.log('[proposal] /accept hit', req.body);
   const { token, signer_name } = req.body;
 
   if (!token) {
@@ -448,6 +449,7 @@ router.post("/accept", async (req: Request, res: Response) => {
 // Public endpoint — marks proposal as viewed and notifies admins
 // ---------------------------------------------------------------------------
 router.post("/viewed", async (req: Request, res: Response) => {
+  console.log('[proposal] /viewed hit', req.body);
   const { token } = req.body;
   if (!token) {
     res.status(400).json({ message: "token is required" });
