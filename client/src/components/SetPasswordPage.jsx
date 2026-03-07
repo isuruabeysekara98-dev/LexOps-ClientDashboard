@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
@@ -43,6 +43,8 @@ export default function SetPasswordPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => { document.title = "LexOps | Set Up Your Account"; }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();

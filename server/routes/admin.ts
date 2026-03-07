@@ -15,29 +15,50 @@ const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
 // ---------------------------------------------------------------------------
 async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
+  console.log("[requireAdmin] Authorization header present:", !!auth, auth ? `${auth.slice(0, 15)}...` : "(none)");
+
   if (!auth?.startsWith("Bearer ")) {
+    console.log("[requireAdmin] REJECTED: No Bearer token");
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
   const token = auth.slice(7);
   const { data: { user }, error } = await adminSupabase.auth.getUser(token);
+  console.log("[requireAdmin] getUser result:", {
+    userId: user?.id,
+    email: user?.email,
+    error: error?.message || null,
+    supabaseUrl: process.env.VITE_SUPABASE_URL?.slice(0, 30),
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  });
+
   if (error || !user) {
+    console.log("[requireAdmin] REJECTED: JWT verification failed");
     res.status(401).json({ message: "Unauthorized" });
     return;
   }
 
-  const { data: profile } = await adminSupabase
+  const { data: profile, error: profileErr } = await adminSupabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single();
 
+  console.log("[requireAdmin] Profile lookup:", {
+    userId: user.id,
+    profile,
+    error: profileErr?.message || null,
+    code: profileErr?.code || null,
+  });
+
   if (profile?.role !== "lexops_admin") {
+    console.log("[requireAdmin] REJECTED: Role is", profile?.role, "not lexops_admin");
     res.status(403).json({ message: "Forbidden" });
     return;
   }
 
+  console.log("[requireAdmin] PASSED for", user.email);
   (req as any).adminUser = user;
   next();
 }
@@ -92,6 +113,16 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
     }));
     await adminSupabase.from("project_members").insert(rows);
   }
+
+  // Log the invite
+  const adminUser = (req as any).adminUser;
+  await adminSupabase.from("invite_log").insert({
+    email,
+    full_name: full_name || null,
+    role,
+    invited_by: adminUser.id,
+    status: "pending",
+  });
 
   res.json({ success: true, user: data.user });
 });

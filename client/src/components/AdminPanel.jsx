@@ -337,12 +337,29 @@ function UsersTab({ t, mode }) {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [inviteLogs, setInviteLogs] = useState([]);
+  const [inviteLogOpen, setInviteLogOpen] = useState(false);
+  const [inviteLogLoading, setInviteLogLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from("profiles").select("*").order("created_at");
     setUsers(data || []);
     setLoading(false);
+  }, []);
+
+  const loadInviteLogs = useCallback(async () => {
+    setInviteLogLoading(true);
+    const { data: logs } = await supabase
+      .from("invite_log")
+      .select("*")
+      .order("invited_at", { ascending: false });
+    if (logs) {
+      const { data: profiles } = await supabase.from("profiles").select("email");
+      const profileEmails = new Set((profiles || []).map(p => p.email));
+      setInviteLogs(logs.map(l => ({ ...l, accepted: profileEmails.has(l.email) })));
+    }
+    setInviteLogLoading(false);
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
@@ -433,6 +450,63 @@ function UsersTab({ t, mode }) {
           ))}
         </div>
       )}
+
+      {/* Invite History (collapsible) */}
+      <div style={{ marginTop: 28 }}>
+        <button
+          onClick={() => { setInviteLogOpen(o => !o); if (!inviteLogOpen && inviteLogs.length === 0) loadInviteLogs(); }}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            display: "flex", alignItems: "center", gap: 8, color: t.textSub, fontSize: 12, fontWeight: 600,
+            textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ display: "inline-block", transform: inviteLogOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", fontSize: 10 }}>▶</span>
+          Invite History
+        </button>
+
+        {inviteLogOpen && (
+          <div style={{ marginTop: 12 }}>
+            {inviteLogLoading ? (
+              <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>Loading…</div>
+            ) : inviteLogs.length === 0 ? (
+              <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>No invites sent yet.</div>
+            ) : (
+              <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 110px 90px", borderBottom: `1px solid ${t.border}` }}>
+                  {["Name", "Email", "Role", "Invited", "Status"].map((h, i) => (
+                    <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
+                  ))}
+                </div>
+                {inviteLogs.map((log, i) => (
+                  <div key={log.id || i}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 110px 90px", alignItems: "center" }}>
+                      <div style={{ padding: "12px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{log.full_name || "—"}</div>
+                      <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 12 }}>{log.email}</div>
+                      <div style={{ padding: "12px 18px" }}><RolePill role={log.role} mode={mode} /></div>
+                      <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 11 }}>
+                        {log.invited_at ? new Date(log.invited_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      </div>
+                      <div style={{ padding: "12px 18px" }}>
+                        {log.accepted ? (
+                          <span style={{ background: "rgba(74,222,128,0.08)", color: "#4ade80", border: "1px solid #4ade8025", borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />Accepted
+                          </span>
+                        ) : (
+                          <span style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid #f59e0b25", borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />Pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {i < inviteLogs.length - 1 && <Line t={t} />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }

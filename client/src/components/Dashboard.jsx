@@ -1227,6 +1227,12 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  useEffect(()=>{
+    if(adminOpen) document.title="LexOps | Admin";
+    else if(selected?.project) document.title=`LexOps | ${selected.project}`;
+    else document.title="LexOps | Client Portal";
+  },[selected,adminOpen]);
+
   async function refreshProject(projectId){
     const related=await fetchProjectData(projectId);
     const {data:row}=await supabase.from("projects").select("*, clients(name)").eq("id",projectId).single();

@@ -177,3 +177,30 @@ create policy "invoices: admin write"
         and p.role = 'lexops_admin'
     )
   );
+
+
+-- ============================================================
+-- invite_log
+-- ============================================================
+create table if not exists public.invite_log (
+  id          serial primary key,
+  email       text not null,
+  full_name   text,
+  role        text not null,
+  invited_by  uuid references auth.users on delete set null,
+  invited_at  timestamptz not null default now(),
+  status      text not null default 'pending'
+);
+
+alter table public.invite_log enable row level security;
+
+-- Only admins can read/write invite_log
+create policy "invite_log: admin full access"
+  on public.invite_log for all
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'lexops_admin'
+    )
+  );

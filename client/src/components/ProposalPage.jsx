@@ -34,6 +34,8 @@ export default function ProposalPage({ token }) {
   const [acctError, setAcctError] = useState("");
   const [acctDone, setAcctDone] = useState(false);
 
+  useEffect(() => { document.title = "LexOps | Review Your Proposal"; }, []);
+
   useEffect(() => {
     async function load() {
       const { data, error: err } = await supabase

@@ -61,10 +61,35 @@ router.post("/accept", async (req: Request, res: Response) => {
     .from("profiles")
     .upsert({ id: newUserId, email, full_name: fullName, role: "client" });
 
-  // Assign project membership if proposal has a project_id
-  if (proposal.project_id) {
+  let projectId = proposal.project_id;
+
+  // Auto-create a project if the proposal doesn't have one
+  if (!projectId) {
+    const { data: newProject } = await adminSupabase
+      .from("projects")
+      .insert({
+        name: `${fullName} Project`,
+        client_name: proposal.client_name,
+        status: "active",
+        progress: 0,
+      })
+      .select("id")
+      .single();
+
+    if (newProject) {
+      projectId = newProject.id;
+      // Link proposal to the new project
+      await adminSupabase
+        .from("proposals")
+        .update({ project_id: projectId })
+        .eq("id", proposal.id);
+    }
+  }
+
+  // Ensure project membership exists
+  if (projectId) {
     await adminSupabase.from("project_members").upsert(
-      { project_id: proposal.project_id, user_id: newUserId, role: "member" },
+      { project_id: projectId, user_id: newUserId, role: "member" },
       { onConflict: "project_id,user_id" }
     );
   }
