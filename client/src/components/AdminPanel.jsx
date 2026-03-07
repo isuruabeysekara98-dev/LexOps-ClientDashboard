@@ -343,8 +343,20 @@ function UsersTab({ t, mode }) {
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from("profiles").select("*").order("created_at");
-    setUsers(data || []);
+    const [{ data: profiles }, { data: logs }] = await Promise.all([
+      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("invite_log").select("*").order("invited_at", { ascending: false }),
+    ]);
+    const profileEmails = new Set((profiles || []).map(p => p.email));
+    // Invited users who don't have a profile row yet
+    const pendingInvites = (logs || [])
+      .filter(l => !profileEmails.has(l.email))
+      .reduce((acc, l) => {
+        if (!acc.find(x => x.email === l.email)) acc.push(l);
+        return acc;
+      }, [])
+      .map(l => ({ id: `invite-${l.id}`, email: l.email, full_name: l.full_name, role: l.role, _pending: true }));
+    setUsers([...(profiles || []), ...pendingInvites]);
     setLoading(false);
   }, []);
 
@@ -414,35 +426,48 @@ function UsersTab({ t, mode }) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 160px 120px", alignItems: "center" }}>
                 {/* Name + email */}
                 <div style={{ padding: "14px 18px" }}>
-                  <div style={{ color: t.text, fontSize: 13, fontWeight: 500 }}>{user.full_name || "—"}</div>
-                  <div style={{ color: t.textSub, fontSize: 11, marginTop: 2 }}>{user.email}</div>
+                  <div style={{ color: t.text, fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+                    {user.full_name || user.email}
+                    {user._pending && (
+                      <span style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid #f59e0b25", borderRadius: 99, padding: "1px 7px", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap" }}>Pending setup</span>
+                    )}
+                  </div>
+                  {user.full_name && <div style={{ color: t.textSub, fontSize: 11, marginTop: 2 }}>{user.email}</div>}
                 </div>
 
                 {/* UUID (truncated) */}
                 <div style={{ padding: "14px 18px" }}>
-                  <code style={{ color: t.textDim, fontSize: 10 }}>{user.id.slice(0, 8)}…</code>
+                  {user._pending
+                    ? <span style={{ color: t.textDim, fontSize: 10 }}>—</span>
+                    : <code style={{ color: t.textDim, fontSize: 10 }}>{user.id.slice(0, 8)}…</code>
+                  }
                 </div>
 
                 {/* Inline role select */}
                 <div style={{ padding: "14px 18px" }}>
-                  <Select
-                    t={t}
-                    value={user.role}
-                    onChange={e => changeRole(user.id, e.target.value)}
-                    options={ROLES.map(r => [r, ROLE_LABELS[r]])}
-                    style={{ width: "100%", fontSize: 12 }}
-                  />
+                  {user._pending
+                    ? <RolePill role={user.role} mode={mode} />
+                    : <Select
+                        t={t}
+                        value={user.role}
+                        onChange={e => changeRole(user.id, e.target.value)}
+                        options={ROLES.map(r => [r, ROLE_LABELS[r]])}
+                        style={{ width: "100%", fontSize: 12 }}
+                      />
+                  }
                 </div>
 
                 {/* Actions */}
                 <div style={{ padding: "14px 18px" }}>
-                  <Btn
-                    t={t} variant="danger"
-                    disabled={removing === user.id}
-                    onClick={() => removeUser(user.id)}
-                  >
-                    {removing === user.id ? "…" : "Remove"}
-                  </Btn>
+                  {!user._pending && (
+                    <Btn
+                      t={t} variant="danger"
+                      disabled={removing === user.id}
+                      onClick={() => removeUser(user.id)}
+                    >
+                      {removing === user.id ? "…" : "Remove"}
+                    </Btn>
+                  )}
                 </div>
               </div>
               {i < users.length - 1 && <Line t={t} />}

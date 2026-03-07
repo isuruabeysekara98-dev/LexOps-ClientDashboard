@@ -82,24 +82,44 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
   }
 
   // Send the invite email via Supabase Auth
+  console.log("[invite-user] Sending invite to:", email, "redirectTo:", SITE_URL);
   const { data, error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: SITE_URL,
     data: { full_name, role },
   });
 
+  console.log("[invite-user] inviteUserByEmail response:", {
+    userId: data?.user?.id,
+    email: data?.user?.email,
+    confirmationUrl: (data?.user as any)?.confirmation_sent_at ? "sent" : "not sent",
+    actionLink: (data?.user as any)?.action_link || null,
+    error: error?.message || null,
+  });
+
   if (error) {
+    console.error("[invite-user] Invite failed:", error.message);
     res.status(400).json({ message: error.message });
     return;
   }
 
   const newUserId = data.user.id;
 
+  // Log the action link as fallback if email delivery fails
+  const actionLink = (data.user as any).action_link;
+  if (actionLink) {
+    console.log("[invite-user] Confirmation URL (fallback):", actionLink);
+  }
+
   // Upsert profile row with the supplied name and role
   const { error: profileError } = await adminSupabase
     .from("profiles")
-    .upsert({ id: newUserId, email, full_name: full_name || null, role });
+    .upsert(
+      { id: newUserId, email, full_name: full_name || null, role },
+      { onConflict: "id" }
+    );
 
   if (profileError) {
+    console.error("[invite-user] Profile upsert error:", profileError.message);
     res.status(500).json({ message: profileError.message });
     return;
   }
