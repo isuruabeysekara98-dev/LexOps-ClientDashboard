@@ -126,7 +126,7 @@ create policy "projects: client read own"
     exists (
       select 1 from public.project_members pm
       where pm.user_id = auth.uid()
-        and pm.project_id = projects.id
+        and pm.project_id::text = projects.id::text
     )
   );
 

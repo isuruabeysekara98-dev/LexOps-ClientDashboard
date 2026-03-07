@@ -1641,14 +1641,16 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   useEffect(()=>{
     async function load(){
       setLoading(true);
-      let query=supabase.from("projects").select("*, clients(name)");
+      let query;
       if(isClient){
-        console.log("[Dashboard] Client allowedProjectIds:", allowedProjectIds);
+        console.log("[Dashboard] Client allowedProjectIds:", JSON.stringify(allowedProjectIds));
         if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);setLoading(false);return;}
-        query=query.in("id",allowedProjectIds);
+        query=supabase.from("projects").select("*").in("id",allowedProjectIds);
+      } else {
+        query=supabase.from("projects").select("*, clients(name)");
       }
       const {data:rows,error:queryErr}=await query.order("id");
-      if(isClient) console.log("[Dashboard] Projects query result:", {rows, error: queryErr});
+      if(isClient) console.log("[Dashboard] Projects query:", {ids: allowedProjectIds, rows, error: queryErr?.message});
       if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
       const full=await Promise.all(rows.map(async row=>{
         const related=await fetchProjectData(row.id);
