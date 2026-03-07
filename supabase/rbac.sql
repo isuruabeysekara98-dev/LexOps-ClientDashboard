@@ -257,7 +257,7 @@ alter table public.tasks add column if not exists is_deliverable boolean not nul
 -- ============================================================
 create table if not exists public.document_requests (
   id              bigserial primary key,
-  project_id      integer not null,
+  project_id      uuid not null,
   title           text not null,
   description     text,
   requested_at    timestamptz not null default now(),
@@ -285,7 +285,7 @@ create policy "document_requests: client read own"
     exists (
       select 1 from public.project_members pm
       where pm.user_id = auth.uid()
-        and pm.project_id = (document_requests.project_id)::integer
+        and pm.project_id = document_requests.project_id
     )
   );
 
@@ -296,6 +296,6 @@ create policy "document_requests: client update own"
     exists (
       select 1 from public.project_members pm
       where pm.user_id = auth.uid()
-        and pm.project_id = (document_requests.project_id)::integer
+        and pm.project_id = document_requests.project_id
     )
   );
