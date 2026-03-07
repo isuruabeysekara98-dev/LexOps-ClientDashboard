@@ -1034,8 +1034,10 @@ function BookingTab({project,t}) {
 }
 
 export default function LexOpsDashboard({ onLogout, userProfile }) {
+  console.log("[Dashboard] userProfile:", userProfile);
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
+  console.log("[Dashboard] isAdmin:", isAdmin, "| role:", userProfile?.role);
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
