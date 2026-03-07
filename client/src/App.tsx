@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -10,15 +10,13 @@ import ProposalPage from "@/components/ProposalPage";
 import SetPasswordPage from "@/components/SetPasswordPage";
 
 async function fetchUserProfile(userId: string) {
-  const { data: profile, error } = await supabase
+  const { data: profile, error, status } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", userId)
     .single();
 
-  if (error) {
-    console.error("[fetchUserProfile] error:", error.code, error.message);
-  }
+  console.log("[fetchUserProfile] raw response:", { data: profile, error: error?.message, code: error?.code, status, userId });
 
   if (!profile) {
     console.warn("[fetchUserProfile] No profile found for", userId, "— signing out");
@@ -46,12 +44,18 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
 
+  const initialLoadDone = useRef(false);
+
   useEffect(() => {
     let mounted = true;
 
     // Safety net: force authLoading to false after 5 seconds
     const timeout = setTimeout(() => {
-      if (mounted && authLoading) setAuthLoading(false);
+      if (mounted && !initialLoadDone.current) {
+        console.log("[Auth] Safety timeout — forcing authLoading false");
+        initialLoadDone.current = true;
+        setAuthLoading(false);
+      }
     }, 5000);
 
     (async () => {
@@ -59,18 +63,24 @@ function App() {
         const { data: { session }, error: sessErr } = await supabase.auth.getSession() as any;
         console.log("[Auth] getSession result:", { hasSession: !!session, userId: session?.user?.id, error: sessErr });
         if (!mounted) return;
-        setSession(session);
+
         if (!session?.user) {
           console.log("[Auth] No session — showing login");
+          setSession(null);
           return;
         }
+
+        setSession(session);
 
         let profile = await fetchUserProfile(session.user.id);
         console.log("[Auth] profile fetch result:", profile);
 
         // No profile found — user was signed out by fetchUserProfile
         if (profile?.__noProfile) {
-          if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          if (mounted) {
+            setSession(null);
+            setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          }
           return;
         }
 
@@ -84,7 +94,10 @@ function App() {
             profile = await fetchUserProfile(refreshData.session.user.id);
             console.log("[Auth] profile after refresh:", profile);
             if (profile?.__noProfile) {
-              if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+              if (mounted) {
+                setSession(null);
+                setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+              }
               return;
             }
           }
@@ -97,22 +110,37 @@ function App() {
       } catch (err) {
         console.error("[Auth] getSession error:", err);
       } finally {
-        if (mounted) setAuthLoading(false);
+        if (mounted) {
+          initialLoadDone.current = true;
+          setAuthLoading(false);
+        }
       }
     })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       if (!mounted) return;
+      // Ignore events until initial load is done to prevent race conditions
+      if (!initialLoadDone.current) {
+        console.log("[Auth] onAuthStateChange ignored (initial load pending), event:", _event);
+        return;
+      }
+      console.log("[Auth] onAuthStateChange event:", _event, "hasSession:", !!session);
       setSession(session);
       if (session?.user) {
         const profile = await fetchUserProfile(session.user.id);
         if (profile?.__noProfile) {
-          if (mounted) setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          if (mounted) {
+            setSession(null);
+            setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
+          }
           return;
         }
-        if (mounted) setUserProfile(profile);
+        if (mounted) {
+          console.log("[Auth] onAuthStateChange setting userProfile:", profile);
+          setUserProfile(profile);
+        }
       } else {
-        setUserProfile(null);
+        if (mounted) setUserProfile(null);
       }
     });
 
