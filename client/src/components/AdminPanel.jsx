@@ -343,20 +343,33 @@ function UsersTab({ t, mode }) {
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    const [{ data: profiles }, { data: logs }] = await Promise.all([
-      supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-      supabase.from("invite_log").select("*").order("invited_at", { ascending: false }),
-    ]);
-    const profileEmails = new Set((profiles || []).map(p => p.email));
-    // Invited users who don't have a profile row yet
-    const pendingInvites = (logs || [])
-      .filter(l => !profileEmails.has(l.email))
-      .reduce((acc, l) => {
-        if (!acc.find(x => x.email === l.email)) acc.push(l);
-        return acc;
-      }, [])
-      .map(l => ({ id: `invite-${l.id}`, email: l.email, full_name: l.full_name, role: l.role, _pending: true }));
-    setUsers([...(profiles || []), ...pendingInvites]);
+    const { data: profiles, error: profErr } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false });
+    console.log("[UsersTab] profiles query:", { count: profiles?.length, error: profErr?.message });
+
+    let pendingInvites = [];
+    try {
+      const { data: logs } = await supabase
+        .from("invite_log")
+        .select("*")
+        .order("invited_at", { ascending: false });
+      const profileEmails = new Set((profiles || []).map(p => p.email));
+      pendingInvites = (logs || [])
+        .filter(l => !profileEmails.has(l.email))
+        .reduce((acc, l) => {
+          if (!acc.find(x => x.email === l.email)) acc.push(l);
+          return acc;
+        }, [])
+        .map(l => ({ id: `invite-${l.id}`, email: l.email, full_name: l.full_name, role: l.role, _pending: true }));
+    } catch (_) {
+      // invite_log table may not exist yet
+    }
+
+    const allUsers = [...(profiles || []), ...pendingInvites];
+    console.log("[UsersTab] total users to render:", allUsers.length);
+    setUsers(allUsers);
     setLoading(false);
   }, []);
 
@@ -375,6 +388,39 @@ function UsersTab({ t, mode }) {
   }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  const [resending, setResending] = useState(null);
+  const [resent, setResent] = useState(null);
+  const [cancelling, setCancelling] = useState(null);
+
+  async function resendInvite(log) {
+    setResending(log.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const resp = await fetch("/api/admin/invite-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ email: log.email, full_name: log.full_name, role: log.role }),
+    });
+    setResending(null);
+    if (resp.ok) {
+      setResent(log.id);
+      setTimeout(() => setResent(null), 2000);
+    }
+  }
+
+  async function cancelInvite(log) {
+    if (!window.confirm(`Cancel invite for ${log.email}? This will remove their pending account.`)) return;
+    setCancelling(log.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch("/api/admin/cancel-invite", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ email: log.email }),
+    });
+    setCancelling(null);
+    loadUsers();
+    if (inviteLogOpen) loadInviteLogs();
+  }
 
   async function changeRole(userId, newRole) {
     setUsers(u => u.map(x => x.id === userId ? { ...x, role: newRole } : x));
@@ -498,19 +544,19 @@ function UsersTab({ t, mode }) {
               <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>No invites sent yet.</div>
             ) : (
               <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 110px 90px", borderBottom: `1px solid ${t.border}` }}>
-                  {["Name", "Email", "Role", "Invited", "Status"].map((h, i) => (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px 100px 90px 120px", borderBottom: `1px solid ${t.border}` }}>
+                  {["Name", "Email", "Role", "Invited", "Status", "Actions"].map((h, i) => (
                     <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
                   ))}
                 </div>
                 {inviteLogs.map((log, i) => (
                   <div key={log.id || i}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 110px 90px", alignItems: "center" }}>
-                      <div style={{ padding: "12px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{log.full_name || "—"}</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px 100px 90px 120px", alignItems: "center" }}>
+                      <div style={{ padding: "12px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{log.full_name || log.email}</div>
                       <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 12 }}>{log.email}</div>
                       <div style={{ padding: "12px 18px" }}><RolePill role={log.role} mode={mode} /></div>
                       <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 11 }}>
-                        {log.invited_at ? new Date(log.invited_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                        {log.invited_at ? new Date(log.invited_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "—"}
                       </div>
                       <div style={{ padding: "12px 18px" }}>
                         {log.accepted ? (
@@ -521,6 +567,18 @@ function UsersTab({ t, mode }) {
                           <span style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid #f59e0b25", borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
                             <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />Pending
                           </span>
+                        )}
+                      </div>
+                      <div style={{ padding: "12px 18px", display: "flex", gap: 6 }}>
+                        {!log.accepted && (
+                          <>
+                            <Btn t={t} disabled={resending === log.id} onClick={() => resendInvite(log)} style={{ fontSize: 11, padding: "3px 10px" }}>
+                              {resent === log.id ? "Sent!" : resending === log.id ? "…" : "Resend"}
+                            </Btn>
+                            <Btn t={t} variant="danger" disabled={cancelling === log.id} onClick={() => cancelInvite(log)} style={{ fontSize: 11, padding: "3px 10px" }}>
+                              {cancelling === log.id ? "…" : "Cancel"}
+                            </Btn>
+                          </>
                         )}
                       </div>
                     </div>

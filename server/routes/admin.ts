@@ -148,6 +148,38 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
 });
 
 // ---------------------------------------------------------------------------
+// DELETE /api/admin/cancel-invite
+// Body: { email }
+// ---------------------------------------------------------------------------
+router.delete("/cancel-invite", requireAdmin, async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    res.status(400).json({ message: "email is required" });
+    return;
+  }
+
+  // Look up the user in Supabase auth by email
+  const { data: { users }, error: listErr } = await adminSupabase.auth.admin.listUsers();
+  if (!listErr && users) {
+    const authUser = users.find((u: any) => u.email === email);
+    if (authUser) {
+      const { error: delErr } = await adminSupabase.auth.admin.deleteUser(authUser.id);
+      if (delErr) {
+        console.log("[cancel-invite] Failed to delete auth user:", delErr.message);
+      }
+      // Also remove profile row if it exists
+      await adminSupabase.from("profiles").delete().eq("id", authUser.id);
+    }
+  }
+
+  // Delete invite_log rows for this email
+  await adminSupabase.from("invite_log").delete().eq("email", email);
+
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/admin/remove-user/:userId
 // ---------------------------------------------------------------------------
 router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Response) => {
