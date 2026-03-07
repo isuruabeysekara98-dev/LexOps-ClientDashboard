@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const themes: any = {
+const themes = {
   dark: {
     bg:"#0f1318", surface:"#161c24", surfaceHigh:"#1c2330",
     border:"rgba(255,255,255,0.07)", text:"#edf0f5", textSub:"#8b96a4", textDim:"#3d4650",
@@ -23,14 +23,14 @@ const themes: any = {
   }
 };
 
-function LogoLight({h=20}: any) {
+function LogoLight({h=20}) {
   return <svg width={h*(307/97)} height={h} viewBox="0 0 307 97" fill="none">
     <path d="M7 27C7.55 27 8 27.45 8 28V71H31C31.55 71 32 71.45 32 72V78C32 78.55 31.55 79 31 79H1C.45 79 0 78.55 0 78V28C0 27.45.45 27 1 27H7Z" fill="white"/>
     <path d="M35 70C34.45 70 34 69.55 34 69V26L11 26C10.45 26 10 25.55 10 25V19C10 18.45 10.45 18 11 18H41C41.55 18 42 18.45 42 19V69C42 69.55 41.55 70 41 70H35Z" fill="#9DB5C9"/>
     <path d="M79.2 23.9V69.4H102.1V76H72.2V23.9H79.2ZM123.1 76.9C112.8 76.9 105.6 69.4 105.6 58.4C105.6 47.4 112.6 39.8 122.8 39.8C132.8 39.8 139.4 46.7 139.4 57.1V59.7L112.2 59.7C112.7 67.1 116.6 71.2 123.3 71.2C128.5 71.2 132 69.1 133.1 65.1H139.5C137.7 72.6 131.8 76.9 123.1 76.9ZM122.8 45.5C116.9 45.5 113.2 49 112.3 55.2H132.6C132.6 49.4 128.8 45.5 122.8 45.5ZM149.2 76H141.4L153.8 58.6L141.5 40.8H149.4L158.3 53.9L167 40.8H174.7L162.5 58.6L174.5 76H166.6L157.9 63.1L149.2 76ZM228.5 49.9C228.5 65.8 218.1 76.9 203.3 76.9C188.6 76.9 178.4 65.8 178.4 49.9C178.4 34.2 188.7 23 203.4 23C218.2 23 228.5 34.1 228.5 49.9ZM221 49.9C221 37.8 214 29.8 203.4 29.8C192.8 29.8 185.8 37.8 185.8 49.9C185.8 62 192.8 70.1 203.4 70.1C214 70.1 221 62 221 49.9ZM236.3 91.8V40.8H242.4L243 47.1C245.3 42.3 250.1 39.8 255.7 39.8C265.8 39.8 272 47.3 272 58.1C272 68.9 266.1 76.9 255.7 76.9C250.1 76.9 245.4 74.6 243.1 70.2V91.8H236.3ZM243.2 58.4C243.2 65.6 247.3 70.8 254.3 70.8C261.2 70.8 265.3 65.6 265.3 58.4C265.3 51.2 261.2 46 254.3 46C247.3 46 243.2 51.1 243.2 58.4ZM276.6 65.8H283.1C283.1 69.4 285.8 71.5 290.3 71.5C295.1 71.5 297.8 69.6 297.8 66.4C297.8 64 296.6 62.5 293 61.6L286.8 60.2C280.5 58.6 277.6 55.6 277.6 50.4C277.6 43.9 283 39.8 290.8 39.8C298.5 39.8 303.5 44.1 303.7 50.8H297.2C297.1 47.3 294.7 45 290.6 45C286.3 45 284 46.9 284 50.2C284 52.5 285.7 54.1 289.1 55L295.3 56.5C301.3 57.9 304.3 60.7 304.3 65.9C304.3 72.6 298.5 76.9 290.2 76.9C281.9 76.9 276.6 72.5 276.6 65.8Z" fill="white"/>
   </svg>;
 }
-function LogoDark({h=20}: any) {
+function LogoDark({h=20}) {
   return <svg width={h*(307/97)} height={h} viewBox="0 0 307 97" fill="none">
     <path d="M7 27C7.55 27 8 27.45 8 28V71H31C31.55 71 32 71.45 32 72V78C32 78.55 31.55 79 31 79H1C.45 79 0 78.55 0 78V28C0 27.45.45 27 1 27H7Z" fill="#232A34"/>
     <path d="M35 70C34.45 70 34 69.55 34 69V26L11 26C10.45 26 10 25.55 10 25V19C10 18.45 10.45 18 11 18H41C41.55 18 42 18.45 42 19V69C42 69.55 41.55 70 41 70H35Z" fill="#375971"/>
@@ -175,8 +175,8 @@ const projects = [
 ];
 
 // ── PRIMITIVES ───────────────────────────────────────────────────────────────
-function Pill({status,label,t}: any) {
-  const m: any={
+function Pill({status,label,t}) {
+  const m={
     active:{bg:t.greenSoft,color:t.green,b:t.green+"25"},
     complete:{bg:t.accentSoft,color:t.accentLight,b:t.accent+"30"},
     pending:{bg:t.amberSoft,color:t.amber,b:t.amber+"25"},
@@ -197,25 +197,25 @@ function Pill({status,label,t}: any) {
     {label}
   </span>;
 }
-function Line({t}: any) { return <div style={{height:1,background:t.border}}/>; }
-function Thin({value,t,color}: any) {
+function Line({t}) { return <div style={{height:1,background:t.border}}/>; }
+function Thin({value,t,color}) {
   const c=color||(value===100?t.green:t.accent);
   return <div style={{height:3,background:t.border,borderRadius:99,overflow:"hidden",width:"100%"}}>
     <div style={{height:"100%",width:`${value}%`,background:c,borderRadius:99,transition:"width 0.6s ease"}}/>
   </div>;
 }
-function SectionLabel({children,t}: any) {
+function SectionLabel({children,t}) {
   return <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14}}>{children}</div>;
 }
-function Card({children,t,style={}}: any) {
+function Card({children,t,style={}}) {
   return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow,...style}}>{children}</div>;
 }
-function CardPad({children,t,style={}}: any) {
+function CardPad({children,t,style={}}) {
   return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 24px",boxShadow:t.shadow,...style}}>{children}</div>;
 }
 
 // ── SIDEBAR ROW ───────────────────────────────────────────────────────────────
-function SidebarRow({p,active,onClick,t}: any) {
+function SidebarRow({p,active,onClick,t}) {
   return <div onClick={onClick} style={{padding:"14px 20px",cursor:"pointer",background:active?t.accentSoft:"transparent",borderLeft:`2px solid ${active?t.accent:"transparent"}`,transition:"all 0.15s"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:8}}>
       <div style={{minWidth:0}}>
@@ -232,17 +232,17 @@ function SidebarRow({p,active,onClick,t}: any) {
 }
 
 // ── OVERVIEW TAB ──────────────────────────────────────────────────────────────
-function OverviewTab({project,isInternal,t}: any) {
-  const daysLeft=Math.ceil((new Date(project.dueDate).getTime()-new Date().getTime())/86400000);
-  const done=project.tasks.filter((tk: any)=>tk.status==="done").length;
-  const stats = [
+function OverviewTab({project,isInternal,t}) {
+  const daysLeft=Math.ceil((new Date(project.dueDate)-new Date())/86400000);
+  const done=project.tasks.filter(tk=>tk.status==="done").length;
+  const stats=[
     {label:"Progress",value:`${project.progress}%`,sub:project.phase,accent:true},
     {label:"Due Date",value:project.dueDate.slice(5).replace("-"," / "),sub:daysLeft>0?`${daysLeft} days remaining`:"Past due"},
     ...(isInternal?[{label:"Budget",value:`$${project.budget.toLocaleString()}`,sub:`$${project.spent.toLocaleString()} spent · ${Math.round(project.spent/project.budget*100)}%`}]:[]),
     {label:"Tasks",value:`${done} / ${project.tasks.length}`,sub:"completed"},
   ];
-  const iconMap: any={milestone:"◆",document:"↑",invoice:"$",update:"·"};
-  const colorMap: any={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
+  const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
+  const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
     <div style={{display:"grid",gridTemplateColumns:`repeat(${stats.length},1fr)`,gap:12}}>
@@ -257,7 +257,7 @@ function OverviewTab({project,isInternal,t}: any) {
     <Card t={t}>
       <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Project Phases</SectionLabel></div>
       <Line t={t}/>
-      {project.phases.map((ph: any,i: number)=>(
+      {project.phases.map((ph,i)=>(
         <div key={i}>
           <div style={{padding:"16px 24px",display:"flex",alignItems:"center",gap:16}}>
             <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:ph.status==="complete"?t.green:ph.status==="active"?t.accent:"transparent",border:`1.5px solid ${ph.status==="complete"?t.green:ph.status==="active"?t.accent:t.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -280,7 +280,7 @@ function OverviewTab({project,isInternal,t}: any) {
       <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Recent Activity</SectionLabel></div>
       <Line t={t}/>
       <div style={{padding:"6px 0"}}>
-        {project.activity.map((a: any,i: number)=>(
+        {project.activity.map((a,i)=>(
           <div key={i} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"10px 24px"}}>
             <span style={{color:colorMap[a.type],fontSize:10,marginTop:2,flexShrink:0,fontWeight:700}}>{iconMap[a.type]}</span>
             <span style={{color:t.text,fontSize:13,flex:1}}>{a.text}</span>
@@ -293,11 +293,11 @@ function OverviewTab({project,isInternal,t}: any) {
 }
 
 // ── TASKS TAB ─────────────────────────────────────────────────────────────────
-function TasksTab({tasks,isInternal,t}: any) {
+function TasksTab({tasks,isInternal,t}) {
   const [filter,setFilter]=useState("all");
-  const filtered=filter==="all"?tasks:tasks.filter((tk: any)=>tk.status===filter);
-  const tc: any={done:{dot:t.green,label:"Done",lc:t.green},"in-progress":{dot:t.accent,label:"Active",lc:t.accentLight},todo:{dot:t.textDim,label:"To Do",lc:t.textSub}};
-  const counts: any={all:tasks.length,"in-progress":tasks.filter((x: any)=>x.status==="in-progress").length,todo:tasks.filter((x: any)=>x.status==="todo").length,done:tasks.filter((x: any)=>x.status==="done").length};
+  const filtered=filter==="all"?tasks:tasks.filter(tk=>tk.status===filter);
+  const tc={done:{dot:t.green,label:"Done",lc:t.green},"in-progress":{dot:t.accent,label:"Active",lc:t.accentLight},todo:{dot:t.textDim,label:"To Do",lc:t.textSub}};
+  const counts={all:tasks.length,"in-progress":tasks.filter(x=>x.status==="in-progress").length,todo:tasks.filter(x=>x.status==="todo").length,done:tasks.filter(x=>x.status==="done").length};
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{display:"flex",gap:6}}>
       {["all","in-progress","todo","done"].map(f=>(
@@ -310,7 +310,7 @@ function TasksTab({tasks,isInternal,t}: any) {
     <Card t={t}>
       {filtered.length===0
         ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No tasks to display</div>
-        :filtered.map((task: any,i: number)=>{const c=tc[task.status];return(
+        :filtered.map((task,i)=>{const c=tc[task.status];return(
           <div key={task.id}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 22px",gap:16}}>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -335,59 +335,52 @@ function TasksTab({tasks,isInternal,t}: any) {
 }
 
 // ── DOCUMENTS TAB ─────────────────────────────────────────────────────────────
-function DocumentsTab({documents,t}: any) {
-  const tc: any={PDF:t.red,DOCX:t.accent,XLSX:t.green};
+function DocumentsTab({documents,t}) {
+  const tc={PDF:t.red,DOCX:t.accent,XLSX:t.green};
   return <Card t={t}>
-    {documents.map((doc: any,i: number)=>{
-      const c=tc[doc.type]||t.accent;
-      return(
-        <div key={i}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 22px",gap:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:38,height:38,borderRadius:9,flexShrink:0,background:c+"14",border:`1px solid ${c}25`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:c}}>{doc.type}</div>
-              <div>
-                <div style={{color:t.text,fontSize:13,fontWeight:500}}>{doc.name}</div>
-                <div style={{color:t.textDim,fontSize:11,marginTop:1}}>{doc.size} · Uploaded {doc.uploaded}</div>
-              </div>
+    {documents.map((doc,i)=>{const c=tc[doc.type]||t.accent;return(
+      <div key={i}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"15px 22px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:36,height:36,borderRadius:8,flexShrink:0,background:c+"12",border:`1px solid ${c}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:c,letterSpacing:"0.03em"}}>{doc.type}</div>
+            <div>
+              <div style={{color:t.text,fontSize:13,fontWeight:500}}>{doc.name}</div>
+              <div style={{color:t.textSub,fontSize:11,marginTop:1}}>{doc.size} · {doc.uploaded}</div>
             </div>
-            <button style={{background:t.surfaceHigh,color:t.textSub,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>Download</button>
           </div>
-          {i<documents.length-1&&<Line t={t}/>}
+          <button style={{background:"transparent",color:t.accentLight,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 14px",fontSize:12,cursor:"pointer",fontWeight:500}}>Download</button>
         </div>
-      );
-    })}
+        {i<documents.length-1&&<Line t={t}/>}
+      </div>
+    );})}
   </Card>;
 }
 
 // ── INVOICES TAB ──────────────────────────────────────────────────────────────
-function InvoicesTab({invoices,isInternal,t}: any) {
-  const total=invoices.reduce((s: number,i: any)=>s+i.amount,0);
-  const paid=invoices.filter((i: any)=>i.status==="paid").reduce((s: number,i: any)=>s+i.amount,0);
+function InvoicesTab({invoices,isInternal,t}) {
+  const total=invoices.reduce((s,i)=>s+i.amount,0);
+  const paid=invoices.filter(i=>i.status==="paid").reduce((s,i)=>s+i.amount,0);
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {isInternal&&(
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-        {[
-          {label:"Total",val:`$${total.toLocaleString()}`,color:t.text},
-          {label:"Paid",val:`$${paid.toLocaleString()}`,color:t.green},
-          {label:"Pending",val:`$${(total-paid).toLocaleString()}`,color:t.amber},
-        ].map((s,i)=>(
-          <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"16px 20px",boxShadow:t.shadow}}>
-            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
-            <div style={{color:s.color,fontSize:22,fontWeight:300,letterSpacing:"-0.03em"}}>{s.val}</div>
+        {[{label:"Total Value",value:`$${total.toLocaleString()}`,color:t.text},{label:"Collected",value:`$${paid.toLocaleString()}`,color:t.green},{label:"Outstanding",value:`$${(total-paid).toLocaleString()}`,color:t.amber}].map((s,i)=>(
+          <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
+            <div style={{color:s.color,fontSize:24,fontWeight:300,letterSpacing:"-0.04em"}}>{s.value}</div>
           </div>
         ))}
       </div>
     )}
     <Card t={t}>
-      {invoices.map((inv: any,i: number)=>(
+      {invoices.map((inv,i)=>(
         <div key={i}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 22px",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 22px"}}>
             <div>
-              <div style={{color:t.text,fontSize:13,fontWeight:500,marginBottom:3}}>{inv.description}</div>
-              <div style={{color:t.textDim,fontSize:11}}>{inv.id} · Due {inv.date}</div>
+              <div style={{color:t.text,fontSize:13,fontWeight:500}}>{inv.description}</div>
+              <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.id} · Due {inv.date}</div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:18}}>
-              <span style={{color:t.text,fontWeight:600,fontSize:16}}>${inv.amount.toLocaleString()}</span>
+            <div style={{display:"flex",alignItems:"center",gap:16}}>
+              <span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${inv.amount.toLocaleString()}</span>
               <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
             </div>
           </div>
@@ -398,46 +391,114 @@ function InvoicesTab({invoices,isInternal,t}: any) {
   </div>;
 }
 
-// ── TIMELINE TAB ──────────────────────────────────────────────────────────────
-function TimelineTab({project,t}: any) {
-  return <CardPad t={t}>
-    <SectionLabel t={t}>Project Timeline</SectionLabel>
-    <div style={{display:"flex",flexDirection:"column",gap:24,marginTop:20}}>
-      {project.phases.map((ph: any,i: number)=>(
-        <div key={i} style={{display:"flex",gap:16}}>
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-            <div style={{width:10,height:10,borderRadius:"50%",background:ph.status==="complete"?t.green:ph.status==="active"?t.accent:t.border,zIndex:1}}/>
-            {i<project.phases.length-1&&<div style={{width:2,flex:1,background:t.border,margin:"4px 0"}}/>}
+// ── TIMELINE / GANTT TAB ──────────────────────────────────────────────────────
+function TimelineTab({project,t}) {
+  // Build a simple Gantt from phase start/end strings
+  // Parse dates relative to project — we map phases across a fixed pixel canvas
+  const allPhases=project.phases;
+  // Convert "Mar 1" style to day-of-year offsets for positioning
+  const monthMap={Jan:0,Feb:31,Mar:59,Apr:90,May:120,Jun:151,Jul:181,Aug:212,Sep:243,Oct:273,Nov:304,Dec:334};
+  const parseDate=s=>{if(!s)return 0;const[m,d]=s.split(" ");return(monthMap[m]||0)+parseInt(d);};
+  const starts=allPhases.map(p=>parseDate(p.start));
+  const ends=allPhases.map(p=>parseDate(p.end));
+  const minDay=Math.min(...starts);
+  const maxDay=Math.max(...ends);
+  const span=maxDay-minDay||1;
+  const toPercent=d=>((d-minDay)/span*100);
+  const today=parseDate("Mar 7");
+  const todayPct=Math.min(100,Math.max(0,toPercent(today)));
+  const phaseColors={complete:t.green,active:t.accent,pending:t.textDim};
+
+  return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    <CardPad t={t}>
+      <SectionLabel t={t}>Project Timeline</SectionLabel>
+      {/* Month labels */}
+      <div style={{position:"relative",marginBottom:32}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+          {["Jan","Feb","Mar","Apr","May"].map((m,i)=>(
+            <span key={i} style={{color:t.textDim,fontSize:10,fontWeight:600,letterSpacing:"0.06em"}}>{m.toUpperCase()}</span>
+          ))}
+        </div>
+        {/* Gantt rows */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {allPhases.map((ph,i)=>{
+            const left=toPercent(parseDate(ph.start));
+            const width=Math.max(2,toPercent(parseDate(ph.end))-left);
+            const color=phaseColors[ph.status]||t.textDim;
+            return(
+              <div key={i}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:5}}>
+                  <div style={{width:160,flexShrink:0}}>
+                    <span style={{color:ph.status==="pending"?t.textSub:t.text,fontSize:12,fontWeight:500}}>{ph.name}</span>
+                  </div>
+                  <div style={{flex:1,position:"relative",height:24,background:t.surfaceHigh,borderRadius:6,overflow:"hidden"}}>
+                    {/* Today line */}
+                    <div style={{position:"absolute",left:`${todayPct}%`,top:0,bottom:0,width:1,background:t.amber,zIndex:2,opacity:0.7}}/>
+                    {/* Phase bar */}
+                    <div style={{position:"absolute",left:`${left}%`,width:`${width}%`,top:"50%",transform:"translateY(-50%)",height:14,borderRadius:4,background:color,opacity:ph.status==="pending"?0.35:0.9,transition:"all 0.3s"}}/>
+                    {/* Progress fill */}
+                    {ph.status==="active"&&<div style={{position:"absolute",left:`${left}%`,width:`${width*ph.progress/100}%`,top:"50%",transform:"translateY(-50%)",height:14,borderRadius:4,background:color,opacity:1}}/>}
+                  </div>
+                  <div style={{width:60,flexShrink:0,textAlign:"right"}}>
+                    <Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Today marker label */}
+        <div style={{position:"relative",height:16,marginTop:8,marginLeft:172}}>
+          <div style={{position:"absolute",left:`${todayPct}%`,transform:"translateX(-50%)",color:t.amber,fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>▲ Today</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:16,paddingTop:8,borderTop:`1px solid ${t.border}`}}>
+        {[{label:"Complete",color:t.green},{label:"Active",color:t.accent},{label:"Pending",color:t.textDim}].map((l,i)=>(
+          <div key={i} style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:10,height:10,borderRadius:3,background:l.color,opacity:0.85}}/>
+            <span style={{color:t.textSub,fontSize:11}}>{l.label}</span>
           </div>
-          <div style={{flex:1,paddingBottom:i<project.phases.length-1?20:0}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{color:t.text,fontSize:14,fontWeight:600}}>{ph.name}</span>
-              <span style={{color:t.textSub,fontSize:11,fontWeight:500}}>{ph.start} — {ph.end}</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{flex:1}}><Thin value={ph.progress} t={t}/></div>
-              <span style={{color:t.textSub,fontSize:10,fontWeight:700}}>{ph.progress}%</span>
-            </div>
+        ))}
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{width:1,height:12,background:t.amber}}/>
+          <span style={{color:t.textSub,fontSize:11}}>Today</span>
+        </div>
+      </div>
+    </CardPad>
+
+    {/* Phase detail table */}
+    <Card t={t}>
+      <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Phase Details</SectionLabel></div>
+      <Line t={t}/>
+      {allPhases.map((ph,i)=>(
+        <div key={i}>
+          <div style={{display:"flex",alignItems:"center",padding:"14px 24px",gap:16}}>
+            <div style={{flex:2}}><span style={{color:ph.status==="pending"?t.textSub:t.text,fontSize:13,fontWeight:500}}>{ph.name}</span></div>
+            <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.start}</div>
+            <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.end}</div>
+            <div style={{flex:1}}><Thin value={ph.progress} t={t}/></div>
+            <div style={{flex:1,textAlign:"right"}}><Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/></div>
           </div>
+          {i<allPhases.length-1&&<Line t={t}/>}
         </div>
       ))}
-    </div>
-  </CardPad>;
+    </Card>
+  </div>;
 }
 
 // ── SOFTWARE TAB ──────────────────────────────────────────────────────────────
-function SoftwareTab({software,isInternal,t}: any) {
-  const existing=software.filter((s: any)=>s.status==="existing");
-  const newTools=software.filter((s: any)=>s.status==="new");
-  const catColors: any={"Practice Management":t.accent,Productivity:t.textSub,Automation:t.amber,"Intake Forms":t.green,CLM:t.purple,"e-Signature":t.red,"Knowledge Management":t.accent};
+function SoftwareTab({software,isInternal,t}) {
+  const existing=software.filter(s=>s.status==="existing");
+  const newTools=software.filter(s=>s.status==="new");
+  const catColors={"Practice Management":t.accent,"Productivity":t.textSub,"Automation":t.green,"Intake Forms":t.amber,"CLM":t.purple||t.accent,"e-Signature":t.green,"Knowledge Management":t.purple||t.accent,"Process Mapping":t.amber};
 
-  const SoftwareCard = ({tools,title,statusKey}: any) => (
+  const SoftwareCard=({tools,title,statusKey})=>(
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <SectionLabel t={t}>{title}</SectionLabel>
       {tools.length===0
-        ?<div style={{color:t.textSub,fontSize:13,padding:10}}>None listed</div>
+        ?<div style={{color:t.textSub,fontSize:13,padding:"16px 0"}}>None recorded</div>
         :<Card t={t}>
-          {tools.map((sw: any,i: number)=>{
+          {tools.map((sw,i)=>{
             const catColor=catColors[sw.category]||t.accent;
             return(
               <div key={i}>
@@ -473,14 +534,14 @@ function SoftwareTab({software,isInternal,t}: any) {
 }
 
 // ── MAINTENANCE TAB ───────────────────────────────────────────────────────────
-function MaintenanceTab({maintenance,isInternal,t}: any) {
+function MaintenanceTab({maintenance,isInternal,t}) {
   const [filter,setFilter]=useState("all");
-  const filtered=filter==="all"?maintenance:maintenance.filter((m: any)=>m.status===filter);
-  const typeIcon: any={bug:"🐛",maintenance:"🔧",request:"💬"};
-  const typeLabel: any={bug:"Bug",maintenance:"Maintenance",request:"Request"};
-  const priorityStatus: any={high:"high",medium:"medium",low:"low"};
-  const statusLabel: any={complete:"Complete",resolved:"Resolved","in-progress":"In Progress",open:"Open"};
-  const counts: any={all:maintenance.length,open:maintenance.filter((m: any)=>m.status==="open").length,"in-progress":maintenance.filter((m: any)=>m.status==="in-progress").length,resolved:maintenance.filter((m: any)=>m.status==="resolved"||m.status==="complete").length};
+  const filtered=filter==="all"?maintenance:maintenance.filter(m=>m.status===filter);
+  const typeIcon={bug:"🐛",maintenance:"🔧",request:"💬"};
+  const typeLabel={bug:"Bug",maintenance:"Maintenance",request:"Request"};
+  const priorityStatus={high:"high",medium:"medium",low:"low"};
+  const statusLabel={complete:"Complete",resolved:"Resolved","in-progress":"In Progress",open:"Open"};
+  const counts={all:maintenance.length,open:maintenance.filter(m=>m.status==="open").length,"in-progress":maintenance.filter(m=>m.status==="in-progress").length,resolved:maintenance.filter(m=>m.status==="resolved"||m.status==="complete").length};
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {/* Stats */}
@@ -506,7 +567,7 @@ function MaintenanceTab({maintenance,isInternal,t}: any) {
     <Card t={t}>
       {filtered.length===0
         ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No items to display</div>
-        :filtered.map((item: any,i: number)=>(
+        :filtered.map((item,i)=>(
           <div key={item.id}>
             <div style={{padding:"16px 22px"}}>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16,marginBottom:8}}>
@@ -550,7 +611,7 @@ function MaintenanceTab({maintenance,isInternal,t}: any) {
 }
 
 // ── BOOK A CALL TAB ───────────────────────────────────────────────────────────
-function BookingTab({project,t}: any) {
+function BookingTab({project,t}) {
   const CALENDLY_URL="https://calendly.com/lexops/project-catchup";
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}>
@@ -620,7 +681,7 @@ export default function LexOpsDashboard() {
   const t=themes[mode];
 
   const allTabs=["overview","timeline","tasks","documents","invoices","software","maintenance","book"];
-  const tabLabels: any={overview:"Overview",timeline:"Timeline",tasks:"Tasks",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+  const tabLabels={overview:"Overview",timeline:"Timeline",tasks:"Tasks",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
 
   return (
     <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,display:"flex",flexDirection:"column",transition:"background 0.25s,color 0.25s"}}>
@@ -638,7 +699,7 @@ export default function LexOpsDashboard() {
               <button key={k} onClick={()=>setView(k)} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>
-          <button onClick={()=>setMode((m: any)=>m==="dark"?"light":"dark")} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
+          <button onClick={()=>setMode(m=>m==="dark"?"light":"dark")} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
             {mode==="dark"?"☀":"☾"}
           </button>
         </div>
