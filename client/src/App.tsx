@@ -22,13 +22,16 @@ async function fetchUserProfile(userId: string) {
   }
 
   if (profile.role === "client") {
-    const { data: memberships } = await supabase
+    const { data: memberships, error: memberErr } = await supabase
       .from("project_members")
       .select("project_id")
       .eq("user_id", userId);
+    console.log("[Auth] project_members query for user", userId, ":", { memberships, error: memberErr });
+    const allowedProjectIds = (memberships || []).map((m: any) => m.project_id);
+    console.log("[Auth] allowedProjectIds:", allowedProjectIds);
     return {
       ...profile,
-      allowedProjectIds: (memberships || []).map((m: any) => m.project_id),
+      allowedProjectIds,
     };
   }
 
