@@ -580,7 +580,7 @@ function OnboardingTab({ t }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ project_id: "", client_name: "", client_email: "" });
+  const [form, setForm] = useState({ project_id: "", client_name: "", client_emails: [""] });
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -602,50 +602,58 @@ function OnboardingTab({ t }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.client_name.trim() || !form.client_email.trim()) return;
+    const emails = form.client_emails.map(e => e.trim()).filter(Boolean);
+    if (!form.client_name.trim() || emails.length === 0) return;
     setError("");
     setSaving(true);
 
-    // Insert proposal row first to get the id
-    const { data: row, error: insErr } = await supabase
-      .from("proposals")
-      .insert({
-        project_id: form.project_id || null,
-        client_name: form.client_name,
-        client_email: form.client_email,
-        status: "draft",
-      })
-      .select("*")
-      .single();
+    // Upload PDF once if provided, then reuse the URL for each proposal
+    let pdfUrl = null;
+    let storagePath = null;
 
-    if (insErr) { setError(insErr.message); setSaving(false); return; }
+    // Create a proposal for each email recipient
+    const createdLinks = [];
+    for (const email of emails) {
+      const { data: row, error: insErr } = await supabase
+        .from("proposals")
+        .insert({
+          project_id: form.project_id || null,
+          client_name: form.client_name,
+          client_email: email,
+          status: "draft",
+        })
+        .select("*")
+        .single();
 
-    // Upload PDF if provided
-    if (file) {
-      const storagePath = `proposals/${row.id}/${file.name}`;
-      const { error: upErr } = await supabase.storage
-        .from("project-documents")
-        .upload(storagePath, file, { upsert: true });
+      if (insErr) { setError(insErr.message); setSaving(false); return; }
 
-      if (upErr) { setError("PDF upload failed: " + upErr.message); setSaving(false); return; }
+      if (file && !pdfUrl) {
+        storagePath = `proposals/${row.id}/${file.name}`;
+        const { error: upErr } = await supabase.storage
+          .from("project-documents")
+          .upload(storagePath, file, { upsert: true });
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("project-documents")
-        .getPublicUrl(storagePath);
+        if (upErr) { setError("PDF upload failed: " + upErr.message); setSaving(false); return; }
 
-      await supabase.from("proposals")
-        .update({ pdf_url: publicUrl, storage_path: storagePath, status: "sent" })
-        .eq("id", row.id);
+        const { data: { publicUrl } } = supabase.storage
+          .from("project-documents")
+          .getPublicUrl(storagePath);
+        pdfUrl = publicUrl;
+      }
 
-      row.pdf_url = publicUrl;
-      row.status = "sent";
-    } else {
-      await supabase.from("proposals").update({ status: "sent" }).eq("id", row.id);
-      row.status = "sent";
+      if (pdfUrl) {
+        await supabase.from("proposals")
+          .update({ pdf_url: pdfUrl, storage_path: storagePath, status: "sent" })
+          .eq("id", row.id);
+      } else {
+        await supabase.from("proposals").update({ status: "sent" }).eq("id", row.id);
+      }
+
+      createdLinks.push(`${window.location.origin}/proposal/${row.token}`);
     }
 
-    setCopyLink(`${window.location.origin}/proposal/${row.token}`);
-    setForm({ project_id: "", client_name: "", client_email: "" });
+    setCopyLink(createdLinks.length === 1 ? createdLinks[0] : createdLinks.join("\n"));
+    setForm({ project_id: "", client_name: "", client_emails: [""] });
     setFile(null);
     setSaving(false);
     await loadAll();
@@ -704,7 +712,35 @@ function OnboardingTab({ t }) {
                   />
                 )}
                 {field("Client Name", <Input t={t} value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Jane Smith" />)}
-                {field("Client Email", <Input t={t} type="email" value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} placeholder="jane@example.com" />)}
+                {field("Recipient Emails",
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {form.client_emails.map((email, idx) => (
+                      <div key={idx} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <Input t={t} type="email" value={email}
+                          onChange={e => {
+                            const updated = [...form.client_emails];
+                            updated[idx] = e.target.value;
+                            setForm(f => ({ ...f, client_emails: updated }));
+                          }}
+                          placeholder="jane@example.com"
+                          style={{ flex: 1 }}
+                        />
+                        {form.client_emails.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, client_emails: f.client_emails.filter((_, i) => i !== idx) }))}
+                            style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 6, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: t.red, fontSize: 16, flexShrink: 0 }}
+                          >×</button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, client_emails: [...f.client_emails, ""] }))}
+                      style={{ background: "none", border: "none", color: t.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left", padding: "2px 0", fontFamily: "inherit" }}
+                    >+ Add another email</button>
+                  </div>
+                )}
                 {field("Proposal PDF",
                   <input type="file" accept=".pdf" onChange={e => setFile(e.target.files?.[0] || null)}
                     style={{ fontSize: 12, color: t.textSub, fontFamily: "inherit" }}
@@ -717,7 +753,7 @@ function OnboardingTab({ t }) {
                 )}
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
                   <Btn t={t} variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn>
-                  <Btn t={t} disabled={saving || !form.client_name.trim() || !form.client_email.trim()} style={{ minWidth: 120 }}>
+                  <Btn t={t} disabled={saving || !form.client_name.trim() || !form.client_emails.some(e => e.trim())} style={{ minWidth: 120 }}>
                     {saving ? "Creating…" : "Create & Send"}
                   </Btn>
                 </div>

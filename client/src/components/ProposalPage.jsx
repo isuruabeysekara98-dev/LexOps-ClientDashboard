@@ -32,6 +32,11 @@ export default function ProposalPage({ token }) {
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [acctPassword, setAcctPassword] = useState("");
+  const [acctConfirm, setAcctConfirm] = useState("");
+  const [acctLoading, setAcctLoading] = useState(false);
+  const [acctError, setAcctError] = useState("");
+  const [acctDone, setAcctDone] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -118,22 +123,114 @@ export default function ProposalPage({ token }) {
 
   if (error) {
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
         <Logo />
-        <p style={{ color: t.textSub, fontSize: 14 }}>{error}</p>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow }}>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
+          <h2 style={{ color: t.text, fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Link Invalid or Expired</h2>
+          <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>
+            This proposal link is no longer valid. Please contact your LexOps representative for a new link.
+          </p>
+        </div>
+        <div style={{ color: t.textSub, fontSize: 11 }}>© 2026 LexOps · A Teams Squared Company</div>
       </div>
     );
   }
 
+  async function handleCreateAccount(e) {
+    e.preventDefault();
+    setAcctError("");
+    if (acctPassword.length < 8) { setAcctError("Password must be at least 8 characters."); return; }
+    if (acctPassword !== acctConfirm) { setAcctError("Passwords do not match."); return; }
+    setAcctLoading(true);
+    const { error: signUpErr } = await anonSupabase.auth.signUp({
+      email: proposal.client_email,
+      password: acctPassword,
+      options: { data: { full_name: proposal.client_name, role: "client" } },
+    });
+    if (signUpErr) {
+      // If user already exists (invited), try sign in instead
+      if (signUpErr.message?.includes("already been registered") || signUpErr.message?.includes("already registered")) {
+        setAcctError("An account already exists for this email. Please check your email for the invite link, or sign in directly.");
+      } else {
+        setAcctError(signUpErr.message);
+      }
+      setAcctLoading(false);
+      return;
+    }
+    setAcctDone(true);
+    setAcctLoading(false);
+  }
+
   if (accepted) {
+    const inputStyle = {
+      width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`,
+      borderRadius: 7, padding: "10px 14px", fontSize: 14, color: t.text,
+      outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+    };
+    const labelStyle = {
+      color: t.textSub, fontSize: 11, fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6,
+    };
+
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans','Helvetica Neue',sans-serif" }}>
-        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "48px 40px", maxWidth: 480, width: "100%", textAlign: "center", boxShadow: t.shadow }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 24 }}>✓</div>
-          <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 12px" }}>Proposal Accepted</h2>
-          <p style={{ color: t.textSub, fontSize: 14, lineHeight: 1.7, margin: 0 }}>
-            Your proposal has been accepted. You will receive an email shortly to set up your account.
-          </p>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
+        <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "44px 36px", maxWidth: 480, width: "100%", boxShadow: t.shadow }}>
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
+            <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 8px" }}>Proposal Accepted</h2>
+            <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+              Create your account to access your client portal.
+            </p>
+          </div>
+
+          {acctDone ? (
+            <div style={{ textAlign: "center", padding: "8px 0" }}>
+              <div style={{ color: t.green, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Account created!</div>
+              <p style={{ color: t.textSub, fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+                Check your email to verify your account, then sign in to access your portal.
+              </p>
+              <button
+                onClick={() => window.location.replace("/")}
+                style={{ marginTop: 20, background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Go to Sign In
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleCreateAccount} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input type="email" value={proposal.client_email} disabled style={{ ...inputStyle, opacity: 0.6, cursor: "not-allowed" }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Password</label>
+                <input type="password" autoComplete="new-password" required value={acctPassword} onChange={e => setAcctPassword(e.target.value)} placeholder="At least 8 characters" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Confirm Password</label>
+                <input type="password" autoComplete="new-password" required value={acctConfirm} onChange={e => setAcctConfirm(e.target.value)} placeholder="Re-enter your password" style={inputStyle} />
+              </div>
+              {acctError && (
+                <div style={{ background: t.redSoft, border: "1px solid rgba(248,113,113,0.2)", borderRadius: 8, padding: "10px 14px", color: t.red, fontSize: 12 }}>
+                  {acctError}
+                </div>
+              )}
+              <button type="submit" disabled={acctLoading} style={{
+                marginTop: 4, background: acctLoading ? t.surfaceHigh : t.accent,
+                color: acctLoading ? t.textSub : "#fff", border: "none", borderRadius: 8,
+                padding: "11px 0", fontSize: 13, fontWeight: 600,
+                cursor: acctLoading ? "not-allowed" : "pointer",
+                transition: "background 0.15s", fontFamily: "inherit",
+              }}>
+                {acctLoading ? "Creating account…" : "Create Account"}
+              </button>
+              <div style={{ textAlign: "center", color: t.textSub, fontSize: 12 }}>
+                Already have an account?{" "}
+                <a href="/" style={{ color: t.accent, textDecoration: "none" }}>Sign in</a>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     );

@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase.js";
 import Dashboard from "@/components/Dashboard";
 import LoginPage from "@/components/LoginPage";
 import ProposalPage from "@/components/ProposalPage";
+import SetPasswordPage from "@/components/SetPasswordPage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -54,15 +55,26 @@ function App() {
 
   useEffect(() => {
     let mounted = true;
-    supabase.auth.getSession().then(async ({ data: { session } }: any) => {
-      if (!mounted) return;
-      setSession(session);
-      if (session?.user) {
+
+    // Safety net: force authLoading to false after 5 seconds
+    const timeout = setTimeout(() => {
+      if (mounted && authLoading) setAuthLoading(false);
+    }, 5000);
+
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession() as any;
+        if (!mounted) return;
+        setSession(session);
+        if (!session?.user) return;
         const profile = await fetchUserProfile(session.user.id);
         if (mounted) setUserProfile(profile);
+      } catch (err) {
+        console.error("[Auth] getSession error:", err);
+      } finally {
+        if (mounted) setAuthLoading(false);
       }
-      if (mounted) setAuthLoading(false);
-    });
+    })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
       if (!mounted) return;
@@ -75,8 +87,14 @@ function App() {
       }
     });
 
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => { mounted = false; clearTimeout(timeout); subscription.unsubscribe(); };
   }, []);
+
+  // Invite / recovery token in URL hash — show password setup page
+  const hash = window.location.hash;
+  if (hash && (hash.includes("type=invite") || hash.includes("type=recovery"))) {
+    return <SetPasswordPage />;
+  }
 
   // Public route: /proposal/:token
   const proposalMatch = window.location.pathname.match(/^\/proposal\/([a-f0-9-]+)$/i);
