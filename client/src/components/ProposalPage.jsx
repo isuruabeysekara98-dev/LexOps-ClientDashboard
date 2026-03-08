@@ -142,7 +142,7 @@ export default function ProposalPage({ token }) {
     const { error: signUpErr } = await supabase.auth.signUp({
       email: proposal.client_email,
       password: acctPassword,
-      options: { data: { full_name: proposal.client_name, role: "client" } },
+      options: { data: { full_name: proposal?.client_contact_name ?? proposal?.client_name, role: "client" } },
     });
     if (signUpErr) {
       if (signUpErr.message?.includes("already been registered") || signUpErr.message?.includes("already registered")) {
@@ -260,7 +260,7 @@ export default function ProposalPage({ token }) {
           <div style={{ width: 1, height: 16, background: t.border }} />
           <span style={{ color: t.textSub, fontSize: 12, letterSpacing: "0.02em" }}>Proposal</span>
         </div>
-        <span style={{ color: t.textSub, fontSize: 12 }}>For {proposal.client_name}</span>
+        <span style={{ color: t.textSub, fontSize: 12 }}>For {proposal?.client_contact_name ?? proposal?.client_name}</span>
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 16px", paddingBottom: 80 }}>
@@ -268,7 +268,7 @@ export default function ProposalPage({ token }) {
         <div style={{ marginBottom: 24 }}>
           <div style={{ color: t.textSub, fontSize: 12, marginBottom: 6 }}>Proposal for</div>
           <h1 style={{ color: t.text, fontSize: 22, fontWeight: 400, margin: "0 0 6px", letterSpacing: "-0.03em" }}>
-            {proposal.client_name}
+            {proposal?.client_contact_name ?? proposal?.client_name}
           </h1>
           {projectName && <div style={{ color: t.accentLight, fontSize: 14 }}>{projectName}</div>}
         </div>
