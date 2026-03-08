@@ -1218,22 +1218,17 @@ function ProjectsTab({ t }) {
     setAiError("");
     setAiGenerating(true);
     try {
-      // Read file as base64
-      const arrayBuf = await aiFile.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
+      const formData = new FormData();
+      formData.append("project_id", aiProject.id);
+      formData.append("pdf", aiFile);
 
       const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch("/api/admin/generate-project", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          project_id: aiProject.id,
-          pdf_base64: base64,
-          pdf_filename: aiFile.name,
-        }),
+        body: formData,
       });
       const json = await resp.json();
       if (!resp.ok) {

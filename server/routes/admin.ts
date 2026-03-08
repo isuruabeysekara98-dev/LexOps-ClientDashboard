@@ -1,7 +1,10 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
+import multer from "multer";
 import { sendAdminInvite, sendMemberInvite, sendClientProjectInvite } from "../email";
 import { generateProjectStructure } from "../lib/generateProject";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -204,28 +207,27 @@ router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Re
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/generate-project
-// Accepts JSON { project_id, pdf_base64, pdf_filename }
+// Accepts multipart form data: project_id (field) + pdf (file)
 // Uploads PDF to Supabase storage, then runs AI generation
 // ---------------------------------------------------------------------------
-router.post("/generate-project", requireAdmin, async (req: Request, res: Response) => {
+router.post("/generate-project", requireAdmin, upload.single("pdf"), async (req: Request, res: Response) => {
   console.log('[admin] generate-project hit, project_id:', req.body?.project_id);
-  const { project_id, pdf_base64, pdf_filename } = req.body;
+  const { project_id } = req.body;
+  const file = req.file;
 
-  if (!project_id || !pdf_base64) {
-    res.status(400).json({ message: "project_id and pdf_base64 are required" });
+  if (!project_id || !file) {
+    res.status(400).json({ message: "project_id and pdf file are required" });
     return;
   }
 
   try {
-    // Decode base64 to buffer
-    const pdfBuffer = Buffer.from(pdf_base64, "base64");
-    const filename = pdf_filename || "brief.pdf";
+    const filename = file.originalname || "brief.pdf";
     const storagePath = `projects/${project_id}/${filename}`;
 
     // Upload to Supabase storage
     const { error: upErr } = await adminSupabase.storage
       .from("project-documents")
-      .upload(storagePath, pdfBuffer, {
+      .upload(storagePath, file.buffer, {
         contentType: "application/pdf",
         upsert: true,
       });
