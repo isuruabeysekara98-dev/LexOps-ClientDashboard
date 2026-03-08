@@ -25,19 +25,27 @@ async function generateProjectStructure(projectId: number, pdfUrl: string) {
 
   // Fetch PDF directly from public Supabase Storage URL
   console.log("[ai-structure] Fetching PDF from public URL:", pdfUrl);
-  let pdfResponse: globalThis.Response;
+  let pdfResponse: globalThis.Response | undefined;
   try {
     pdfResponse = await fetch(pdfUrl, { signal: AbortSignal.timeout(10000) });
   } catch (err: any) {
     console.error("[ai-structure] PDF fetch error (timeout or network):", err.message);
-    await insertFallbackFlags(projectId, `Could not download proposal PDF: ${err.message}`);
+    await adminSupabase.from('project_setup_flags').insert([
+      { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
+      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse?.status || 'no response') }
+    ]);
     return;
   }
   console.log("[ai-structure] PDF fetch status:", pdfResponse.status, pdfResponse.statusText);
   if (!pdfResponse.ok) {
     const body = await pdfResponse.text().catch(() => "");
     console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText, body);
-    await insertFallbackFlags(projectId, `Could not download proposal PDF: HTTP ${pdfResponse.status} ${pdfResponse.statusText}`);
+    await adminSupabase.from('project_setup_flags').insert([
+      { project_id: projectId, question: 'PDF fetch error', answer: `HTTP ${pdfResponse.status} ${pdfResponse.statusText}` },
+      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse.status) }
+    ]);
     return;
   }
 
@@ -199,7 +207,11 @@ Rules:
     }
   } catch (err: any) {
     console.error("[ai-structure] AI call failed:", err.message);
-    await insertFallbackFlags(projectId, `AI call failed: ${err.message}`);
+    await adminSupabase.from('project_setup_flags').insert([
+      { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
+      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF fetch status', answer: 'AI call failed' }
+    ]);
   }
 }
 
