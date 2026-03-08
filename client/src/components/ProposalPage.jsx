@@ -33,6 +33,8 @@ export default function ProposalPage({ token }) {
   const [acctLoading, setAcctLoading] = useState(false);
   const [acctError, setAcctError] = useState("");
   const [acctDone, setAcctDone] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   useEffect(() => { document.title = "LexOps | Review Your Proposal"; }, []);
 
@@ -129,9 +131,6 @@ export default function ProposalPage({ token }) {
       </div>
     );
   }
-
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
 
   async function handleCreateAccount(e) {
     e.preventDefault();
