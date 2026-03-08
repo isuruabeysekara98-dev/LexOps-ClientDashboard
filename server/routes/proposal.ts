@@ -15,7 +15,7 @@ const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
 // ---------------------------------------------------------------------------
 // AI project structure generation
 // ---------------------------------------------------------------------------
-async function generateProjectStructure(projectId: number, proposalStoragePath: string) {
+async function generateProjectStructure(projectId: number, pdfUrl: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.error("[ai-structure] ANTHROPIC_API_KEY not set, inserting setup flags");
@@ -23,25 +23,21 @@ async function generateProjectStructure(projectId: number, proposalStoragePath: 
     return;
   }
 
-  // Fetch PDF from Supabase Storage via signed URL
-  console.log("[ai-structure] Downloading PDF from storage path:", proposalStoragePath);
-  const { data: signedData, error: signedErr } = await adminSupabase
-    .storage
-    .from("project-documents")
-    .createSignedUrl(proposalStoragePath, 60);
-
-  if (signedErr || !signedData?.signedUrl) {
-    console.error("[ai-structure] Failed to create signed URL:", signedErr?.message);
-    await insertFallbackFlags(projectId, "Could not download proposal PDF");
+  // Fetch PDF directly from public Supabase Storage URL
+  console.log("[ai-structure] Fetching PDF from public URL:", pdfUrl);
+  let pdfResponse: globalThis.Response;
+  try {
+    pdfResponse = await fetch(pdfUrl, { signal: AbortSignal.timeout(10000) });
+  } catch (err: any) {
+    console.error("[ai-structure] PDF fetch error (timeout or network):", err.message);
+    await insertFallbackFlags(projectId, `Could not download proposal PDF: ${err.message}`);
     return;
   }
-  console.log("[ai-structure] Signed URL created successfully");
-
-  const pdfResponse = await fetch(signedData.signedUrl);
-  console.log("[ai-structure] PDF fetch status:", pdfResponse.status);
+  console.log("[ai-structure] PDF fetch status:", pdfResponse.status, pdfResponse.statusText);
   if (!pdfResponse.ok) {
-    console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText);
-    await insertFallbackFlags(projectId, "Could not download proposal PDF");
+    const body = await pdfResponse.text().catch(() => "");
+    console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText, body);
+    await insertFallbackFlags(projectId, `Could not download proposal PDF: HTTP ${pdfResponse.status} ${pdfResponse.statusText}`);
     return;
   }
 
@@ -418,8 +414,8 @@ router.post("/accept", async (req: Request, res: Response) => {
     });
 
     // Fire-and-forget: generate project structure from proposal PDF
-    if (proposal.storage_path) {
-      generateProjectStructure(projectId, proposal.storage_path).catch((err) =>
+    if (proposal.pdf_url) {
+      generateProjectStructure(projectId, proposal.pdf_url).catch((err) =>
         console.error("[ai-structure] Unhandled error:", err.message)
       );
     }
