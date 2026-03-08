@@ -55,6 +55,7 @@ async function generateProjectStructure(projectId: number, pdfUrl: string) {
   }
 
   const buffer = Buffer.from(await pdfResponse.arrayBuffer());
+  console.log('[PDF] fetch status:', pdfResponse.status, 'size:', buffer.length);
   const base64Pdf = buffer.toString("base64");
 
   const anthropic = new Anthropic({ apiKey });
@@ -131,18 +132,35 @@ Rules:
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") {
-      await insertFallbackFlags(projectId, "AI returned no text response");
+    const responseText = textBlock && textBlock.type === "text" ? textBlock.text : null;
+
+    console.log('[AI] raw response length:', responseText?.length);
+    console.log('[AI] raw response preview:', responseText?.substring(0, 500));
+
+    if (!responseText) {
+      await adminSupabase.from('project_setup_flags').insert([
+        { project_id: projectId, question: 'PDF fetch error', answer: 'AI returned empty response' }
+      ]);
       return;
     }
 
     // Parse JSON — strip markdown fences if present
-    let jsonStr = textBlock.text.trim();
+    let jsonStr = responseText.trim();
     if (jsonStr.startsWith("```")) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
     }
 
-    const result = JSON.parse(jsonStr);
+    let result: any;
+    try {
+      result = JSON.parse(jsonStr);
+    } catch (parseError: any) {
+      console.error('[AI] JSON parse failed:', parseError.message);
+      await adminSupabase.from('project_setup_flags').insert([
+        { project_id: projectId, question: 'AI parse error', answer: parseError.message },
+        { project_id: projectId, question: 'AI response preview', answer: responseText.substring(0, 200) }
+      ]);
+      return;
+    }
 
     // If confidence is low, only insert flags
     if (result.confidence === "low") {

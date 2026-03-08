@@ -1616,38 +1616,63 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
-  useEffect(()=>{
-    async function load(){
-      setLoading(true);
-      let query;
-      if(isClient){
-        console.log("[Dashboard] Client allowedProjectIds:", JSON.stringify(allowedProjectIds));
-        if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);setLoading(false);return;}
-        query=supabase.from("projects").select("*").in("id",allowedProjectIds);
-      } else {
-        query=supabase.from("projects").select("*, clients(name)");
-      }
-      const {data:rows,error:queryErr}=await query.order("id");
-      if(isClient) console.log("[Dashboard] Projects query:", {ids: allowedProjectIds, rows, error: queryErr?.message});
-      if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
-      const full=await Promise.all(rows.map(async row=>{
-        const related=await fetchProjectData(row.id);
-        return normalizeProject(row,related);
-      }));
-      setProjects(full);
-      setSelected(prev=>{
-        if(prev){const updated=full.find(p=>p.id===prev.id);return updated||full[0]||null;}
-        return full[0]||null;
-      });
-      // Show welcome screen for first-time client users
-      if(isClient && userProfile && !userProfile.has_seen_welcome){
-        setShowWelcome(true);
-      }
-      setLoading(false);
+  const loadProjects=useCallback(async()=>{
+    setLoading(true);
+    let query;
+    if(isClient){
+      console.log("[Dashboard] Client allowedProjectIds:", JSON.stringify(allowedProjectIds));
+      if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);setLoading(false);return;}
+      query=supabase.from("projects").select("*").in("id",allowedProjectIds);
+    } else {
+      query=supabase.from("projects").select("*, clients(name)");
     }
-    load();
+    const {data:rows,error:queryErr}=await query.order("id");
+    if(isClient) console.log("[Dashboard] Projects query:", {ids: allowedProjectIds, rows, error: queryErr?.message});
+    if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
+    const full=await Promise.all(rows.map(async row=>{
+      const related=await fetchProjectData(row.id);
+      return normalizeProject(row,related);
+    }));
+    setProjects(full);
+    setSelected(prev=>{
+      if(prev){const updated=full.find(p=>p.id===prev.id);return updated||full[0]||null;}
+      return full[0]||null;
+    });
+    if(isClient && userProfile && !userProfile.has_seen_welcome){
+      setShowWelcome(true);
+    }
+    setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
+
+  useEffect(()=>{ loadProjects(); },[loadProjects]);
+
+  // Fix: prevent persistent loading screen on tab switch
+  useEffect(()=>{
+    const handleVisibility=async()=>{
+      if(document.visibilityState!=="visible") return;
+      const {data:{session}}=await supabase.auth.getSession();
+      if(session){
+        // Session still valid — if stuck loading, force reload projects
+        setLoading(prev=>{
+          if(prev) loadProjects();
+          return prev;
+        });
+      } else {
+        // Session expired — redirect to login
+        if(onLogout) onLogout();
+      }
+    };
+    document.addEventListener("visibilitychange",handleVisibility);
+    return()=>document.removeEventListener("visibilitychange",handleVisibility);
+  },[loadProjects,onLogout]);
+
+  // Safety timeout: force loading to false after 5 seconds
+  useEffect(()=>{
+    if(!loading) return;
+    const timer=setTimeout(()=>setLoading(false),5000);
+    return()=>clearTimeout(timer);
+  },[loading]);
 
   useEffect(()=>{
     if(adminOpen) document.title="LexOps | Admin";

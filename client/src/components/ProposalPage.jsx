@@ -130,6 +130,9 @@ export default function ProposalPage({ token }) {
     );
   }
 
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
   async function handleCreateAccount(e) {
     e.preventDefault();
     setAcctError("");
@@ -142,7 +145,6 @@ export default function ProposalPage({ token }) {
       options: { data: { full_name: proposal.client_name, role: "client" } },
     });
     if (signUpErr) {
-      // If user already exists (invited), try sign in instead
       if (signUpErr.message?.includes("already been registered") || signUpErr.message?.includes("already registered")) {
         setAcctError("An account already exists for this email. Please check your email for the invite link, or sign in directly.");
       } else {
@@ -153,6 +155,15 @@ export default function ProposalPage({ token }) {
     }
     setAcctDone(true);
     setAcctLoading(false);
+  }
+
+  async function handleResendConfirmation() {
+    setResending(true);
+    setResent(false);
+    await supabase.auth.resend({ type: "signup", email: proposal.client_email });
+    setResending(false);
+    setResent(true);
+    setTimeout(() => setResent(false), 4000);
   }
 
   if (accepted) {
@@ -173,21 +184,32 @@ export default function ProposalPage({ token }) {
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
             <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 8px" }}>Proposal Accepted</h2>
             <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-              Create your account to access your client portal.
+              Create your account below. After signing up, you'll receive a confirmation email to activate your account.
             </p>
           </div>
 
           {acctDone ? (
             <div style={{ textAlign: "center", padding: "8px 0" }}>
-              <div style={{ color: t.green, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Account created!</div>
-              <p style={{ color: t.textSub, fontSize: 13, margin: 0, lineHeight: 1.6 }}>
-                Check your email to verify your account, then sign in to access your portal.
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 10px" }}>You're almost in.</h2>
+              <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: "0 0 24px" }}>
+                We've sent a confirmation link to <strong style={{ color: t.text }}>{proposal.client_email}</strong>. Click the link to activate your account and access your project dashboard.
               </p>
               <button
-                onClick={() => window.location.replace("/")}
-                style={{ marginTop: 20, background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                onClick={handleResendConfirmation}
+                disabled={resending}
+                style={{
+                  background: "transparent", color: t.accent, border: `1px solid ${t.border}`,
+                  borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 600,
+                  cursor: resending ? "not-allowed" : "pointer", fontFamily: "inherit",
+                  opacity: resending ? 0.6 : 1, transition: "opacity 0.15s",
+                }}
               >
-                Go to Sign In
+                {resent ? "Confirmation email resent!" : resending ? "Resending…" : "Resend confirmation email"}
               </button>
             </div>
           ) : (
