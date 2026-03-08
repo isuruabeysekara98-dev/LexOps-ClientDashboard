@@ -42,7 +42,8 @@
       "Bash(lsof -i :5000 2>/dev/null || ss -tlnp | grep 5000)",
       "Bash(pkill -f \"node.*index.cjs\" 2>/dev/null; pkill -f \"node.*dist\" 2>/dev/null; sleep 2 && fuser 5000/tcp 2>/dev/null && echo \"still in use\" || echo \"port free\")",
       "Bash(fuser 5000/tcp 2>/dev/null; echo \"exit: $?\")",
-      "Bash(kill 52 71 82 94 102 2>/dev/null; sleep 2 && ps aux | grep -E \"node|npm\" | grep -v grep || echo \"All node processes stopped\")"
+      "Bash(kill 52 71 82 94 102 2>/dev/null; sleep 2 && ps aux | grep -E \"node|npm\" | grep -v grep || echo \"All node processes stopped\")",
+      "Bash(npm run build)"
     ]
   }
 }

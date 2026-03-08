@@ -16,10 +16,15 @@ const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
 // AI project structure generation
 // ---------------------------------------------------------------------------
 async function generateProjectStructure(projectId: number, pdfUrl: string) {
+  console.log('[proposal] ANTHROPIC_API_KEY present:', !!process.env.ANTHROPIC_API_KEY);
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.error("[ai-structure] ANTHROPIC_API_KEY not set, inserting setup flags");
-    await insertFallbackFlags(projectId, "API key not configured");
+    await adminSupabase.from('project_setup_flags').insert([
+      { project_id: projectId, question: 'PDF fetch error', answer: 'ANTHROPIC_API_KEY is not set in environment' },
+      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF fetch status', answer: 'no API key' }
+    ]);
     return;
   }
 
