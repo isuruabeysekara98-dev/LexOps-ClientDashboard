@@ -208,6 +208,7 @@ router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Re
 // Uploads PDF to Supabase storage, then runs AI generation
 // ---------------------------------------------------------------------------
 router.post("/generate-project", requireAdmin, async (req: Request, res: Response) => {
+  console.log('[admin] generate-project hit, project_id:', req.body?.project_id);
   const { project_id, pdf_base64, pdf_filename } = req.body;
 
   if (!project_id || !pdf_base64) {
