@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { sendAdminInvite, sendMemberInvite, sendClientProjectInvite } from "../email";
+import { generateProjectStructure } from "../lib/generateProject";
 
 const router = Router();
 
@@ -199,6 +200,53 @@ router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Re
   }
 
   res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/generate-project
+// Accepts JSON { project_id, pdf_base64, pdf_filename }
+// Uploads PDF to Supabase storage, then runs AI generation
+// ---------------------------------------------------------------------------
+router.post("/generate-project", requireAdmin, async (req: Request, res: Response) => {
+  const { project_id, pdf_base64, pdf_filename } = req.body;
+
+  if (!project_id || !pdf_base64) {
+    res.status(400).json({ message: "project_id and pdf_base64 are required" });
+    return;
+  }
+
+  try {
+    // Decode base64 to buffer
+    const pdfBuffer = Buffer.from(pdf_base64, "base64");
+    const filename = pdf_filename || "brief.pdf";
+    const storagePath = `projects/${project_id}/${filename}`;
+
+    // Upload to Supabase storage
+    const { error: upErr } = await adminSupabase.storage
+      .from("project-documents")
+      .upload(storagePath, pdfBuffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+    if (upErr) {
+      res.status(500).json({ message: `PDF upload failed: ${upErr.message}` });
+      return;
+    }
+
+    // Get public URL
+    const { data: { publicUrl } } = adminSupabase.storage
+      .from("project-documents")
+      .getPublicUrl(storagePath);
+
+    // Run AI generation (awaited so we can return success/error)
+    await generateProjectStructure(project_id, publicUrl, adminSupabase);
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[generate-project] Error:", err.message);
+    res.status(500).json({ message: err.message || "AI generation failed" });
+  }
 });
 
 export default router;

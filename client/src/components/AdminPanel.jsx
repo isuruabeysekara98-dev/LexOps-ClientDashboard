@@ -22,14 +22,6 @@ const themes = {
   },
 };
 
-// Simplified project list for the invite modal's member-assignment selector.
-// These mirror the hardcoded projects in Dashboard.jsx by id.
-const SELECTABLE_PROJECTS = [
-  { id: 1, label: "Nautilus Law – Intake Process & Smokeball Automation" },
-  { id: 2, label: "Meridian Legal – Legal Ops Audit & CLM Implementation" },
-  { id: 3, label: "Brightside Financial – In-House Legal Workflow Redesign" },
-];
-
 const ROLES = ["lexops_admin", "lexops_member", "client"];
 const ROLE_LABELS = { lexops_admin: "Admin", lexops_member: "Member", client: "Client" };
 const ROLE_COLORS = {
@@ -177,6 +169,18 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
   const [form, setForm] = useState({ email: "", full_name: "", role: defaultRole || "client", project_ids: [] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadProjects() {
+      setProjectsLoading(true);
+      const { data } = await supabase.from("projects").select("id, name, client_name").order("id");
+      setAvailableProjects((data || []).map(p => ({ id: p.id, label: p.client_name ? `${p.client_name} – ${p.name}` : p.name })));
+      setProjectsLoading(false);
+    }
+    loadProjects();
+  }, []);
 
   function toggleProject(id) {
     setForm(f => ({
@@ -246,7 +250,11 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
                 Assign Projects
               </label>
               <div style={{ background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 8, overflow: "hidden" }}>
-                {SELECTABLE_PROJECTS.map((p, i) => (
+                {projectsLoading ? (
+                  <div style={{ padding: "12px 14px", color: t.textSub, fontSize: 12 }}>Loading projects…</div>
+                ) : availableProjects.length === 0 ? (
+                  <div style={{ padding: "12px 14px", color: t.textSub, fontSize: 12 }}>No projects available</div>
+                ) : availableProjects.map((p, i) => (
                   <div key={p.id}>
                     <label style={{
                       display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
@@ -260,7 +268,7 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
                       />
                       {p.label}
                     </label>
-                    {i < SELECTABLE_PROJECTS.length - 1 && <Line t={t} />}
+                    {i < availableProjects.length - 1 && <Line t={t} />}
                   </div>
                 ))}
               </div>
@@ -1136,6 +1144,16 @@ function TeamTab({ t, mode }) {
 // ---------------------------------------------------------------------------
 // TAB 3: Projects Tab (unchanged)
 // ---------------------------------------------------------------------------
+// Sparkles icon SVG
+function SparklesIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+      <path d="M20 3v4"/><path d="M22 5h-4"/>
+    </svg>
+  );
+}
+
 function ProjectsTab({ t }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1147,6 +1165,11 @@ function ProjectsTab({ t }) {
   const [flags, setFlags] = useState([]);
   const [flagsLoading, setFlagsLoading] = useState(false);
   const [savingFlag, setSavingFlag] = useState(null);
+  const [aiProject, setAiProject] = useState(null);
+  const [aiFile, setAiFile] = useState(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiSuccess, setAiSuccess] = useState(false);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -1188,6 +1211,49 @@ function ProjectsTab({ t }) {
     setFlags(fs => fs.map(f => f.id === flag.id ? { ...f, resolved: true } : f));
     setFlagCounts(fc => ({ ...fc, [flagsProject.id]: Math.max(0, (fc[flagsProject.id] || 1) - 1) }));
     setSavingFlag(null);
+  }
+
+  async function handleAiGenerate() {
+    if (!aiFile || !aiProject) return;
+    setAiError("");
+    setAiGenerating(true);
+    try {
+      // Read file as base64
+      const arrayBuf = await aiFile.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch("/api/admin/generate-project", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          project_id: aiProject.id,
+          pdf_base64: base64,
+          pdf_filename: aiFile.name,
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) {
+        setAiError(json.message || "Generation failed");
+        setAiGenerating(false);
+        return;
+      }
+      setAiSuccess(true);
+      setAiGenerating(false);
+      // Reload projects to show new flags
+      setTimeout(() => {
+        setAiProject(null);
+        setAiFile(null);
+        setAiSuccess(false);
+        loadProjects();
+      }, 2000);
+    } catch (err) {
+      setAiError("Network error");
+      setAiGenerating(false);
+    }
   }
 
   const statusColors = {
@@ -1264,6 +1330,60 @@ function ProjectsTab({ t }) {
         </div>
       )}
 
+      {aiProject && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14, padding: "28px 28px", width: "100%", maxWidth: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.3)", overflowY: "auto", maxHeight: "90vh" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+              <span style={{ color: t.text, fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+                <SparklesIcon /> Generate with AI — {aiProject.name}
+              </span>
+              <button onClick={() => { setAiProject(null); setAiFile(null); setAiError(""); setAiSuccess(false); }} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+
+            {aiSuccess ? (
+              <div style={{ textAlign: "center", padding: "24px 0" }}>
+                <div style={{ color: t.green, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Project structure generated successfully</div>
+                <div style={{ color: t.textSub, fontSize: 12 }}>Closing automatically…</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ color: t.textSub, fontSize: 12, lineHeight: 1.6 }}>
+                  Upload a proposal or brief PDF. The AI will analyze it and generate phases, tasks, deliverables, and setup flags for this project.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Upload Proposal or Brief</label>
+                  <input type="file" accept=".pdf" onChange={e => setAiFile(e.target.files?.[0] || null)}
+                    style={{ fontSize: 12, color: t.textSub, fontFamily: "inherit" }}
+                  />
+                </div>
+
+                {aiGenerating && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 0" }}>
+                    <div style={{ width: 18, height: 18, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                    <span style={{ color: t.textSub, fontSize: 13 }}>Analysing document…</span>
+                    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                  </div>
+                )}
+
+                {aiError && (
+                  <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12 }}>
+                    {aiError}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+                  <Btn t={t} variant="ghost" onClick={() => { setAiProject(null); setAiFile(null); setAiError(""); }}>Cancel</Btn>
+                  <Btn t={t} disabled={aiGenerating || !aiFile} onClick={handleAiGenerate} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <SparklesIcon />
+                    {aiGenerating ? "Generating…" : "Generate Project Structure"}
+                  </Btn>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <SectionLabel t={t}>All Projects ({projects.length})</SectionLabel>
         <Btn t={t} onClick={() => setShowModal(true)}>+ New Project</Btn>
@@ -1282,7 +1402,7 @@ function ProjectsTab({ t }) {
       ) : (
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
           {/* Header */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 130px", borderBottom: `1px solid ${t.border}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 180px", borderBottom: `1px solid ${t.border}` }}>
             {["Client", "Project", "Status", "Progress", "Actions"].map((h, i) => (
               <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
@@ -1292,7 +1412,7 @@ function ProjectsTab({ t }) {
             const sc = statusColors[p.status] || statusColors["on-hold"];
             return (
               <div key={p.id}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 130px", alignItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 80px 180px", alignItems: "center" }}>
                   <div style={{ padding: "14px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{p.client_name}</div>
                   <div style={{ padding: "14px 18px" }}>
                     <div style={{ color: t.text, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
@@ -1325,7 +1445,19 @@ function ProjectsTab({ t }) {
                       <span style={{ color: t.textSub, fontSize: 10, fontWeight: 600, flexShrink: 0 }}>{p.progress}%</span>
                     </div>
                   </div>
-                  <div style={{ padding: "14px 18px", display: "flex", gap: 6 }}>
+                  <div style={{ padding: "14px 18px", display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => { setAiProject(p); setAiFile(null); setAiError(""); setAiSuccess(false); }}
+                      title="Generate with AI"
+                      style={{
+                        background: t.accentSoft, color: t.accentLight, border: `1px solid ${t.accent}30`,
+                        borderRadius: 6, width: 28, height: 28, padding: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", fontSize: 12, flexShrink: 0,
+                      }}
+                    >
+                      <SparklesIcon />
+                    </button>
                     <Btn t={t} variant="ghost" onClick={() => setEditingProject(p)} style={{ padding: "4px 10px" }}>Edit</Btn>
                     <Btn t={t} variant="danger" disabled={deleting === p.id} onClick={() => deleteProject(p.id)} style={{ padding: "4px 10px" }}>
                       {deleting === p.id ? "…" : "Delete"}
