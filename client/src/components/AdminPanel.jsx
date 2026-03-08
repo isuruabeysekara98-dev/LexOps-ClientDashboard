@@ -404,6 +404,14 @@ function ClientsTab({ t, mode }) {
   const [removingClient, setRemovingClient] = useState(null);
   const [showInviteClient, setShowInviteClient] = useState(false);
 
+  // --- Client pending invites state ---
+  const [clientInviteLogs, setClientInviteLogs] = useState([]);
+  const [clientInviteLogOpen, setClientInviteLogOpen] = useState(false);
+  const [clientInviteLogLoading, setClientInviteLogLoading] = useState(false);
+  const [clientResending, setClientResending] = useState(null);
+  const [clientResent, setClientResent] = useState(null);
+  const [clientCancelling, setClientCancelling] = useState(null);
+
   // --- Proposals state ---
   const [proposals, setProposals] = useState([]);
   const [proposalProjects, setProposalProjects] = useState([]);
@@ -443,6 +451,50 @@ function ClientsTab({ t, mode }) {
     setProposalProjects(pr || []);
     setProposalsLoading(false);
   }, []);
+
+  const loadClientInviteLogs = useCallback(async () => {
+    setClientInviteLogLoading(true);
+    const { data: logs } = await supabase
+      .from("invite_log")
+      .select("*")
+      .eq("role", "client")
+      .order("invited_at", { ascending: false });
+    if (logs) {
+      const { data: profiles } = await supabase.from("profiles").select("email");
+      const profileEmails = new Set((profiles || []).map(p => p.email));
+      setClientInviteLogs(logs.map(l => ({ ...l, accepted: profileEmails.has(l.email) })));
+    }
+    setClientInviteLogLoading(false);
+  }, []);
+
+  async function resendClientInvite(log) {
+    setClientResending(log.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    const resp = await fetch("/api/admin/resend-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ email: log.email, full_name: log.full_name, role: log.role }),
+    });
+    setClientResending(null);
+    if (resp.ok) {
+      setClientResent(log.id);
+      setTimeout(() => setClientResent(null), 3000);
+    }
+  }
+
+  async function cancelClientInvite(log) {
+    if (!window.confirm(`Cancel invite for ${log.email}? This will remove their pending account.`)) return;
+    setClientCancelling(log.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    await fetch("/api/admin/cancel-invite", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ email: log.email }),
+    });
+    setClientCancelling(null);
+    loadClients();
+    loadClientInviteLogs();
+  }
 
   useEffect(() => { loadClients(); loadProposals(); }, [loadClients, loadProposals]);
 
@@ -766,6 +818,74 @@ function ClientsTab({ t, mode }) {
         </div>
       )}
 
+      {/* ====================== Pending Client Invites ====================== */}
+      <div style={{ marginTop: 16 }}>
+        <button
+          onClick={() => { setClientInviteLogOpen(o => !o); if (!clientInviteLogOpen && clientInviteLogs.length === 0) loadClientInviteLogs(); }}
+          style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            display: "flex", alignItems: "center", gap: 8, color: t.textSub, fontSize: 12, fontWeight: 600,
+            textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "inherit",
+          }}
+        >
+          <span style={{ display: "inline-block", transform: clientInviteLogOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s", fontSize: 10 }}>▶</span>
+          Invite History
+        </button>
+
+        {clientInviteLogOpen && (
+          <div style={{ marginTop: 12 }}>
+            {clientInviteLogLoading ? (
+              <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>Loading...</div>
+            ) : clientInviteLogs.length === 0 ? (
+              <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>No client invites sent yet.</div>
+            ) : (
+              <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 90px 120px", borderBottom: `1px solid ${t.border}` }}>
+                  {["Name", "Email", "Invited", "Status", "Actions"].map((h, i) => (
+                    <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
+                  ))}
+                </div>
+                {clientInviteLogs.map((log, i) => (
+                  <div key={log.id || i}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 90px 120px", alignItems: "center" }}>
+                      <div style={{ padding: "12px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{log.full_name || log.email}</div>
+                      <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 12 }}>{log.email}</div>
+                      <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 11 }}>
+                        {log.invited_at ? new Date(log.invited_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" }) : "—"}
+                      </div>
+                      <div style={{ padding: "12px 18px" }}>
+                        {log.accepted ? (
+                          <span style={{ background: "rgba(74,222,128,0.08)", color: "#4ade80", border: "1px solid #4ade8025", borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />Accepted
+                          </span>
+                        ) : (
+                          <span style={{ background: "rgba(245,158,11,0.08)", color: "#f59e0b", border: "1px solid #f59e0b25", borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                            <span style={{ width: 4, height: 4, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />Pending
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ padding: "12px 18px", display: "flex", gap: 6 }}>
+                        {!log.accepted && (
+                          <>
+                            <Btn t={t} disabled={clientResending === log.id} onClick={() => resendClientInvite(log)} style={{ fontSize: 11, padding: "3px 10px" }}>
+                              {clientResent === log.id ? "Sent!" : clientResending === log.id ? "..." : "Resend"}
+                            </Btn>
+                            <Btn t={t} variant="danger" disabled={clientCancelling === log.id} onClick={() => cancelClientInvite(log)} style={{ fontSize: 11, padding: "3px 10px" }}>
+                              {clientCancelling === log.id ? "..." : "Cancel"}
+                            </Btn>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {i < clientInviteLogs.length - 1 && <Line t={t} />}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ====================== SECTION B: Proposals ====================== */}
       <div style={{ marginTop: 40 }}>
         <SectionLabel t={t}>Proposals</SectionLabel>
@@ -916,7 +1036,7 @@ function TeamTab({ t, mode }) {
   async function resendInvite(log) {
     setResending(log.id);
     const { data: { session } } = await supabase.auth.getSession();
-    const resp = await fetch("/api/admin/invite-user", {
+    const resp = await fetch("/api/admin/resend-invite", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ email: log.email, full_name: log.full_name, role: log.role }),
@@ -924,7 +1044,7 @@ function TeamTab({ t, mode }) {
     setResending(null);
     if (resp.ok) {
       setResent(log.id);
-      setTimeout(() => setResent(null), 2000);
+      setTimeout(() => setResent(null), 3000);
     }
   }
 

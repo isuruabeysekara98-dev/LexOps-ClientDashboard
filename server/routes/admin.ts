@@ -1,7 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import multer from "multer";
-import { sendAdminInvite, sendMemberInvite, sendClientProjectInvite } from "../email";
 import { generateProjectStructure } from "../lib/generateProject";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -131,31 +130,70 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
     status: "pending",
   });
 
-  // Send branded invite email via Resend
-  const actionLink = (data.user as any).action_link || `${SITE_URL}`;
-  const name = full_name || "there";
-  try {
-    if (role === "lexops_admin") {
-      await sendAdminInvite(email, name, actionLink);
-    } else if (role === "lexops_member") {
-      await sendMemberInvite(email, name, actionLink);
-    } else if (role === "client") {
-      let projectName = "your project";
-      if (project_ids.length > 0) {
-        const { data: proj } = await adminSupabase
-          .from("projects")
-          .select("name")
-          .eq("id", project_ids[0])
-          .single();
-        if (proj?.name) projectName = proj.name;
-      }
-      await sendClientProjectInvite(email, name, projectName, actionLink);
-    }
-  } catch (emailErr: any) {
-    console.error("[invite-user] Email send failed:", emailErr.message);
+  res.json({ success: true, user: data.user });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/resend-invite
+// Body: { email, full_name, role, project_ids? }
+// Deletes existing unconfirmed auth user, re-invites via Supabase Auth
+// ---------------------------------------------------------------------------
+router.post("/resend-invite", requireAdmin, async (req: Request, res: Response) => {
+  const { email, full_name, role } = req.body;
+
+  if (!email || !role) {
+    res.status(400).json({ message: "email and role are required" });
+    return;
   }
 
-  res.json({ success: true, user: data.user });
+  try {
+    // Find existing unconfirmed auth user by email and delete them
+    const { data: { users }, error: listErr } = await adminSupabase.auth.admin.listUsers();
+    if (!listErr && users) {
+      const existing = users.find((u: any) => u.email === email);
+      if (existing && !existing.email_confirmed_at) {
+        const { error: delErr } = await adminSupabase.auth.admin.deleteUser(existing.id);
+        if (delErr) {
+          console.error("[resend-invite] Failed to delete old auth user:", delErr.message);
+        }
+        // Also clean up the profile row so the re-invite can create a fresh one
+        await adminSupabase.from("profiles").delete().eq("id", existing.id);
+      }
+    }
+
+    // Re-invite via Supabase Auth (sends the invite email)
+    const { data, error } = await adminSupabase.auth.admin.inviteUserByEmail(email, {
+      redirectTo: SITE_URL,
+      data: { full_name, role },
+    });
+
+    if (error) {
+      console.error("[resend-invite] Invite failed:", error.message);
+      res.status(400).json({ message: error.message });
+      return;
+    }
+
+    // Upsert profile for the new auth user
+    const newUserId = data.user.id;
+    await adminSupabase
+      .from("profiles")
+      .upsert(
+        { id: newUserId, email, full_name: full_name || null, role },
+        { onConflict: "id" }
+      );
+
+    // Update invite_log: set status back to pending with fresh timestamp
+    await adminSupabase
+      .from("invite_log")
+      .update({ status: "pending", invited_at: new Date().toISOString() })
+      .eq("email", email)
+      .eq("status", "pending");
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[resend-invite] Error:", err.message);
+    res.status(500).json({ message: err.message || "Resend failed" });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -242,8 +280,8 @@ router.post("/generate-project", requireAdmin, upload.single("pdf"), async (req:
       .from("project-documents")
       .getPublicUrl(storagePath);
 
-    // Run AI generation (awaited so we can return success/error)
-    await generateProjectStructure(project_id, publicUrl, adminSupabase);
+    // Run AI generation with the buffer directly (avoids re-fetching from public URL)
+    await generateProjectStructure(project_id, file.buffer, adminSupabase);
 
     res.json({ success: true });
   } catch (err: any) {

@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function generateProjectStructure(
   projectId: number | string,
-  pdfUrl: string,
+  pdfSource: string | Buffer,
   adminSupabase: SupabaseClient
 ): Promise<void> {
   console.log('[proposal] ANTHROPIC_API_KEY present:', !!process.env.ANTHROPIC_API_KEY);
@@ -12,41 +12,54 @@ export async function generateProjectStructure(
     console.error("[ai-structure] ANTHROPIC_API_KEY not set, inserting setup flags");
     await adminSupabase.from('project_setup_flags').insert([
       { project_id: projectId, question: 'PDF fetch error', answer: 'ANTHROPIC_API_KEY is not set in environment' },
-      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF source type', answer: typeof pdfSource === 'string' ? pdfSource : 'Buffer' },
       { project_id: projectId, question: 'PDF fetch status', answer: 'no API key' }
     ]);
     return;
   }
 
-  // Fetch PDF directly from public Supabase Storage URL
-  console.log("[ai-structure] Fetching PDF from public URL:", pdfUrl);
-  let pdfResponse: globalThis.Response | undefined;
-  try {
-    pdfResponse = await fetch(pdfUrl, { signal: AbortSignal.timeout(10000) });
-  } catch (err: any) {
-    console.error("[ai-structure] PDF fetch error (timeout or network):", err.message);
-    await adminSupabase.from('project_setup_flags').insert([
-      { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
-      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
-      { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse?.status || 'no response') }
-    ]);
-    return;
-  }
-  console.log("[ai-structure] PDF fetch status:", pdfResponse.status, pdfResponse.statusText);
-  if (!pdfResponse.ok) {
-    const body = await pdfResponse.text().catch(() => "");
-    console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText, body);
-    await adminSupabase.from('project_setup_flags').insert([
-      { project_id: projectId, question: 'PDF fetch error', answer: `HTTP ${pdfResponse.status} ${pdfResponse.statusText}` },
-      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
-      { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse.status) }
-    ]);
-    return;
+  let base64Pdf: string;
+
+  if (Buffer.isBuffer(pdfSource)) {
+    // Direct Buffer path (from multer)
+    console.log("[ai-structure] Using direct PDF buffer, size:", pdfSource.length);
+    base64Pdf = pdfSource.toString("base64");
+  } else {
+    // URL path — fetch the PDF
+    console.log("[ai-structure] Fetching PDF from public URL:", pdfSource);
+    let pdfResponse: globalThis.Response | undefined;
+    try {
+      pdfResponse = await fetch(pdfSource, { signal: AbortSignal.timeout(10000) });
+    } catch (err: any) {
+      console.error("[ai-structure] PDF fetch error (timeout or network):", err.message);
+      await adminSupabase.from('project_setup_flags').insert([
+        { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
+        { project_id: projectId, question: 'PDF URL attempted', answer: pdfSource },
+        { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse?.status || 'no response') }
+      ]);
+      return;
+    }
+    console.log("[ai-structure] PDF fetch status:", pdfResponse.status, pdfResponse.statusText);
+    if (!pdfResponse.ok) {
+      const body = await pdfResponse.text().catch(() => "");
+      console.error("[ai-structure] PDF fetch failed:", pdfResponse.status, pdfResponse.statusText, body);
+      await adminSupabase.from('project_setup_flags').insert([
+        { project_id: projectId, question: 'PDF fetch error', answer: `HTTP ${pdfResponse.status} ${pdfResponse.statusText}` },
+        { project_id: projectId, question: 'PDF URL attempted', answer: pdfSource },
+        { project_id: projectId, question: 'PDF fetch status', answer: String(pdfResponse.status) }
+      ]);
+      return;
+    }
+
+    const buffer = Buffer.from(await pdfResponse.arrayBuffer());
+    console.log('[PDF] fetch status:', pdfResponse.status, 'size:', buffer.length);
+    base64Pdf = buffer.toString("base64");
   }
 
-  const buffer = Buffer.from(await pdfResponse.arrayBuffer());
-  console.log('[PDF] fetch status:', pdfResponse.status, 'size:', buffer.length);
-  const base64Pdf = buffer.toString("base64");
+  // Strip data URI prefix if present
+  base64Pdf = base64Pdf.replace(/^data:application\/pdf;base64,/, "");
+
+  console.log("[ai-structure] base64 length:", base64Pdf.length, "first 50 chars:", base64Pdf.substring(0, 50));
 
   const anthropic = new Anthropic({ apiKey });
 
@@ -222,7 +235,7 @@ Rules:
     console.error("[ai-structure] AI call failed:", err.message);
     await adminSupabase.from('project_setup_flags').insert([
       { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
-      { project_id: projectId, question: 'PDF URL attempted', answer: pdfUrl },
+      { project_id: projectId, question: 'PDF source', answer: typeof pdfSource === 'string' ? pdfSource : 'Buffer' },
       { project_id: projectId, question: 'PDF fetch status', answer: 'AI call failed' }
     ]);
   }
