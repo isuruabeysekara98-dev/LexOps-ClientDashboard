@@ -63,6 +63,8 @@ export async function generateProjectStructure(
 
   const anthropic = new Anthropic({ apiKey });
 
+  const useModel = "claude-sonnet-4-20250514";
+
   const systemPrompt = `You are a legal operations project manager. Analyze the attached proposal PDF and generate a structured project plan.
 
 Return a JSON object with this exact schema:
@@ -108,30 +110,44 @@ Rules:
 - If you cannot extract meaningful structure, set confidence to "low" and include flags explaining what information is needed
 - Always return valid JSON only, no markdown fences or extra text`;
 
-  try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [
+  const messages = [
+    {
+      role: "user" as const,
+      content: [
         {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: base64Pdf,
-              },
-            },
-            {
-              type: "text",
-              text: "Analyze this proposal and generate the project structure JSON.",
-            },
-          ],
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: base64Pdf,
+          },
+        },
+        {
+          type: "text" as const,
+          text: "Analyze this proposal and generate the project structure JSON.",
         },
       ],
+    },
+  ];
+
+  // Diagnostic logging before API call
+  console.log("[AI] base64 length:", base64Pdf.length);
+  console.log("[AI] base64 prefix:", base64Pdf.substring(0, 100));
+  console.log("[AI] model:", useModel);
+  console.log("[AI] messages structure:", JSON.stringify(messages.map(m => ({
+    role: m.role,
+    content: m.content.map((c: any) => c.type === "document"
+      ? { type: c.type, source: { type: c.source.type, media_type: c.source.media_type, data: c.source.data.substring(0, 50) + "..." } }
+      : c
+    ),
+  })), null, 2));
+
+  try {
+    const response = await anthropic.messages.create({
+      model: useModel,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages,
     });
 
     const textBlock = response.content.find((b) => b.type === "text");
