@@ -2098,10 +2098,10 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   );
   const isClientView = view === "client";
   const allTabs = isClientView
-    ? ["overview","actions","documents","invoices","book"]
+    ? ["overview","actions","documents","invoices","software","book"]
     : ["overview","plan","documents","invoices","software","maintenance","book"];
   const tabLabels = isClientView
-    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",invoices:"Invoices",book:"Book a Call"}
+    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",invoices:"Invoices",software:"Software",book:"Book a Call"}
     : {overview:"Overview",plan:"Plan",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
 
   async function dismissWelcome(){
@@ -2244,7 +2244,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                 : <DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>
               )}
               {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
-              {tab==="software"    &&!isClientView&&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
             </>
