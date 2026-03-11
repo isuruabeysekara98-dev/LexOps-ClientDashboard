@@ -249,10 +249,15 @@ Rules:
     }
   } catch (err: any) {
     console.error("[ai-structure] AI call failed:", err.message);
+    const rawError = JSON.stringify(
+      err?.error || err?.response?.data || err?.body || { message: err?.message, status: err?.status, type: err?.type } || String(err)
+    ).substring(0, 500);
+    console.error("[ai-structure] AI raw error:", rawError);
     await adminSupabase.from('project_setup_flags').insert([
-      { project_id: projectId, question: 'PDF fetch error', answer: err.message || String(err) },
-      { project_id: projectId, question: 'PDF source', answer: typeof pdfSource === 'string' ? pdfSource : 'Buffer' },
-      { project_id: projectId, question: 'PDF fetch status', answer: 'AI call failed' }
+      { project_id: projectId, question: 'AI raw error', answer: rawError },
+      { project_id: projectId, question: 'AI base64 length', answer: String(base64Pdf?.length) },
+      { project_id: projectId, question: 'AI base64 prefix', answer: base64Pdf?.substring(0, 100) },
+      { project_id: projectId, question: 'AI model used', answer: useModel },
     ]);
   }
 }

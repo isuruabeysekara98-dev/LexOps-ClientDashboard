@@ -208,10 +208,12 @@ function OverviewTab({project,isInternal,t,mobile}) {
   </div>;
 }
 
-const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
-const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo"};
+const toNull=v=>v===""?null:v;
 
-function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
+const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
+const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_deliverable:false};
+
+function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMembers}) {
   const [tasks,setTasks]=useState(initialTasks||[]);
   const [filter,setFilter]=useState("all");
   const [showAdd,setShowAdd]=useState(false);
@@ -219,6 +221,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
   const [editingId,setEditingId]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [saving,setSaving]=useState(false);
+  const [formError,setFormError]=useState("");
 
   const loadTasks=useCallback(async()=>{
     const {data}=await supabase.from("tasks").select("*").eq("project_id",projectId).order("id");
@@ -229,9 +232,12 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
 
   async function addTask(e){
     e.preventDefault();
-    if(!newForm.title.trim()) return;
+    if(!newForm.title.trim()){setFormError("Title is required.");return;}
+    setFormError("");
     setSaving(true);
-    await supabase.from("tasks").insert({...newForm,project_id:projectId});
+    const payload={...newForm,due:toNull(newForm.due),project_id:projectId};
+    const {error}=await supabase.from("tasks").insert(payload);
+    if(error){console.error("[TasksTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewForm(EMPTY_TASK);
     setShowAdd(false);
     await loadTasks();
@@ -241,13 +247,17 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
 
   function startEdit(task){
     setEditingId(task.id);
-    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status});
+    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false});
+    setFormError("");
   }
 
   async function saveEdit(e,id){
     e.preventDefault();
+    setFormError("");
     setSaving(true);
-    await supabase.from("tasks").update(editForm).eq("id",id);
+    const payload={...editForm,due:toNull(editForm.due)};
+    const {error}=await supabase.from("tasks").update(payload).eq("id",id);
+    if(error){console.error("[TasksTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
     await loadTasks();
     setSaving(false);
@@ -255,7 +265,8 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
   }
 
   async function deleteTask(id){
-    await supabase.from("tasks").delete().eq("id",id);
+    const {error}=await supabase.from("tasks").delete().eq("id",id);
+    if(error){console.error("[TasksTab] delete error:",error.message);setFormError(error.message);return;}
     setTasks(ts=>ts.filter(tk=>tk.id!==id));
     onRefresh?.();
   }
@@ -286,19 +297,27 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
       <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Task</button>
     </div>
 
+    {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
     <Card t={t} style={{overflowX:"auto"}}>
       {showAdd&&(
         <div>
           <form onSubmit={addTask} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
             {inlineInput(newForm.title,e=>setNewForm(f=>({...f,title:e.target.value})),"Task title…",{flex:"1 1 180px"})}
-            {isInternal&&inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"})}
-            {inlineInput(newForm.due,e=>setNewForm(f=>({...f,due:e.target.value})),"Due date",{flex:"0 1 110px"})}
+            {isInternal&&(teamMembers&&teamMembers.length>0?(
+              <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                <option value="">Assignee…</option>
+                {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+              </select>
+            ):inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
+            <input type="date" value={newForm.due} onChange={e=>setNewForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
             {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
+            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_internal} onChange={e=>setNewForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
+            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_deliverable} onChange={e=>setNewForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
             <div style={{display:"flex",gap:6}}>
               <button type="submit" disabled={saving||!newForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.title.trim()?0.5:1}}>
                 {saving?"…":"Save"}
               </button>
-              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_TASK);}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_TASK);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
             </div>
           </form>
           <Line t={t}/>
@@ -316,14 +335,21 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile}) {
               {isEditing?(
                 <form onSubmit={e=>saveEdit(e,task.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 18px",flexWrap:"wrap"}}>
                   {inlineInput(editForm.title,e=>setEditForm(f=>({...f,title:e.target.value})),"Title",{flex:"1 1 180px"})}
-                  {isInternal&&inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"})}
-                  {inlineInput(editForm.due,e=>setEditForm(f=>({...f,due:e.target.value})),"Due date",{flex:"0 1 110px"})}
+                  {isInternal&&(teamMembers&&teamMembers.length>0?(
+                    <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                      <option value="">Assignee…</option>
+                      {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                    </select>
+                  ):inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
+                  <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
                   {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
+                  {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
+                  {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_deliverable??false} onChange={e=>setEditForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
                   <div style={{display:"flex",gap:6}}>
                     <button type="submit" disabled={saving} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving?0.5:1}}>
                       {saving?"…":"Save"}
                     </button>
-                    <button type="button" onClick={()=>setEditingId(null)} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                    <button type="button" onClick={()=>{setEditingId(null);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                   </div>
                 </form>
               ):(
@@ -389,7 +415,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     if(upErr){setUploadError(upErr.message);setUploading(false);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext=file.name.split(".").pop().toUpperCase();
-    await supabase.from("documents").insert({
+    const {error:dbErr}=await supabase.from("documents").insert({
       project_id:projectId,
       name:file.name,
       file_type:ext,
@@ -398,6 +424,12 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
       storage_path:storagePath,
       uploaded_at:new Date().toISOString(),
     });
+    if(dbErr){
+      console.error("[DocumentsTab] insert error:",dbErr.message);
+      // Rollback: remove orphaned storage file
+      await supabase.storage.from("project-documents").remove([storagePath]);
+      setUploadError(dbErr.message);setUploading(false);return;
+    }
     await loadDocs();
     setUploading(false);
     onRefresh?.();
@@ -405,8 +437,10 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
 
   async function deleteDoc(doc){
     setDeletingId(doc.id);
-    await supabase.storage.from("project-documents").remove([doc.storage_path]);
-    await supabase.from("documents").delete().eq("id",doc.id);
+    const {error:storageErr}=await supabase.storage.from("project-documents").remove([doc.storage_path]);
+    if(storageErr) console.error("[DocumentsTab] storage delete error:",storageErr.message);
+    const {error}=await supabase.from("documents").delete().eq("id",doc.id);
+    if(error){console.error("[DocumentsTab] delete error:",error.message);setUploadError(error.message);setDeletingId(null);return;}
     setDocs(ds=>ds.filter(d=>d.id!==doc.id));
     setDeletingId(null);
     onRefresh?.();
@@ -418,7 +452,8 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     e.preventDefault();
     if(!reqForm.title.trim()) return;
     setSavingReq(true);
-    await supabase.from("document_requests").insert({project_id:projectId,title:reqForm.title,description:reqForm.description||null});
+    const {error}=await supabase.from("document_requests").insert({project_id:projectId,title:reqForm.title,description:reqForm.description||null});
+    if(error){console.error("[DocumentsTab] doc request insert error:",error.message);setUploadError(error.message);setSavingReq(false);return;}
     // Notify clients via email
     fetch("/api/notify/document-request",{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -525,7 +560,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
 }
 
 const INVOICE_STATUSES=[["upcoming","Upcoming"],["pending","Pending"],["paid","Paid"]];
-const EMPTY_INVOICE={invoice_number:"",description:"",amount:"",status:"upcoming",due_date:""};
+const EMPTY_INVOICE={invoice_number:"",due_date:""};
 
 function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) {
   const [invoices,setInvoices]=useState(initialInvoices||[]);
@@ -535,6 +570,9 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   const [editForm,setEditForm]=useState({});
   const [saving,setSaving]=useState(false);
   const [uploadingId,setUploadingId]=useState(null);
+  const [formError,setFormError]=useState("");
+  const [addFile,setAddFile]=useState(null);
+  const addFileRef=useState(()=>({current:null}))[0];
   const fileRef=useState(()=>({current:null,invoiceId:null}))[0];
 
   const loadInvoices=useCallback(async()=>{
@@ -546,10 +584,32 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
 
   async function addInvoice(e){
     e.preventDefault();
-    if(!newForm.invoice_number.trim()) return;
+    if(!newForm.invoice_number.trim()){setFormError("Invoice number is required.");return;}
+    if(!addFile){setFormError("PDF file is required.");return;}
+    setFormError("");
     setSaving(true);
-    await supabase.from("invoices").insert({...newForm,amount:Number(newForm.amount)||0,project_id:projectId});
+    // Upload PDF first
+    const storagePath=`${projectId}/invoices/${addFile.name}`;
+    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
+    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setSaving(false);return;}
+    const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
+    // Insert invoice record
+    const {error}=await supabase.from("invoices").insert({
+      invoice_number:newForm.invoice_number,
+      due_date:toNull(newForm.due_date),
+      status:"pending",
+      file_url:publicUrl,
+      storage_path:storagePath,
+      project_id:projectId,
+    });
+    if(error){
+      console.error("[InvoicesTab] insert error:",error.message);
+      // Rollback: remove uploaded file
+      await supabase.storage.from("project-documents").remove([storagePath]);
+      setFormError(error.message);setSaving(false);return;
+    }
     setNewForm(EMPTY_INVOICE);
+    setAddFile(null);
     setShowAdd(false);
     await loadInvoices();
     setSaving(false);
@@ -559,12 +619,16 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   function startEdit(inv){
     setEditingId(inv.id);
     setEditForm({description:inv.description||"",status:inv.status||"upcoming",due_date:inv.due_date||""});
+    setFormError("");
   }
 
   async function saveEdit(e,id){
     e.preventDefault();
+    setFormError("");
     setSaving(true);
-    await supabase.from("invoices").update(editForm).eq("id",id);
+    const payload={...editForm,due_date:toNull(editForm.due_date)};
+    const {error}=await supabase.from("invoices").update(payload).eq("id",id);
+    if(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
     await loadInvoices();
     setSaving(false);
@@ -572,7 +636,8 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   }
 
   async function deleteInvoice(id){
-    await supabase.from("invoices").delete().eq("id",id);
+    const {error}=await supabase.from("invoices").delete().eq("id",id);
+    if(error){console.error("[InvoicesTab] delete error:",error.message);setFormError(error.message);return;}
     setInvoices(inv=>inv.filter(x=>x.id!==id));
     onRefresh?.();
   }
@@ -584,9 +649,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
     setUploadingId(inv.id);
     const storagePath=`${projectId}/invoices/${file.name}`;
     const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
-    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setUploadingId(null);return;}
+    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setUploadingId(null);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    await supabase.from("invoices").update({file_url:publicUrl}).eq("id",inv.id);
+    const {error}=await supabase.from("invoices").update({file_url:publicUrl}).eq("id",inv.id);
+    if(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
     await loadInvoices();
     setUploadingId(null);
     onRefresh?.();
@@ -622,20 +688,22 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
       </div>
     )}
 
+    {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
     <Card t={t} style={{overflowX:"auto"}}>
       {showAdd&&isInternal&&(
         <div>
           <form onSubmit={addInvoice} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
-            {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice #",{flex:"0 1 100px"})}
-            {inlineInput(newForm.description,e=>setNewForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 180px"})}
-            {inlineInput(newForm.amount,e=>setNewForm(f=>({...f,amount:e.target.value})),"Amount",{flex:"0 1 90px",type:"number"})}
-            {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
-            {inlineInput(newForm.due_date,e=>setNewForm(f=>({...f,due_date:e.target.value})),"Due date",{flex:"0 1 120px",type:"date"})}
+            {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice #",{flex:"0 1 120px"})}
+            <input type="date" value={newForm.due_date} onChange={e=>setNewForm(f=>({...f,due_date:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
+            <input ref={r=>{addFileRef.current=r;}} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)setAddFile(f);e.target.value="";}}/>
+            <button type="button" onClick={()=>addFileRef.current?.click()} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 12px",fontSize:12,color:addFile?t.text:t.textSub,cursor:"pointer",fontFamily:"inherit",flex:"0 1 180px",textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {addFile?addFile.name:"Choose PDF…"}
+            </button>
             <div style={{display:"flex",gap:6}}>
-              <button type="submit" disabled={saving||!newForm.invoice_number.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.invoice_number.trim()?0.5:1}}>
-                {saving?"…":"Save"}
+              <button type="submit" disabled={saving||!newForm.invoice_number.trim()||!addFile} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.invoice_number.trim()||!addFile?0.5:1}}>
+                {saving?"Uploading…":"Save"}
               </button>
-              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_INVOICE);}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_INVOICE);setAddFile(null);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
             </div>
           </form>
           <Line t={t}/>
@@ -714,11 +782,16 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
 
   useEffect(()=>{loadPhases();},[loadPhases]);
 
+  const [formError,setFormError]=useState("");
+
   async function addPhase(e){
     e.preventDefault();
-    if(!newForm.name.trim()) return;
+    if(!newForm.name.trim()){setFormError("Phase name is required.");return;}
+    setFormError("");
     setSaving(true);
-    await supabase.from("phases").insert({...newForm,project_id:projectId,progress:Number(newForm.progress)||0});
+    const payload={name:newForm.name,start:toNull(newForm.start),end:toNull(newForm.end),status:newForm.status,progress:Number(newForm.progress)||0,project_id:projectId};
+    const {error}=await supabase.from("phases").insert(payload);
+    if(error){console.error("[TimelineTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewForm(EMPTY_PHASE);
     setShowAdd(false);
     await loadPhases();
@@ -729,12 +802,16 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
   function startEdit(ph){
     setEditingId(ph.id);
     setEditForm({name:ph.name,start:ph.start||"",end:ph.end||"",status:ph.status,progress:ph.progress??0});
+    setFormError("");
   }
 
   async function saveEdit(e,id){
     e.preventDefault();
+    setFormError("");
     setSaving(true);
-    await supabase.from("phases").update({...editForm,progress:Number(editForm.progress)||0}).eq("id",id);
+    const payload={...editForm,start:toNull(editForm.start),end:toNull(editForm.end),progress:Number(editForm.progress)||0};
+    const {error}=await supabase.from("phases").update(payload).eq("id",id);
+    if(error){console.error("[TimelineTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     // Notify clients when phase marked complete
     if(editForm.status==="complete"){
       fetch("/api/notify/phase-complete",{
@@ -749,7 +826,8 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
   }
 
   async function deletePhase(id){
-    await supabase.from("phases").delete().eq("id",id);
+    const {error}=await supabase.from("phases").delete().eq("id",id);
+    if(error){console.error("[TimelineTab] delete error:",error.message);setFormError(error.message);return;}
     setPhases(ps=>ps.filter(ph=>ph.id!==id));
     onRefresh?.();
   }
@@ -847,18 +925,19 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
       </div>
       <Line t={t}/>
 
+      {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,margin:"8px 20px 0"}}>{formError}</div>}
       {/* Add phase inline form */}
       {showAdd&&(
         <div>
           <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 20px",flexWrap:"wrap"}}>
             {phInput(newForm.name,e=>setNewForm(f=>({...f,name:e.target.value})),"Phase name…",{flex:"2 1 160px"})}
-            {phInput(newForm.start,e=>setNewForm(f=>({...f,start:e.target.value})),"Start (e.g. Mar 1)",{flex:"1 1 120px"})}
-            {phInput(newForm.end,e=>setNewForm(f=>({...f,end:e.target.value})),"End (e.g. Mar 15)",{flex:"1 1 120px"})}
+            <input type="date" value={newForm.start} onChange={e=>setNewForm(f=>({...f,start:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
+            <input type="date" value={newForm.end} onChange={e=>setNewForm(f=>({...f,end:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
             {phInput(String(newForm.progress),e=>setNewForm(f=>({...f,progress:e.target.value})),"0-100",{flex:"0 0 60px",type:"number"})}
             {phSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
             <div style={{display:"flex",gap:6}}>
               {saveBtn(saving||!newForm.name.trim())}
-              {cancelBtn(()=>{setShowAdd(false);setNewForm(EMPTY_PHASE);})}
+              {cancelBtn(()=>{setShowAdd(false);setNewForm(EMPTY_PHASE);setFormError("");})}
             </div>
           </form>
           <Line t={t}/>
@@ -874,13 +953,13 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
               {isEditing?(
                 <form onSubmit={e=>saveEdit(e,ph.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",flexWrap:"wrap"}}>
                   {phInput(editForm.name,e=>setEditForm(f=>({...f,name:e.target.value})),"Phase name",{flex:"2 1 160px"})}
-                  {phInput(editForm.start,e=>setEditForm(f=>({...f,start:e.target.value})),"Start",{flex:"1 1 120px"})}
-                  {phInput(editForm.end,e=>setEditForm(f=>({...f,end:e.target.value})),"End",{flex:"1 1 120px"})}
+                  <input type="date" value={editForm.start} onChange={e=>setEditForm(f=>({...f,start:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
+                  <input type="date" value={editForm.end} onChange={e=>setEditForm(f=>({...f,end:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
                   {phInput(String(editForm.progress),e=>setEditForm(f=>({...f,progress:e.target.value})),"0-100",{flex:"0 0 60px",type:"number"})}
                   {phSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
                   <div style={{display:"flex",gap:6}}>
                     {saveBtn(saving)}
-                    {cancelBtn(()=>setEditingId(null))}
+                    {cancelBtn(()=>{setEditingId(null);setFormError("");})}
                   </div>
                 </form>
               ):(
@@ -924,16 +1003,23 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
 
   useEffect(()=>{loadTools();},[loadTools]);
 
-  function openNew(){setEditing(null);setForm(EMPTY_TOOL);setShowModal(true);}
-  function openEdit(sw){setEditing(sw);setForm({name:sw.name||"",category:sw.category||"",status:sw.status||"existing",access:sw.access||"",url:sw.url||"",note:sw.note||""});setShowModal(true);}
+  const [formError,setFormError]=useState("");
+
+  function openNew(){setEditing(null);setForm(EMPTY_TOOL);setFormError("");setShowModal(true);}
+  function openEdit(sw){setEditing(sw);setForm({name:sw.name||"",category:sw.category||"",status:sw.status||"existing",access:sw.access||"",url:sw.url||"",note:sw.note||""});setFormError("");setShowModal(true);}
 
   async function handleSubmit(e){
     e.preventDefault();
+    if(!form.name.trim()){setFormError("Name is required.");return;}
+    setFormError("");
     setSaving(true);
+    const payload={...form,category:toNull(form.category),access:toNull(form.access),url:toNull(form.url),note:toNull(form.note)};
     if(editing){
-      await supabase.from("software").update(form).eq("id",editing.id);
+      const {error}=await supabase.from("software").update(payload).eq("id",editing.id);
+      if(error){console.error("[SoftwareTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     } else {
-      await supabase.from("software").insert({...form,project_id:projectId});
+      const {error}=await supabase.from("software").insert({...payload,project_id:projectId});
+      if(error){console.error("[SoftwareTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     }
     setShowModal(false);
     await loadTools();
@@ -943,7 +1029,8 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
 
   async function deleteTool(id){
     setDeletingId(id);
-    await supabase.from("software").delete().eq("id",id);
+    const {error}=await supabase.from("software").delete().eq("id",id);
+    if(error){console.error("[SoftwareTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
     setTools(ts=>ts.filter(sw=>sw.id!==id));
     setDeletingId(null);
     onRefresh?.();
@@ -1016,6 +1103,7 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
             <button onClick={()=>setShowModal(false)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
           </div>
           <form onSubmit={handleSubmit} style={{display:"flex",flexDirection:"column",gap:14}}>
+            {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12}}>{formError}</div>}
             {field("Name",inp(form.name,e=>setForm(f=>({...f,name:e.target.value})),"e.g. Smokeball"))}
             {field("Category",inp(form.category,e=>setForm(f=>({...f,category:e.target.value})),"e.g. Practice Management"))}
             {field("Status",sel(form.status,e=>setForm(f=>({...f,status:e.target.value})),SW_STATUSES))}
@@ -1070,35 +1158,45 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
   };
   const filtered=filter==="all"?items:items.filter(m=>m.status===filter);
 
+  const [formError,setFormError]=useState("");
+
   async function addItem(e){
     e.preventDefault();
-    if(!newForm.title.trim()) return;
+    if(!newForm.title.trim()){setFormError("Title is required.");return;}
+    setFormError("");
     setSaving(true);
     const {error}=await supabase.from("maintenance").insert({
       ...newForm,
+      notes:toNull(newForm.notes),
       project_id:projectId,
       status:"open",
       reported:new Date().toISOString().slice(0,10)
     });
     setSaving(false);
-    if(!error){setNewForm(EMPTY_MNT);setShowNew(false);loadItems();onRefresh?.();}
+    if(error){console.error("[MaintenanceTab] insert error:",error.message);setFormError(error.message);return;}
+    setNewForm(EMPTY_MNT);setShowNew(false);loadItems();onRefresh?.();
   }
 
   function openEdit(item){
     setEditingId(item.id);
     setEditForm({status:item.status||"open",notes:item.notes||"",resolved:item.resolved||""});
+    setFormError("");
   }
   async function saveEdit(id){
+    setFormError("");
     setSaving(true);
-    await supabase.from("maintenance").update(editForm).eq("id",id);
+    const payload={...editForm,resolved:toNull(editForm.resolved),notes:toNull(editForm.notes)};
+    const {error}=await supabase.from("maintenance").update(payload).eq("id",id);
     setSaving(false);
+    if(error){console.error("[MaintenanceTab] update error:",error.message);setFormError(error.message);return;}
     setEditingId(null);
     loadItems();
     onRefresh?.();
   }
   async function deleteItem(id){
     setDeletingId(id);
-    await supabase.from("maintenance").delete().eq("id",id);
+    const {error}=await supabase.from("maintenance").delete().eq("id",id);
+    if(error){console.error("[MaintenanceTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
     setDeletingId(null);
     setItems(prev=>prev.filter(m=>m.id!==id));
     onRefresh?.();
@@ -1117,12 +1215,13 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
             <button onClick={()=>setShowNew(false)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
           </div>
           <form onSubmit={addItem} style={{display:"flex",flexDirection:"column",gap:14}}>
+            {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12}}>{formError}</div>}
             {field("Title",inp(newForm.title,e=>setNewForm(f=>({...f,title:e.target.value})),"Brief description"))}
             {field("Type",sel(newForm.type,e=>setNewForm(f=>({...f,type:e.target.value})),MNT_TYPES))}
             {field("Priority",sel(newForm.priority,e=>setNewForm(f=>({...f,priority:e.target.value})),MNT_PRIORITIES))}
             {field("Notes",<textarea value={newForm.notes} onChange={e=>setNewForm(f=>({...f,notes:e.target.value}))} placeholder="Additional context…" rows={3} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 10px",fontSize:12,color:t.text,width:"100%",boxSizing:"border-box",outline:"none",fontFamily:"inherit",resize:"vertical"}}/>)}
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
-              <button type="button" onClick={()=>setShowNew(false)} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button type="button" onClick={()=>{setShowNew(false);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
               <button type="submit" disabled={saving||!newForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.title.trim()?0.5:1}}>{saving?"Saving…":"Submit Request"}</button>
             </div>
           </form>
@@ -1147,6 +1246,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
         ))}
       </div>
       <Card t={t} style={{overflowX:"auto"}}>
+        {formError&&!showNew&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,margin:"8px 22px"}}>{formError}</div>}
         {filtered.length===0
           ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No items to display</div>
           :filtered.map((item,i)=>(
@@ -1155,7 +1255,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
                 <div style={{padding:"14px 22px",display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
                     {field("Status",sel(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})),MNT_STATUSES))}
-                    {field("Resolved Date",inp(editForm.resolved,e=>setEditForm(f=>({...f,resolved:e.target.value})),"YYYY-MM-DD"))}
+                    {field("Resolved Date",<input type="date" value={editForm.resolved} onChange={e=>setEditForm(f=>({...f,resolved:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 10px",fontSize:12,color:t.text,width:"100%",boxSizing:"border-box",outline:"none",fontFamily:"inherit"}}/>)}
                     {field("Notes",inp(editForm.notes,e=>setEditForm(f=>({...f,notes:e.target.value})),"Update notes"))}
                   </div>
                   <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
@@ -1613,8 +1713,17 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const [adminOpen,setAdminOpen]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [showWelcome,setShowWelcome]=useState(false);
+  const [teamMembers,setTeamMembers]=useState([]);
   const mobile=useIsMobile(768);
   const t=themes[mode];
+
+  // Fetch team members for assignee dropdown
+  useEffect(()=>{
+    (async()=>{
+      const {data}=await supabase.from("profiles").select("id,full_name,email,role").in("role",["lexops_admin","lexops_member"]);
+      if(data) setTeamMembers(data);
+    })();
+  },[]);
 
   const loadProjects=useCallback(async()=>{
     setLoading(true);
@@ -1838,7 +1947,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile}/>
               )}
               {tab==="timeline"    &&!isClientView&&<TimelineTab projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="tasks"       &&!isClientView&&<TasksTab    projectId={selected.id} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
+              {tab==="tasks"       &&!isClientView&&<TasksTab    projectId={selected.id} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
               {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} t={t} mobile={mobile}/>}
               {tab==="documents"   && (isClientView
                 ? <ClientDocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} onRefresh={()=>refreshProject(selected.id)} t={t}/>
