@@ -1717,13 +1717,15 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
-  // Fetch team members for assignee dropdown
+  // Fetch team members for assignee dropdown (staff only)
   useEffect(()=>{
+    if(isClient) return;
     (async()=>{
-      const {data}=await supabase.from("profiles").select("id,full_name,email,role").in("role",["lexops_admin","lexops_member"]);
+      const {data,error}=await supabase.from("profiles").select("id,full_name,email").in("role",["lexops_admin","lexops_member"]);
+      if(error) console.error("[Dashboard] Failed to fetch team members:",error.message);
       if(data) setTeamMembers(data);
     })();
-  },[]);
+  },[isClient]);
 
   const loadProjects=useCallback(async()=>{
     setLoading(true);
