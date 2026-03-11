@@ -211,9 +211,9 @@ function OverviewTab({project,isInternal,t,mobile}) {
 const toNull=v=>v===""?null:v;
 
 const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
-const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_deliverable:false};
+const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_deliverable:false,phase_id:null};
 
-function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMembers}) {
+function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMembers,phases}) {
   const [tasks,setTasks]=useState(initialTasks||[]);
   const [filter,setFilter]=useState("all");
   const [showAdd,setShowAdd]=useState(false);
@@ -235,7 +235,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     if(!newForm.title.trim()){setFormError("Title is required.");return;}
     setFormError("");
     setSaving(true);
-    const payload={...newForm,due:toNull(newForm.due),project_id:projectId};
+    const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
     const {error}=await supabase.from("tasks").insert(payload);
     if(error){console.error("[TasksTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewForm(EMPTY_TASK);
@@ -247,7 +247,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
   function startEdit(task){
     setEditingId(task.id);
-    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false});
+    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id||""});
     setFormError("");
   }
 
@@ -255,7 +255,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     e.preventDefault();
     setFormError("");
     setSaving(true);
-    const payload={...editForm,due:toNull(editForm.due)};
+    const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
     const {error}=await supabase.from("tasks").update(payload).eq("id",id);
     if(error){console.error("[TasksTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
@@ -319,6 +319,12 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             ):inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
             <input type="date" value={newForm.due} onChange={e=>setNewForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
             {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
+            {phases&&phases.length>0&&(
+              <select value={newForm.phase_id||""} onChange={e=>setNewForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                <option value="">Phase…</option>
+                {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
+              </select>
+            )}
             {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_internal} onChange={e=>setNewForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
             {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_deliverable} onChange={e=>setNewForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
             <div style={{display:"flex",gap:6}}>
@@ -351,6 +357,12 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
                   ):inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
                   <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
                   {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
+                  {phases&&phases.length>0&&(
+                    <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                      <option value="">Phase…</option>
+                      {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
+                    </select>
+                  )}
                   {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
                   {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_deliverable??false} onChange={e=>setEditForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
                   <div style={{display:"flex",gap:6}}>
@@ -374,6 +386,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
                     <span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due}</span>
                     <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
+                    {task.phase_id&&phases&&(()=>{const ph=phases.find(p=>p.id===task.phase_id);return ph?<span style={{color:t.textSub,fontSize:10,background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"1px 7px",whiteSpace:"nowrap"}}>{ph.name}</span>:null;})()}
                     <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
                     <button onClick={()=>deleteTask(task.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
                   </div>
@@ -775,8 +788,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
 const PHASE_STATUSES=[["pending","Pending"],["active","Active"],["complete","Complete"]];
 const EMPTY_PHASE={name:"",start:"",end:"",status:"pending",progress:0};
 
-function TimelineTab({projectId,initialPhases,onRefresh,t}) {
+function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
   const [phases,setPhases]=useState(initialPhases||[]);
+  const [tasks,setTasks]=useState(initialTasks||[]);
+  const [expandedPhase,setExpandedPhase]=useState(null);
   const [showAdd,setShowAdd]=useState(false);
   const [newForm,setNewForm]=useState(EMPTY_PHASE);
   const [editingId,setEditingId]=useState(null);
@@ -784,8 +799,12 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
   const [saving,setSaving]=useState(false);
 
   const loadPhases=useCallback(async()=>{
-    const {data}=await supabase.from("phases").select("*").eq("project_id",projectId).order("id");
+    const [{data},{data:taskData}]=await Promise.all([
+      supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
+      supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
+    ]);
     if(data) setPhases(data);
+    if(taskData) setTasks(taskData);
   },[projectId]);
 
   useEffect(()=>{loadPhases();},[loadPhases]);
@@ -956,6 +975,9 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
         ?<div style={{color:t.textSub,textAlign:"center",padding:"32px 0",fontSize:13}}>No phases yet.</div>
         :phases.map((ph,i)=>{
           const isEditing=editingId===ph.id;
+          const isExpanded=expandedPhase===ph.id;
+          const phaseTasks=tasks.filter(tk=>tk.phase_id===ph.id);
+          const tc={done:{dot:t.green,label:"Done"},"in-progress":{dot:t.accent,label:"Active"},todo:{dot:t.textDim,label:"To Do"}};
           return(
             <div key={ph.id??i}>
               {isEditing?(
@@ -971,24 +993,283 @@ function TimelineTab({projectId,initialPhases,onRefresh,t}) {
                   </div>
                 </form>
               ):(
-                <div style={{display:"flex",alignItems:"center",padding:"13px 20px",gap:12}}>
-                  <div style={{flex:2}}><span style={{color:ph.status==="pending"?t.textSub:t.text,fontSize:13,fontWeight:500}}>{ph.name}</span></div>
-                  <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.start}</div>
-                  <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.end}</div>
-                  <div style={{flex:1}}><Thin value={ph.progress} t={t}/></div>
-                  <div style={{flex:1,textAlign:"right"}}><Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/></div>
-                  <div style={{display:"flex",gap:6,flexShrink:0}}>
-                    <button onClick={()=>startEdit(ph)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}>✏</button>
-                    <button onClick={()=>deletePhase(ph.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15}}>×</button>
+                <>
+                  <div style={{display:"flex",alignItems:"center",padding:"13px 20px",gap:12,cursor:"pointer"}} onClick={()=>setExpandedPhase(isExpanded?null:ph.id)}>
+                    <span style={{color:t.textSub,fontSize:10,fontWeight:700,flexShrink:0,transition:"transform 0.15s",transform:isExpanded?"rotate(90deg)":"rotate(0deg)"}}>▶</span>
+                    <div style={{flex:2}}><span style={{color:ph.status==="pending"?t.textSub:t.text,fontSize:13,fontWeight:500}}>{ph.name}</span><span style={{color:t.textDim,fontSize:11,marginLeft:8}}>{phaseTasks.length} task{phaseTasks.length!==1?"s":""}</span></div>
+                    <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.start}</div>
+                    <div style={{flex:1,color:t.textSub,fontSize:12}}>{ph.end}</div>
+                    <div style={{flex:1}}><Thin value={ph.progress} t={t}/></div>
+                    <div style={{flex:1,textAlign:"right"}}><Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/></div>
+                    <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
+                      <button onClick={()=>startEdit(ph)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}>✏</button>
+                      <button onClick={()=>deletePhase(ph.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15}}>×</button>
+                    </div>
                   </div>
-                </div>
+                  {isExpanded&&phaseTasks.length>0&&(
+                    <div style={{paddingLeft:36,paddingBottom:8}}>
+                      {phaseTasks.map(task=>{
+                        const c=tc[task.status]||tc.todo;
+                        return(
+                          <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 20px"}}>
+                            <div style={{width:14,height:14,borderRadius:"50%",border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {task.status==="done"&&<span style={{color:"#fff",fontSize:7,fontWeight:800}}>✓</span>}
+                            </div>
+                            <span style={{color:task.status==="done"?t.textSub:t.text,fontSize:12,fontWeight:400,textDecoration:task.status==="done"?"line-through":"none",flex:1}}>{task.title}</span>
+                            {task.assignee&&<span style={{color:t.textDim,fontSize:11}}>{task.assignee}</span>}
+                            {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
+                            <span style={{color:c.dot,fontSize:10,fontWeight:600}}>{c.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {isExpanded&&phaseTasks.length===0&&(
+                    <div style={{paddingLeft:36,paddingBottom:8,color:t.textDim,fontSize:12,padding:"6px 20px 8px 56px"}}>No tasks assigned to this phase</div>
+                  )}
+                </>
               )}
               {i<phases.length-1&&<Line t={t}/>}
             </div>
           );
         })
       }
+      {/* Unassigned tasks */}
+      {(()=>{
+        const unassigned=tasks.filter(tk=>!tk.phase_id);
+        const tc={done:{dot:t.green,label:"Done"},"in-progress":{dot:t.accent,label:"Active"},todo:{dot:t.textDim,label:"To Do"}};
+        if(unassigned.length===0) return null;
+        return <>
+          <Line t={t}/>
+          <div style={{padding:"13px 20px"}}>
+            <div style={{color:t.textSub,fontSize:12,fontWeight:600,marginBottom:8}}>Unassigned ({unassigned.length})</div>
+            {unassigned.map(task=>{
+              const c=tc[task.status]||tc.todo;
+              return(
+                <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
+                  <div style={{width:14,height:14,borderRadius:"50%",border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    {task.status==="done"&&<span style={{color:"#fff",fontSize:7,fontWeight:800}}>✓</span>}
+                  </div>
+                  <span style={{color:task.status==="done"?t.textSub:t.text,fontSize:12,flex:1,textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</span>
+                  {task.assignee&&<span style={{color:t.textDim,fontSize:11}}>{task.assignee}</span>}
+                  {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
+                  <span style={{color:c.dot,fontSize:10,fontWeight:600}}>{c.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>;
+      })()}
     </Card>
+  </div>;
+}
+
+function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,mobile}) {
+  const [editingTask,setEditingTask]=useState(null);
+  const [editForm,setEditForm]=useState({});
+  const [saving,setSaving]=useState(false);
+  const [formError,setFormError]=useState("");
+  const [showAddForPhase,setShowAddForPhase]=useState(null);
+  const [newForm,setNewForm]=useState(EMPTY_TASK);
+
+  const columns=[...phases.map(ph=>({id:ph.id,name:ph.name,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
+
+  function getTasksForColumn(colId){return tasks.filter(tk=>colId===null?!tk.phase_id:tk.phase_id===colId);}
+
+  function openAddForPhase(phaseId){
+    setShowAddForPhase(phaseId);
+    setNewForm({...EMPTY_TASK,phase_id:phaseId});
+    setFormError("");
+  }
+
+  async function addTask(e){
+    e.preventDefault();
+    if(!newForm.title.trim()){setFormError("Title is required.");return;}
+    setFormError("");
+    setSaving(true);
+    const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
+    const {error}=await supabase.from("tasks").insert(payload);
+    if(error){setFormError(error.message);setSaving(false);return;}
+    setNewForm(EMPTY_TASK);
+    setShowAddForPhase(null);
+    setSaving(false);
+    onRefresh?.();
+  }
+
+  function openEdit(task){
+    setEditingTask(task);
+    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id||""});
+    setFormError("");
+  }
+
+  async function saveEdit(e){
+    e.preventDefault();
+    if(!editingTask) return;
+    setFormError("");
+    setSaving(true);
+    const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
+    const {error}=await supabase.from("tasks").update(payload).eq("id",editingTask.id);
+    if(error){setFormError(error.message);setSaving(false);return;}
+    setEditingTask(null);
+    setSaving(false);
+    onRefresh?.();
+  }
+
+  const statusColors={done:t.green,"in-progress":t.accent,todo:t.textDim};
+  const statusLabels={done:"Done","in-progress":"Active",todo:"To Do"};
+  const phaseStatusColors={complete:t.green,active:t.accent,pending:t.textDim};
+
+  return <>
+    {/* Edit modal */}
+    {editingTask&&(
+      <div style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:14,padding:"28px 28px",width:"100%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)",overflowY:"auto",maxHeight:"90vh"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
+            <span style={{color:t.text,fontSize:15,fontWeight:500}}>Edit Task</span>
+            <button onClick={()=>setEditingTask(null)} style={{background:"none",border:"none",color:t.textSub,fontSize:18,cursor:"pointer",lineHeight:1}}>×</button>
+          </div>
+          <form onSubmit={saveEdit} style={{display:"flex",flexDirection:"column",gap:14}}>
+            {formError&&<div style={{background:t.redSoft,border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12}}>{formError}</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Title</label>
+              <input value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+            </div>
+            {isInternal&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Assignee</label>
+              {teamMembers&&teamMembers.length>0?(
+                <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                  <option value="">Unassigned</option>
+                  {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                </select>
+              ):<input value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} placeholder="Assignee" style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>}
+            </div>}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Due Date</label>
+                <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Status</label>
+                <select value={editForm.status} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                  {TASK_STATUSES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Phase</label>
+              <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                <option value="">Unassigned</option>
+                {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
+              </select>
+            </div>
+            {isInternal&&<div style={{display:"flex",gap:16}}>
+              <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:t.textSub,cursor:"pointer"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>
+              <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:t.textSub,cursor:"pointer"}}><input type="checkbox" checked={editForm.is_deliverable??false} onChange={e=>setEditForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>
+            </div>}
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end",paddingTop:4}}>
+              <button type="button" onClick={()=>setEditingTask(null)} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 14px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button type="submit" disabled={saving||!editForm.title?.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!editForm.title?.trim()?0.5:1}}>{saving?"Saving…":"Save Changes"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    <div style={{display:"flex",gap:16,overflowX:"auto",paddingBottom:16,minHeight:300,alignItems:"flex-start"}}>
+      {columns.map(col=>{
+        const colTasks=getTasksForColumn(col.id);
+        const colColor=phaseStatusColors[col.status]||t.textDim;
+        return(
+          <div key={col.id??'unassigned'} style={{minWidth:260,maxWidth:320,flex:"0 0 280px",display:"flex",flexDirection:"column",gap:8}}>
+            {/* Column header */}
+            <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:10,padding:"12px 16px",boxShadow:t.shadow}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:colColor,flexShrink:0}}/>
+                  <span style={{color:t.text,fontSize:13,fontWeight:600}}>{col.name}</span>
+                  <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 6px",fontWeight:700}}>{colTasks.length}</span>
+                </div>
+              </div>
+            </div>
+            {/* Add task button */}
+            <button onClick={()=>openAddForPhase(col.id)} style={{background:t.surfaceHigh,border:`1px dashed ${t.border}`,borderRadius:8,padding:"8px 12px",fontSize:12,color:t.textSub,cursor:"pointer",fontFamily:"inherit",textAlign:"center",fontWeight:500}}>+ Add Task</button>
+            {/* Add task inline form */}
+            {showAddForPhase===col.id&&(
+              <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:10,padding:"12px 14px",boxShadow:t.shadow}}>
+                <form onSubmit={addTask} style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {formError&&<div style={{color:t.red,fontSize:11}}>{formError}</div>}
+                  <input value={newForm.title} onChange={e=>setNewForm(f=>({...f,title:e.target.value}))} placeholder="Task title…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 10px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit"}}/>
+                  {isInternal&&teamMembers&&teamMembers.length>0&&(
+                    <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
+                      <option value="">Assignee…</option>
+                      {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                    </select>
+                  )}
+                  <div style={{display:"flex",gap:6}}>
+                    <button type="submit" disabled={saving||!newForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.title.trim()?0.5:1,flex:1}}>{saving?"…":"Add"}</button>
+                    <button type="button" onClick={()=>{setShowAddForPhase(null);setNewForm(EMPTY_TASK);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  </div>
+                </form>
+              </div>
+            )}
+            {/* Task cards */}
+            {colTasks.map(task=>{
+              const sColor=statusColors[task.status]||t.textDim;
+              return(
+                <div key={task.id} onClick={()=>openEdit(task)} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 16px",boxShadow:t.shadow,cursor:"pointer",transition:"border-color 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=t.accent;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=t.border;}}>
+                  <div style={{color:t.text,fontSize:13,fontWeight:500,marginBottom:8}}>{task.title}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      {task.assignee&&(
+                        <div style={{width:22,height:22,borderRadius:"50%",background:t.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",flexShrink:0}} title={task.assignee}>
+                          {task.assignee.split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase()}
+                        </div>
+                      )}
+                      {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
+                    </div>
+                    <span style={{color:sColor,fontSize:10,fontWeight:600,background:sColor+"14",borderRadius:99,padding:"2px 8px",border:`1px solid ${sColor}25`}}>{statusLabels[task.status]||task.status}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  </>;
+}
+
+function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mobile,teamMembers}) {
+  const [planView,setPlanView]=useState("list");
+  const [phases,setPhases]=useState(initialPhases||[]);
+  const [tasks,setTasks]=useState(initialTasks||[]);
+
+  const loadData=useCallback(async()=>{
+    const [{data:phData},{data:tkData}]=await Promise.all([
+      supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
+      supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
+    ]);
+    if(phData) setPhases(phData);
+    if(tkData) setTasks(tkData);
+  },[projectId]);
+
+  useEffect(()=>{loadData();},[loadData]);
+
+  const handleRefresh=useCallback(async()=>{
+    await loadData();
+    onRefresh?.();
+  },[loadData,onRefresh]);
+
+  return <div style={{display:"flex",flexDirection:"column",gap:16}}>
+    {/* View toggle */}
+    <div style={{display:"flex",gap:2,background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,alignSelf:"flex-start"}}>
+      {[["list","List"],["timeline","Timeline"],["kanban","Kanban"]].map(([k,l])=>(
+        <button key={k} onClick={()=>setPlanView(k)} style={{background:planView===k?t.accent:"transparent",color:planView===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:"5px 16px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>{l}</button>
+      ))}
+    </div>
+
+    {planView==="list"&&<TasksTab projectId={projectId} initialTasks={tasks} isInternal={isInternal} onRefresh={handleRefresh} t={t} mobile={mobile} teamMembers={teamMembers} phases={phases}/>}
+    {planView==="timeline"&&<TimelineTab projectId={projectId} initialPhases={phases} initialTasks={tasks} onRefresh={handleRefresh} t={t}/>}
+    {planView==="kanban"&&<KanbanView projectId={projectId} phases={phases} tasks={tasks} teamMembers={teamMembers} isInternal={isInternal} onRefresh={handleRefresh} t={t} mobile={mobile}/>}
   </div>;
 }
 
@@ -1818,10 +2099,10 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const isClientView = view === "client";
   const allTabs = isClientView
     ? ["overview","actions","documents","invoices","book"]
-    : ["overview","timeline","tasks","documents","invoices","software","maintenance","book"];
+    : ["overview","plan","documents","invoices","software","maintenance","book"];
   const tabLabels = isClientView
     ? {overview:"Overview",actions:"Your Actions",documents:"Documents",invoices:"Invoices",book:"Book a Call"}
-    : {overview:"Overview",timeline:"Timeline",tasks:"Tasks",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+    : {overview:"Overview",plan:"Plan",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
 
   async function dismissWelcome(){
     setShowWelcome(false);
@@ -1956,8 +2237,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                 ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile}/>
               )}
-              {tab==="timeline"    &&!isClientView&&<TimelineTab projectId={selected.id} initialPhases={selected.phases} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="tasks"       &&!isClientView&&<TasksTab    projectId={selected.id} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
+              {tab==="plan"        &&!isClientView&&<PlanTab projectId={selected.id} initialPhases={selected.phases} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
               {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} t={t} mobile={mobile}/>}
               {tab==="documents"   && (isClientView
                 ? <ClientDocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} onRefresh={()=>refreshProject(selected.id)} t={t}/>
