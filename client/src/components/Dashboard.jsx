@@ -264,6 +264,14 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     onRefresh?.();
   }
 
+  async function toggleTask(task){
+    const newStatus=task.status==="done"?"todo":"done";
+    const {error}=await supabase.from("tasks").update({status:newStatus}).eq("id",task.id);
+    if(error){console.error("[TasksTab] toggle error:",error.message);return;}
+    await loadTasks();
+    onRefresh?.();
+  }
+
   async function deleteTask(id){
     const {error}=await supabase.from("tasks").delete().eq("id",id);
     if(error){console.error("[TasksTab] delete error:",error.message);setFormError(error.message);return;}
@@ -355,7 +363,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
               ):(
                 <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"13px 18px",gap:mobile?10:12}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                    <div style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <div onClick={()=>toggleTask(task)} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                       {task.status==="done"&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
                     </div>
                     <div style={{minWidth:0}}>
