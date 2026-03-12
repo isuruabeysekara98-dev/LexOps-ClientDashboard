@@ -1,5 +1,9 @@
 # LexOps Client Portal — Changelog
 
+## [53.0312] — 2026-03-12
+chore: update portal — 2026-03-12 05:10
+
+
 ## [Unreleased]
 
 ## [0.1.0] — 2026-03-11
