@@ -8,19 +8,37 @@ FILES_CHANGED=$(git diff --name-only HEAD 2>/dev/null | head -20)
 # Stage all changes
 git add -A
 
-# Generate commit message using Claude API
-COMMIT_MSG=$(curl -s https://api.anthropic.com/v1/messages \
-  -H "content-type: application/json" \
-  -H "x-api-key: $ANTHROPIC_API_KEY" \
-  -H "anthropic-version: 2023-06-01" \
-  -d "{
-    \"model\": \"claude-haiku-4-5-20251001\",
-    \"max_tokens\": 200,
-    \"messages\": [{
-      \"role\": \"user\",
-      \"content\": \"Generate a concise git commit message (max 72 chars for subject line, then bullet points for details) for these changed files in a legal ops client portal project:\n\nFiles changed:\n$FILES_CHANGED\n\nFormat:\ntype: short description\n\n- bullet point detail\n- bullet point detail\n\nTypes: feat, fix, refactor, style, chore\"
-    }]
-  }" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).content[0].text)}catch(e){}})" 2>/dev/null)
+# Generate commit message using Claude API (via Node.js to access Replit secrets)
+COMMIT_MSG=$(node -e "
+const https = require('https');
+const files = process.argv[1];
+const data = JSON.stringify({
+  model: 'claude-haiku-4-5-20251001',
+  max_tokens: 200,
+  messages: [{ role: 'user', content: 'Generate a concise git commit message for these changed files in a legal ops client portal:\n' + files + '\n\nFormat: type: short description\n\n- detail\n- detail\n\nTypes: feat, fix, refactor, style, chore' }]
+});
+const options = {
+  hostname: 'api.anthropic.com',
+  path: '/v1/messages',
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    'x-api-key': process.env.ANTHROPIC_API_KEY,
+    'anthropic-version': '2023-06-01',
+    'content-length': Buffer.byteLength(data)
+  }
+};
+const req = https.request(options, res => {
+  let body = '';
+  res.on('data', chunk => body += chunk);
+  res.on('end', () => {
+    try { process.stdout.write(JSON.parse(body).content[0].text); } catch(e) { process.stdout.write(''); }
+  });
+});
+req.on('error', () => process.stdout.write(''));
+req.write(data);
+req.end();
+" "$FILES_CHANGED" 2>/dev/null)
 
 # Fallback if API call fails
 if [ -z "$COMMIT_MSG" ]; then
