@@ -81,6 +81,7 @@ async function fetchProjectData(projectId) {
     supabase.from("activity").select("*").eq("project_id",projectId).order("date",{ascending:false}).limit(20),
     supabase.from("document_requests").select("*").eq("project_id",projectId).order("requested_at",{ascending:false}),
   ]);
+  console.log("[fetchProjectData] phases query result:",{projectId,phasesData:phases.data,phasesError:phases.error,taskCount:(tasks.data||[]).length,taskPhaseIds:[...new Set((tasks.data||[]).map(t=>t.phase_id))]});
   return {
     phases:    phases.data     || [],
     tasks:     tasks.data      || [],
@@ -300,6 +301,19 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   const filtered=filter==="all"?tasks:tasks.filter(tk=>tk.status===filter);
   const counts={all:tasks.length,"in-progress":tasks.filter(x=>x.status==="in-progress").length,todo:tasks.filter(x=>x.status==="todo").length,done:tasks.filter(x=>x.status==="done").length};
 
+  // Build phase lookup map for robust grouping
+  const phaseMap=useMemo(()=>{const m={};(phases||[]).forEach(ph=>{m[ph.id]=ph;});return m;},[phases]);
+
+  // Log diagnostics for task/phase grouping
+  useEffect(()=>{
+    const grouped={};
+    filtered.forEach(tk=>{
+      const key=(tk.phase_id&&phaseMap[tk.phase_id])?tk.phase_id:"__unassigned__";
+      grouped[key]=(grouped[key]||0)+1;
+    });
+    console.log("[TasksTab] diagnostics:",{totalTasks:tasks.length,filteredTasks:filtered.length,phasesCount:(phases||[]).length,phaseIds:Object.keys(phaseMap),groups:grouped});
+  },[tasks,filtered,phases,phaseMap]);
+
   const inlineInput=(value,onChange,placeholder,style={})=>(
     <input value={value} onChange={onChange} placeholder={placeholder} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,...style}}/>
   );
@@ -401,7 +415,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     );
   };
 
-  const unassignedTasks=filtered.filter(tk=>!tk.phase_id);
+  const unassignedTasks=filtered.filter(tk=>!tk.phase_id||!phaseMap[tk.phase_id]);
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -425,7 +439,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
     {/* Phase sections */}
     {sortedPhases.map((ph,phIdx)=>{
-      const phaseTasks=filtered.filter(tk=>tk.phase_id===ph.id);
+      const phaseTasks=filtered.filter(tk=>tk.phase_id===ph.id&&phaseMap[tk.phase_id]);
       const isCollapsed=collapsedPhases[ph.id];
       const statusColor=phaseStatusColors[ph.status]||t.textDim;
       return(
