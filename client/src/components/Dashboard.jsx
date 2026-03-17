@@ -72,7 +72,7 @@ function normalizeProject(row, related={}) {
 
 async function fetchProjectData(projectId) {
   const [phases,tasks,documents,invoices,software,maintenance,activity,docRequests] = await Promise.all([
-    supabase.from("phases").select("*").eq("project_id",projectId).order("id",{ascending:true}),
+    supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
     supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false}),
     supabase.from("invoices").select("*").eq("project_id",projectId).order("id"),
@@ -235,7 +235,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
   useEffect(()=>{loadTasks();},[loadTasks]);
 
-  const sortedPhases=useMemo(()=>[...(phases||[])].sort((a,b)=>String(a.id).localeCompare(String(b.id))),[phases]);
+  const sortedPhases=useMemo(()=>[...(phases||[])].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)),[phases]);
 
   function openAddForPhase(phaseId){
     setShowAddForPhase(phaseId);
@@ -461,8 +461,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
         <Card key={ph.id} t={t}>
           <div onClick={()=>toggleCollapse(ph.id)} style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,cursor:"pointer",userSelect:"none"}}>
             <span style={{color:t.textSub,fontSize:10,fontWeight:700,flexShrink:0,transition:"transform 0.15s",transform:isCollapsed?"rotate(0deg)":"rotate(90deg)"}}>▶</span>
-            <span style={{color:t.text,fontSize:13,fontWeight:600}}>Phase {phIdx+1}</span>
-            <span style={{color:t.textSub,fontSize:13,fontWeight:400}}>{ph.name}</span>
+            <span style={{color:t.text,fontSize:13,fontWeight:600}}>{ph.name}</span>
             <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{phaseTasks.length}</span>
             <Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/>
             <div style={{flex:1}}/>
@@ -901,7 +900,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
 
   const loadPhases=useCallback(async()=>{
     const [{data},{data:taskData}]=await Promise.all([
-      supabase.from("phases").select("*").eq("project_id",projectId).order("id",{ascending:true}),
+      supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
       supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     ]);
     if(data) setPhases(data);
@@ -1173,8 +1172,8 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
   const [showAddForPhase,setShowAddForPhase]=useState(null);
   const [newForm,setNewForm]=useState(EMPTY_TASK);
 
-  const sortedPhases=[...phases].sort((a,b)=>String(a.id).localeCompare(String(b.id)));
-  const columns=[...sortedPhases.map((ph,i)=>({id:ph.id,name:`Phase ${i+1} — ${ph.name}`,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
+  const sortedPhases=[...phases].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  const columns=[...sortedPhases.map(ph=>({id:ph.id,name:ph.name,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
 
   function getTasksForColumn(colId){return tasks.filter(tk=>colId===null?!tk.phase_id:tk.phase_id===colId);}
 
@@ -1347,7 +1346,7 @@ function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mo
 
   const loadData=useCallback(async()=>{
     const [{data:phData},{data:tkData}]=await Promise.all([
-      supabase.from("phases").select("*").eq("project_id",projectId).order("id",{ascending:true}),
+      supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
       supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     ]);
     console.log('[PlanTab] loadData phases:',phData?.length,'ids:',phData?.map(p=>p.id),'tasks:',tkData?.length,'task phase_ids:',[...new Set((tkData||[]).map(t=>t.phase_id))]);
