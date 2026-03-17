@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Ensure ANTHROPIC_API_KEY is available in bash (pull from Node/Replit secrets if needed)
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  export ANTHROPIC_API_KEY=$(node -e "console.log(process.env.ANTHROPIC_API_KEY || '')" 2>/dev/null)
+fi
+
 # Get the diff summary
 DIFF=$(git diff --staged --stat 2>/dev/null || git diff --stat HEAD 2>/dev/null)
 FILES_CHANGED=$(git diff --name-only HEAD 2>/dev/null | head -20)

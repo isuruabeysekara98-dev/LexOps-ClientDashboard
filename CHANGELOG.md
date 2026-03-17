@@ -1,5 +1,9 @@
 # LexOps Client Portal — Changelog
 
+## [56.0317] — 2026-03-17
+chore: update portal — 2026-03-17 15:31
+
+
 ## [54.0312] — 2026-03-12
 chore: update portal — 2026-03-12 06:18
 
