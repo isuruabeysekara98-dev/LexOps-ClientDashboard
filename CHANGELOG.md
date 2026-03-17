@@ -1,5 +1,9 @@
 # LexOps Client Portal — Changelog
 
+## [71] — 2026-03-17 16:23
+Rewrite commit script to accept optional description argument
+
+
 ## [69] — 2026-03-17 16:15
 ### Changes
 - client/src/App.tsx
