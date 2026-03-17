@@ -48,7 +48,8 @@
       "Bash(npx vite:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(bash scripts/commit.sh \"Rewrite commit script to accept optional description argument\")"
+      "Bash(bash scripts/commit.sh \"Rewrite commit script to accept optional description argument\")",
+      "Bash(bash scripts/commit.sh \"Fixed RLS infinite recursion on profiles table, fixed phase grouping in Plan tab List and Kanban views, fixed phases ordering by created_at, added assignee dropdown showing all project members and internal team, fixed duplicate phase prefix in column headers, added Software tab to client view, commit script now accepts manual descriptions\")"
     ]
   }
 }

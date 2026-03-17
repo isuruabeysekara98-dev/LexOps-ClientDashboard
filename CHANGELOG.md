@@ -1,5 +1,9 @@
 # LexOps Client Portal — Changelog
 
+## [72] — 2026-03-17 16:24
+Fixed RLS infinite recursion on profiles table, fixed phase grouping in Plan tab List and Kanban views, fixed phases ordering by created_at, added assignee dropdown showing all project members and internal team, fixed duplicate phase prefix in column headers, added Software tab to client view, commit script now accepts manual descriptions
+
+
 ## [71] — 2026-03-17 16:23
 Rewrite commit script to accept optional description argument
 
