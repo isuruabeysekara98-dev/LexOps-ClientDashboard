@@ -301,18 +301,20 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   const filtered=filter==="all"?tasks:tasks.filter(tk=>tk.status===filter);
   const counts={all:tasks.length,"in-progress":tasks.filter(x=>x.status==="in-progress").length,todo:tasks.filter(x=>x.status==="todo").length,done:tasks.filter(x=>x.status==="done").length};
 
-  // Build phase lookup map for robust grouping
-  const phaseMap=useMemo(()=>{const m={};(phases||[]).forEach(ph=>{m[ph.id]=ph;});return m;},[phases]);
+  // Build Set of valid phase IDs for robust grouping
+  const validPhaseIds=useMemo(()=>new Set((phases||[]).map(ph=>ph.id)),[phases]);
 
-  // Log diagnostics for task/phase grouping
-  useEffect(()=>{
+  // Group filtered tasks by phase, with proper fallback to Unassigned
+  const groupedTasks=useMemo(()=>{
     const grouped={};
     filtered.forEach(tk=>{
-      const key=(tk.phase_id&&phaseMap[tk.phase_id])?tk.phase_id:"__unassigned__";
-      grouped[key]=(grouped[key]||0)+1;
+      const key=(tk.phase_id&&validPhaseIds.has(tk.phase_id))?String(tk.phase_id):"__unassigned__";
+      if(!grouped[key]) grouped[key]=[];
+      grouped[key].push(tk);
     });
-    console.log("[TasksTab] diagnostics:",{totalTasks:tasks.length,filteredTasks:filtered.length,phasesCount:(phases||[]).length,phaseIds:Object.keys(phaseMap),groups:grouped});
-  },[tasks,filtered,phases,phaseMap]);
+    console.log('[Plan] tasks:',tasks.length,'phases:',(phases||[]).length,'grouped:',Object.keys(grouped).map(k=>k+':'+grouped[k].length));
+    return grouped;
+  },[filtered,tasks,phases,validPhaseIds]);
 
   const inlineInput=(value,onChange,placeholder,style={})=>(
     <input value={value} onChange={onChange} placeholder={placeholder} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,...style}}/>
@@ -415,7 +417,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     );
   };
 
-  const unassignedTasks=filtered.filter(tk=>!tk.phase_id||!phaseMap[tk.phase_id]);
+  const unassignedTasks=groupedTasks["__unassigned__"]||[];
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -439,7 +441,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
     {/* Phase sections */}
     {sortedPhases.map((ph,phIdx)=>{
-      const phaseTasks=filtered.filter(tk=>tk.phase_id===ph.id&&phaseMap[tk.phase_id]);
+      const phaseTasks=groupedTasks[String(ph.id)]||[];
       const isCollapsed=collapsedPhases[ph.id];
       const statusColor=phaseStatusColors[ph.status]||t.textDim;
       return(

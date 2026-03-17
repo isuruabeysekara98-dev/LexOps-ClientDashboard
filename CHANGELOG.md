@@ -1,5 +1,12 @@
 # LexOps Client Portal — Changelog
 
+## [60] — 2026-03-17 15:44
+### Changes
+- client/src/components/Dashboard.jsx
+- scripts/commit.sh
++53 insertions, -55 deletions
+
+
 ## [56.0317] — 2026-03-17
 chore: update portal — 2026-03-17 15:31
 
