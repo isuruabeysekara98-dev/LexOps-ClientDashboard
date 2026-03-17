@@ -10,11 +10,14 @@ import ProposalPage from "@/components/ProposalPage";
 import SetPasswordPage from "@/components/SetPasswordPage";
 
 async function fetchUserProfile(userId: string) {
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", userId)
     .single();
+
+  console.log('[Auth] profile fetch result:', profile, error);
+  console.log('[Auth] user id:', userId);
 
   if (!profile) {
     await supabase.auth.signOut();
