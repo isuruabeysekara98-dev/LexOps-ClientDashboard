@@ -350,7 +350,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           {isInternal&&(teamMembers&&teamMembers.length>0?(
             <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
               <option value="">Assignee…</option>
-              {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+              {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{(m.full_name||m.email)+(m.role&&m.role!=="lexops_admin"&&m.role!=="lexops_member"?" (Client)":"")}</option>)}
             </select>
           ):inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
           <input type="date" value={newForm.due} onChange={e=>setNewForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
@@ -386,7 +386,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             {isInternal&&(teamMembers&&teamMembers.length>0?(
               <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
                 <option value="">Assignee…</option>
-                {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{(m.full_name||m.email)+(m.role&&m.role!=="lexops_admin"&&m.role!=="lexops_member"?" (Client)":"")}</option>)}
               </select>
             ):inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
             <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
@@ -1240,7 +1240,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
               {teamMembers&&teamMembers.length>0?(
                 <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
                   <option value="">Unassigned</option>
-                  {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                  {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{(m.full_name||m.email)+(m.role&&m.role!=="lexops_admin"&&m.role!=="lexops_member"?" (Client)":"")}</option>)}
                 </select>
               ):<input value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} placeholder="Assignee" style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 12px",fontSize:13,color:t.text,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>}
             </div>}
@@ -1302,7 +1302,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
                   {isInternal&&teamMembers&&teamMembers.length>0&&(
                     <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
                       <option value="">Assignee…</option>
-                      {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+                      {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{(m.full_name||m.email)+(m.role&&m.role!=="lexops_admin"&&m.role!=="lexops_member"?" (Client)":"")}</option>)}
                     </select>
                   )}
                   <div style={{display:"flex",gap:6}}>
@@ -2107,15 +2107,25 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
-  // Fetch team members for assignee dropdown (staff only)
+  // Fetch team members for assignee dropdown: internal staff + project client members
   useEffect(()=>{
-    if(isClient) return;
+    if(isClient||!selected) return;
     (async()=>{
-      const {data,error}=await supabase.from("profiles").select("id,full_name,email").in("role",["lexops_admin","lexops_member"]);
-      if(error) console.error("[Dashboard] Failed to fetch team members:",error.message);
-      if(data) setTeamMembers(data);
+      const [{data:internalUsers,error:intErr},{data:projectMembers,error:pmErr}]=await Promise.all([
+        supabase.from("profiles").select("id,full_name,email,role").in("role",["lexops_admin","lexops_member"]).order("full_name",{ascending:true}),
+        supabase.from("project_members").select("user_id, profiles(id, full_name, email, role)").eq("project_id",selected.id),
+      ]);
+      if(intErr) console.error("[Dashboard] Failed to fetch internal users:",intErr.message);
+      if(pmErr) console.error("[Dashboard] Failed to fetch project members:",pmErr.message);
+      const clientUsers=(projectMembers||[]).map(pm=>pm.profiles).filter(Boolean);
+      const internalIds=new Set((internalUsers||[]).map(u=>u.id));
+      const allUsers=[
+        ...(internalUsers||[]),
+        ...clientUsers.filter(u=>!internalIds.has(u.id)),
+      ];
+      setTeamMembers(allUsers);
     })();
-  },[isClient]);
+  },[isClient,selected?.id]);
 
   const loadProjects=useCallback(async()=>{
     setLoading(true);
