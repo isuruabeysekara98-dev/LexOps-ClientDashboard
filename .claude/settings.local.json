@@ -45,7 +45,9 @@
       "Bash(kill 52 71 82 94 102 2>/dev/null; sleep 2 && ps aux | grep -E \"node|npm\" | grep -v grep || echo \"All node processes stopped\")",
       "Bash(npm run build)",
       "Bash(bash scripts/commit.sh)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
