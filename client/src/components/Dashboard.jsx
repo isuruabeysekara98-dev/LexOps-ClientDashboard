@@ -72,7 +72,7 @@ function normalizeProject(row, related={}) {
 
 async function fetchProjectData(projectId) {
   const [phases,tasks,documents,invoices,software,maintenance,activity,docRequests] = await Promise.all([
-    supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
+    supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
     supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false}),
     supabase.from("invoices").select("*").eq("project_id",projectId).order("id"),
@@ -216,12 +216,13 @@ const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_
 function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMembers,phases}) {
   const [tasks,setTasks]=useState(initialTasks||[]);
   const [filter,setFilter]=useState("all");
-  const [showAdd,setShowAdd]=useState(false);
+  const [showAddForPhase,setShowAddForPhase]=useState(null);
   const [newForm,setNewForm]=useState(EMPTY_TASK);
   const [editingId,setEditingId]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [saving,setSaving]=useState(false);
   const [formError,setFormError]=useState("");
+  const [collapsedPhases,setCollapsedPhases]=useState({});
 
   const loadTasks=useCallback(async()=>{
     const {data}=await supabase.from("tasks").select("*").eq("project_id",projectId).order("id");
@@ -229,6 +230,22 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   },[projectId]);
 
   useEffect(()=>{loadTasks();},[loadTasks]);
+
+  const sortedPhases=useMemo(()=>[...(phases||[])].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)),[phases]);
+
+  function openAddForPhase(phaseId){
+    setShowAddForPhase(phaseId);
+    setNewForm({...EMPTY_TASK,phase_id:phaseId});
+    setEditingId(null);
+    setFormError("");
+  }
+
+  function openAddGlobal(){
+    setShowAddForPhase("__global__");
+    setNewForm(EMPTY_TASK);
+    setEditingId(null);
+    setFormError("");
+  }
 
   async function addTask(e){
     e.preventDefault();
@@ -239,7 +256,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     const {error}=await supabase.from("tasks").insert(payload);
     if(error){console.error("[TasksTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewForm(EMPTY_TASK);
-    setShowAdd(false);
+    setShowAddForPhase(null);
     await loadTasks();
     setSaving(false);
     onRefresh?.();
@@ -292,6 +309,100 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     </select>
   );
 
+  const toggleCollapse=(id)=>setCollapsedPhases(prev=>({...prev,[id]:!prev[id]}));
+
+  const phaseStatusColors={complete:t.green,active:t.accent,pending:t.textDim};
+
+  const renderAddForm=(formKey)=>(
+    showAddForPhase===formKey&&(
+      <div>
+        <form onSubmit={addTask} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
+          {inlineInput(newForm.title,e=>setNewForm(f=>({...f,title:e.target.value})),"Task title…",{flex:"1 1 180px"})}
+          {isInternal&&(teamMembers&&teamMembers.length>0?(
+            <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+              <option value="">Assignee…</option>
+              {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+            </select>
+          ):inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
+          <input type="date" value={newForm.due} onChange={e=>setNewForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
+          {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
+          {formKey==="__global__"&&phases&&phases.length>0&&(
+            <select value={newForm.phase_id||""} onChange={e=>setNewForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+              <option value="">Phase…</option>
+              {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Phase {idx+1} — {ph.name}</option>)}
+            </select>
+          )}
+          {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_internal} onChange={e=>setNewForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
+          {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_deliverable} onChange={e=>setNewForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
+          <div style={{display:"flex",gap:6}}>
+            <button type="submit" disabled={saving||!newForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.title.trim()?0.5:1}}>
+              {saving?"…":"Save"}
+            </button>
+            <button type="button" onClick={()=>{setShowAddForPhase(null);setNewForm(EMPTY_TASK);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          </div>
+        </form>
+        <Line t={t}/>
+      </div>
+    )
+  );
+
+  const renderTaskRow=(task,i,arr)=>{
+    const c=tc[task.status]||tc.todo;
+    const isEditing=editingId===task.id;
+    return(
+      <div key={task.id}>
+        {isEditing?(
+          <form onSubmit={e=>saveEdit(e,task.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 18px",flexWrap:"wrap"}}>
+            {inlineInput(editForm.title,e=>setEditForm(f=>({...f,title:e.target.value})),"Title",{flex:"1 1 180px"})}
+            {isInternal&&(teamMembers&&teamMembers.length>0?(
+              <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                <option value="">Assignee…</option>
+                {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
+              </select>
+            ):inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
+            <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
+            {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
+            {phases&&phases.length>0&&(
+              <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
+                <option value="">Phase…</option>
+                {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Phase {idx+1} — {ph.name}</option>)}
+              </select>
+            )}
+            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
+            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_deliverable??false} onChange={e=>setEditForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
+            <div style={{display:"flex",gap:6}}>
+              <button type="submit" disabled={saving} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving?0.5:1}}>
+                {saving?"…":"Save"}
+              </button>
+              <button type="button" onClick={()=>{setEditingId(null);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </form>
+        ):(
+          <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"13px 18px",gap:mobile?10:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+              <div onClick={()=>toggleTask(task)} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                {task.status==="done"&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{color:task.status==="done"?t.textSub:t.text,fontSize:13,fontWeight:500,textDecoration:task.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
+                {isInternal&&task.assignee&&<div style={{color:t.textDim,fontSize:11,marginTop:1}}>{task.assignee}</div>}
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
+              {task.due&&<span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due}</span>}
+              <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
+              <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
+              <button onClick={()=>deleteTask(task.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
+            </div>
+          </div>
+        )}
+        {i<arr.length-1&&<Line t={t}/>}
+      </div>
+    );
+  };
+
+  const unassignedTasks=filtered.filter(tk=>!tk.phase_id);
+
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -302,100 +413,61 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           </button>
         ))}
       </div>
-      <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Task</button>
+      <button onClick={openAddGlobal} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Task</button>
     </div>
 
     {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
-    <Card t={t} style={{overflowX:"auto"}}>
-      {showAdd&&(
-        <div>
-          <form onSubmit={addTask} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
-            {inlineInput(newForm.title,e=>setNewForm(f=>({...f,title:e.target.value})),"Task title…",{flex:"1 1 180px"})}
-            {isInternal&&(teamMembers&&teamMembers.length>0?(
-              <select value={newForm.assignee} onChange={e=>setNewForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-                <option value="">Assignee…</option>
-                {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
-              </select>
-            ):inlineInput(newForm.assignee,e=>setNewForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
-            <input type="date" value={newForm.due} onChange={e=>setNewForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
-            {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
-            {phases&&phases.length>0&&(
-              <select value={newForm.phase_id||""} onChange={e=>setNewForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-                <option value="">Phase…</option>
-                {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
-              </select>
-            )}
-            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_internal} onChange={e=>setNewForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
-            {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_deliverable} onChange={e=>setNewForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
-            <div style={{display:"flex",gap:6}}>
-              <button type="submit" disabled={saving||!newForm.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.title.trim()?0.5:1}}>
-                {saving?"…":"Save"}
-              </button>
-              <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_TASK);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
-          </form>
-          <Line t={t}/>
-        </div>
-      )}
 
-      {/* Task rows */}
-      {filtered.length===0&&!showAdd
-        ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No tasks to display</div>
-        :filtered.map((task,i)=>{
-          const c=tc[task.status]||tc.todo;
-          const isEditing=editingId===task.id;
-          return(
-            <div key={task.id}>
-              {isEditing?(
-                <form onSubmit={e=>saveEdit(e,task.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 18px",flexWrap:"wrap"}}>
-                  {inlineInput(editForm.title,e=>setEditForm(f=>({...f,title:e.target.value})),"Title",{flex:"1 1 180px"})}
-                  {isInternal&&(teamMembers&&teamMembers.length>0?(
-                    <select value={editForm.assignee} onChange={e=>setEditForm(f=>({...f,assignee:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-                      <option value="">Assignee…</option>
-                      {teamMembers.map(m=><option key={m.id} value={m.full_name||m.email}>{m.full_name||m.email}</option>)}
-                    </select>
-                  ):inlineInput(editForm.assignee,e=>setEditForm(f=>({...f,assignee:e.target.value})),"Assignee",{flex:"0 1 120px"}))}
-                  <input type="date" value={editForm.due} onChange={e=>setEditForm(f=>({...f,due:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
-                  {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
-                  {phases&&phases.length>0&&(
-                    <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-                      <option value="">Phase…</option>
-                      {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
-                    </select>
-                  )}
-                  {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
-                  {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_deliverable??false} onChange={e=>setEditForm(f=>({...f,is_deliverable:e.target.checked}))}/> Deliverable</label>}
-                  <div style={{display:"flex",gap:6}}>
-                    <button type="submit" disabled={saving} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving?0.5:1}}>
-                      {saving?"…":"Save"}
-                    </button>
-                    <button type="button" onClick={()=>{setEditingId(null);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                  </div>
-                </form>
-              ):(
-                <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"13px 18px",gap:mobile?10:12}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                    <div onClick={()=>toggleTask(task)} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-                      {task.status==="done"&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
-                    </div>
-                    <div style={{minWidth:0}}>
-                      <div style={{color:task.status==="done"?t.textSub:t.text,fontSize:13,fontWeight:500,textDecoration:task.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
-                      {isInternal&&task.assignee&&<div style={{color:t.textDim,fontSize:11,marginTop:1}}>{task.assignee}</div>}
-                    </div>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
-                    <span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due}</span>
-                    <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
-                    {task.phase_id&&phases&&(()=>{const ph=phases.find(p=>p.id===task.phase_id);return ph?<span style={{color:t.textSub,fontSize:10,background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"1px 7px",whiteSpace:"nowrap"}}>{ph.name}</span>:null;})()}
-                    <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
-                    <button onClick={()=>deleteTask(task.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
-                  </div>
-                </div>
-              )}
-              {i<filtered.length-1&&<Line t={t}/>}
-            </div>
-          );
-        })}
+    {/* Global add form (no phase pre-filled) */}
+    {showAddForPhase==="__global__"&&(
+      <Card t={t}>{renderAddForm("__global__")}</Card>
+    )}
+
+    {/* Phase sections */}
+    {sortedPhases.map((ph,phIdx)=>{
+      const phaseTasks=filtered.filter(tk=>tk.phase_id===ph.id);
+      const isCollapsed=collapsedPhases[ph.id];
+      const statusColor=phaseStatusColors[ph.status]||t.textDim;
+      return(
+        <Card key={ph.id} t={t}>
+          <div onClick={()=>toggleCollapse(ph.id)} style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,cursor:"pointer",userSelect:"none"}}>
+            <span style={{color:t.textSub,fontSize:10,fontWeight:700,flexShrink:0,transition:"transform 0.15s",transform:isCollapsed?"rotate(0deg)":"rotate(90deg)"}}>▶</span>
+            <span style={{color:t.text,fontSize:13,fontWeight:600}}>Phase {phIdx+1}</span>
+            <span style={{color:t.textSub,fontSize:13,fontWeight:400}}>{ph.name}</span>
+            <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{phaseTasks.length}</span>
+            <Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/>
+            <div style={{flex:1}}/>
+            <button onClick={e=>{e.stopPropagation();openAddForPhase(ph.id);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Task</button>
+          </div>
+          {!isCollapsed&&<>
+            <Line t={t}/>
+            {renderAddForm(ph.id)}
+            {phaseTasks.length===0
+              ?<div style={{color:t.textSub,textAlign:"center",padding:"24px 0",fontSize:12}}>No tasks in this phase</div>
+              :phaseTasks.map((task,i)=>renderTaskRow(task,i,phaseTasks))
+            }
+          </>}
+        </Card>
+      );
+    })}
+
+    {/* Unassigned section */}
+    <Card t={t}>
+      <div onClick={()=>toggleCollapse("__unassigned__")} style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,cursor:"pointer",userSelect:"none"}}>
+        <span style={{color:t.textSub,fontSize:10,fontWeight:700,flexShrink:0,transition:"transform 0.15s",transform:collapsedPhases["__unassigned__"]?"rotate(0deg)":"rotate(90deg)"}}>▶</span>
+        <span style={{color:t.text,fontSize:13,fontWeight:600}}>Unassigned</span>
+        <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{unassignedTasks.length}</span>
+        <div style={{flex:1}}/>
+        <button onClick={e=>{e.stopPropagation();openAddForPhase(null);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Task</button>
+      </div>
+      {!collapsedPhases["__unassigned__"]&&<>
+        <Line t={t}/>
+        {renderAddForm(null)}
+        {unassignedTasks.length===0
+          ?<div style={{color:t.textSub,textAlign:"center",padding:"24px 0",fontSize:12}}>No unassigned tasks</div>
+          :unassignedTasks.map((task,i)=>renderTaskRow(task,i,unassignedTasks))
+        }
+      </>}
     </Card>
   </div>;
 }
@@ -800,7 +872,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
 
   const loadPhases=useCallback(async()=>{
     const [{data},{data:taskData}]=await Promise.all([
-      supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
+      supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
       supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     ]);
     if(data) setPhases(data);
@@ -1072,7 +1144,8 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
   const [showAddForPhase,setShowAddForPhase]=useState(null);
   const [newForm,setNewForm]=useState(EMPTY_TASK);
 
-  const columns=[...phases.map(ph=>({id:ph.id,name:ph.name,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
+  const sortedPhases=[...phases].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+  const columns=[...sortedPhases.map((ph,i)=>({id:ph.id,name:`Phase ${i+1} — ${ph.name}`,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
 
   function getTasksForColumn(colId){return tasks.filter(tk=>colId===null?!tk.phase_id:tk.phase_id===colId);}
 
@@ -1245,7 +1318,7 @@ function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mo
 
   const loadData=useCallback(async()=>{
     const [{data:phData},{data:tkData}]=await Promise.all([
-      supabase.from("phases").select("*").eq("project_id",projectId).order("id"),
+      supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
       supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     ]);
     if(phData) setPhases(phData);
@@ -1262,13 +1335,12 @@ function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mo
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {/* View toggle */}
     <div style={{display:"flex",gap:2,background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,alignSelf:"flex-start"}}>
-      {[["list","List"],["timeline","Timeline"],["kanban","Kanban"]].map(([k,l])=>(
+      {[["list","List"],["kanban","Kanban"]].map(([k,l])=>(
         <button key={k} onClick={()=>setPlanView(k)} style={{background:planView===k?t.accent:"transparent",color:planView===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:"5px 16px",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>{l}</button>
       ))}
     </div>
 
     {planView==="list"&&<TasksTab projectId={projectId} initialTasks={tasks} isInternal={isInternal} onRefresh={handleRefresh} t={t} mobile={mobile} teamMembers={teamMembers} phases={phases}/>}
-    {planView==="timeline"&&<TimelineTab projectId={projectId} initialPhases={phases} initialTasks={tasks} onRefresh={handleRefresh} t={t}/>}
     {planView==="kanban"&&<KanbanView projectId={projectId} phases={phases} tasks={tasks} teamMembers={teamMembers} isInternal={isInternal} onRefresh={handleRefresh} t={t} mobile={mobile}/>}
   </div>;
 }
