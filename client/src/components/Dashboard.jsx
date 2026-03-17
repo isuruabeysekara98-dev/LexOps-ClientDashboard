@@ -225,6 +225,9 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   const [formError,setFormError]=useState("");
   const [collapsedPhases,setCollapsedPhases]=useState({});
 
+  // Sync tasks from parent when initialTasks prop changes (e.g. after PlanTab re-fetch)
+  useEffect(()=>{if(initialTasks) setTasks(initialTasks);},[initialTasks]);
+
   const loadTasks=useCallback(async()=>{
     const {data}=await supabase.from("tasks").select("*").eq("project_id",projectId).order("id");
     if(data) setTasks(data);
@@ -301,17 +304,27 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   const filtered=filter==="all"?tasks:tasks.filter(tk=>tk.status===filter);
   const counts={all:tasks.length,"in-progress":tasks.filter(x=>x.status==="in-progress").length,todo:tasks.filter(x=>x.status==="todo").length,done:tasks.filter(x=>x.status==="done").length};
 
-  // Build Set of valid phase IDs for robust grouping
-  const validPhaseIds=useMemo(()=>new Set((phases||[]).map(ph=>ph.id)),[phases]);
+  // Build Set of valid phase IDs (as strings) for robust grouping — handles int/uuid type mismatches
+  const validPhaseIds=useMemo(()=>{
+    const s=new Set((phases||[]).map(ph=>String(ph.id)));
+    console.log('[Plan] phases fetched:',(phases||[]).length,(phases||[]).map(p=>p.id));
+    return s;
+  },[phases]);
 
   // Group filtered tasks by phase, with proper fallback to Unassigned
   const groupedTasks=useMemo(()=>{
     const grouped={};
     filtered.forEach(tk=>{
-      const key=(tk.phase_id&&validPhaseIds.has(tk.phase_id))?String(tk.phase_id):"__unassigned__";
+      const phaseKey=tk.phase_id?String(tk.phase_id):null;
+      const key=(phaseKey&&validPhaseIds.has(phaseKey))?phaseKey:"__unassigned__";
       if(!grouped[key]) grouped[key]=[];
       grouped[key].push(tk);
     });
+    // Log type info for first task to diagnose mismatches
+    if(filtered.length>0){
+      const sample=filtered[0];
+      console.log('[Plan] sample task phase_id:',sample.phase_id,'type:',typeof sample.phase_id,'phases sample id:',(phases||[])[0]?.id,'type:',typeof (phases||[])[0]?.id);
+    }
     console.log('[Plan] tasks:',tasks.length,'phases:',(phases||[]).length,'grouped:',Object.keys(grouped).map(k=>k+':'+grouped[k].length));
     return grouped;
   },[filtered,tasks,phases,validPhaseIds]);
@@ -1337,6 +1350,7 @@ function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mo
       supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
       supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     ]);
+    console.log('[PlanTab] loadData phases:',phData?.length,'ids:',phData?.map(p=>p.id),'tasks:',tkData?.length,'task phase_ids:',[...new Set((tkData||[]).map(t=>t.phase_id))]);
     if(phData) setPhases(phData);
     if(tkData) setTasks(tkData);
   },[projectId]);

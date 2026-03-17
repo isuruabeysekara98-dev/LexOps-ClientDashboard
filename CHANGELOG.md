@@ -1,5 +1,11 @@
 # LexOps Client Portal — Changelog
 
+## [61] — 2026-03-17 15:50
+### Changes
+- client/src/components/Dashboard.jsx
++17 insertions, -3 deletions
+
+
 ## [60] — 2026-03-17 15:44
 ### Changes
 - client/src/components/Dashboard.jsx
