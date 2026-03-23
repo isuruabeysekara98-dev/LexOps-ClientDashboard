@@ -515,25 +515,6 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
         </Card>
       );
     })}
-
-    {/* Unassigned section */}
-    <Card t={t}>
-      <div onClick={()=>toggleCollapse("__unassigned__")} style={{display:"flex",alignItems:"center",padding:"14px 18px",gap:12,cursor:"pointer",userSelect:"none"}}>
-        <span style={{color:t.textSub,fontSize:10,fontWeight:700,flexShrink:0,transition:"transform 0.15s",transform:collapsedPhases["__unassigned__"]?"rotate(0deg)":"rotate(90deg)"}}>▶</span>
-        <span style={{color:t.text,fontSize:13,fontWeight:600}}>Unassigned</span>
-        <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{unassignedTasks.length}</span>
-        <div style={{flex:1}}/>
-        <button onClick={e=>{e.stopPropagation();openAddForPhase(null);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Task</button>
-      </div>
-      {!collapsedPhases["__unassigned__"]&&<>
-        <Line t={t}/>
-        {renderAddForm(null)}
-        {unassignedTasks.length===0
-          ?<div style={{color:t.textSub,textAlign:"center",padding:"24px 0",fontSize:12}}>No unassigned tasks</div>
-          :unassignedTasks.map((task,i)=>renderTaskRow(task,i,unassignedTasks))
-        }
-      </>}
-    </Card>
   </div>;
 }
 
@@ -1171,32 +1152,6 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
           );
         })
       }
-      {/* Unassigned tasks */}
-      {(()=>{
-        const unassigned=tasks.filter(tk=>!tk.phase_id);
-        const tc={done:{dot:t.green,label:"Done"},"in-progress":{dot:t.accent,label:"Active"},todo:{dot:t.textDim,label:"To Do"}};
-        if(unassigned.length===0) return null;
-        return <>
-          <Line t={t}/>
-          <div style={{padding:"13px 20px"}}>
-            <div style={{color:t.textSub,fontSize:12,fontWeight:600,marginBottom:8}}>Unassigned ({unassigned.length})</div>
-            {unassigned.map(task=>{
-              const c=tc[task.status]||tc.todo;
-              return(
-                <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
-                  <div style={{width:14,height:14,borderRadius:"50%",border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    {task.status==="done"&&<span style={{color:"#fff",fontSize:7,fontWeight:800}}>✓</span>}
-                  </div>
-                  <span style={{color:task.status==="done"?t.textSub:t.text,fontSize:12,flex:1,textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</span>
-                  {task.assignee&&<span style={{color:t.textDim,fontSize:11}}>{task.assignee}</span>}
-                  {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
-                  <span style={{color:c.dot,fontSize:10,fontWeight:600}}>{c.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </>;
-      })()}
     </Card>
   </div>;
 }
@@ -1212,9 +1167,9 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
   const [newPhaseForm,setNewPhaseForm]=useState({name:""});
 
   const sortedPhases=[...phases].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
-  const columns=[...sortedPhases.map(ph=>({id:ph.id,name:ph.name,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
+  const columns=[...sortedPhases.map(ph=>({id:ph.id,name:ph.name,status:ph.status}))];
 
-  function getTasksForColumn(colId){return tasks.filter(tk=>colId===null?!tk.phase_id:tk.phase_id===colId);}
+  function getTasksForColumn(colId){return tasks.filter(tk=>tk.phase_id===colId);}
 
   function openAddForPhase(phaseId){
     setShowAddForPhase(phaseId);
