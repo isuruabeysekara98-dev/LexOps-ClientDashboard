@@ -442,7 +442,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           </button>
         ))}
       </div>
-      <button onClick={openAddGlobal} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Task</button>
+      <button onClick={openAddGlobal} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
     </div>
 
     {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
@@ -465,7 +465,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{phaseTasks.length}</span>
             <Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/>
             <div style={{flex:1}}/>
-            <button onClick={e=>{e.stopPropagation();openAddForPhase(ph.id);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Task</button>
+            <button onClick={e=>{e.stopPropagation();openAddForPhase(ph.id);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Phase</button>
           </div>
           {!isCollapsed&&<>
             <Line t={t}/>
@@ -486,7 +486,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
         <span style={{color:t.text,fontSize:13,fontWeight:600}}>Unassigned</span>
         <span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,borderRadius:99,padding:"0 7px",fontWeight:700}}>{unassignedTasks.length}</span>
         <div style={{flex:1}}/>
-        <button onClick={e=>{e.stopPropagation();openAddForPhase(null);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Task</button>
+        <button onClick={e=>{e.stopPropagation();openAddForPhase(null);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>+ Add Phase</button>
       </div>
       {!collapsedPhases["__unassigned__"]&&<>
         <Line t={t}/>
@@ -1292,7 +1292,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
               </div>
             </div>
             {/* Add task button */}
-            <button onClick={()=>openAddForPhase(col.id)} style={{background:t.surfaceHigh,border:`1px dashed ${t.border}`,borderRadius:8,padding:"8px 12px",fontSize:12,color:t.textSub,cursor:"pointer",fontFamily:"inherit",textAlign:"center",fontWeight:500}}>+ Add Task</button>
+            <button onClick={()=>openAddForPhase(col.id)} style={{background:t.surfaceHigh,border:`1px dashed ${t.border}`,borderRadius:8,padding:"8px 12px",fontSize:12,color:t.textSub,cursor:"pointer",fontFamily:"inherit",textAlign:"center",fontWeight:500}}>+ Add Phase</button>
             {/* Add task inline form */}
             {showAddForPhase===col.id&&(
               <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:10,padding:"12px 14px",boxShadow:t.shadow}}>
