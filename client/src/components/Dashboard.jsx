@@ -224,6 +224,8 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
   const [saving,setSaving]=useState(false);
   const [formError,setFormError]=useState("");
   const [collapsedPhases,setCollapsedPhases]=useState({});
+  const [showAddPhase,setShowAddPhase]=useState(false);
+  const [newPhaseForm,setNewPhaseForm]=useState({name:""});
 
   // Sync tasks from parent when initialTasks prop changes (e.g. after PlanTab re-fetch)
   useEffect(()=>{if(initialTasks) setTasks(initialTasks);},[initialTasks]);
@@ -249,6 +251,26 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     setNewForm(EMPTY_TASK);
     setEditingId(null);
     setFormError("");
+  }
+
+  function openAddPhaseForm(){
+    setShowAddPhase(true);
+    setNewPhaseForm({name:""});
+    setFormError("");
+  }
+
+  async function addPhase(e){
+    e.preventDefault();
+    if(!newPhaseForm.name.trim()){setFormError("Phase name is required.");return;}
+    setFormError("");
+    setSaving(true);
+    const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
+    const {error}=await supabase.from("phases").insert(payload);
+    if(error){console.error("[TasksTab] phase insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+    setNewPhaseForm({name:""});
+    setShowAddPhase(false);
+    setSaving(false);
+    onRefresh?.();
   }
 
   async function addTask(e){
@@ -442,10 +464,25 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           </button>
         ))}
       </div>
-      <button onClick={openAddGlobal} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
+      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
     </div>
 
     {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
+
+    {/* Add Phase form */}
+    {showAddPhase&&(
+      <Card t={t}>
+        <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
+          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Phase name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
+          <div style={{display:"flex",gap:6}}>
+            <button type="submit" disabled={saving||!newPhaseForm.name.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newPhaseForm.name.trim()?0.5:1}}>
+              {saving?"…":"Create"}
+            </button>
+            <button type="button" onClick={()=>{setShowAddPhase(false);setNewPhaseForm({name:""});setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          </div>
+        </form>
+      </Card>
+    )}
 
     {/* Global add form (no phase pre-filled) */}
     {showAddForPhase==="__global__"&&(
@@ -1171,6 +1208,8 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
   const [formError,setFormError]=useState("");
   const [showAddForPhase,setShowAddForPhase]=useState(null);
   const [newForm,setNewForm]=useState(EMPTY_TASK);
+  const [showAddPhase,setShowAddPhase]=useState(false);
+  const [newPhaseForm,setNewPhaseForm]=useState({name:""});
 
   const sortedPhases=[...phases].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
   const columns=[...sortedPhases.map(ph=>({id:ph.id,name:ph.name,status:ph.status})),{id:null,name:"Unassigned",status:"pending"}];
@@ -1181,6 +1220,26 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     setShowAddForPhase(phaseId);
     setNewForm({...EMPTY_TASK,phase_id:phaseId});
     setFormError("");
+  }
+
+  function openAddPhaseForm(){
+    setShowAddPhase(true);
+    setNewPhaseForm({name:""});
+    setFormError("");
+  }
+
+  async function addPhase(e){
+    e.preventDefault();
+    if(!newPhaseForm.name.trim()){setFormError("Phase name is required.");return;}
+    setFormError("");
+    setSaving(true);
+    const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
+    const {error}=await supabase.from("phases").insert(payload);
+    if(error){console.error("[KanbanView] phase insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+    setNewPhaseForm({name:""});
+    setShowAddPhase(false);
+    setSaving(false);
+    onRefresh?.();
   }
 
   async function addTask(e){
@@ -1273,6 +1332,22 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
             </div>
           </form>
         </div>
+      </div>
+    )}
+    <div style={{display:"flex",justifyContent:"flex-start",marginBottom:16}}>
+      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
+    </div>
+    {showAddPhase&&(
+      <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"12px 18px",marginBottom:16}}>
+        <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Phase name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
+          <div style={{display:"flex",gap:6}}>
+            <button type="submit" disabled={saving||!newPhaseForm.name.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newPhaseForm.name.trim()?0.5:1}}>
+              {saving?"…":"Create"}
+            </button>
+            <button type="button" onClick={()=>{setShowAddPhase(false);setNewPhaseForm({name:""});setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          </div>
+        </form>
       </div>
     )}
     <div style={{display:"flex",gap:16,overflowX:"auto",paddingBottom:16,minHeight:300,alignItems:"flex-start"}}>
