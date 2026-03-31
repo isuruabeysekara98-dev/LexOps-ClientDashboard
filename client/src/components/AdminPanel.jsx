@@ -1290,6 +1290,7 @@ function ProjectsTab({ t }) {
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
   const [aiSuccess, setAiSuccess] = useState(false);
+  const [matchProject, setMatchProject] = useState(null);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -1499,6 +1500,16 @@ function ProjectsTab({ t }) {
         </div>
       )}
 
+      {matchProject && (
+        <MatchModal
+          projectSummary={matchProject.summary || ""}
+          projectId={matchProject.id}
+          t={t}
+          onClose={() => setMatchProject(null)}
+          onDeploy={() => setMatchProject(null)}
+        />
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <SectionLabel t={t}>All Projects ({projects.length})</SectionLabel>
         <Btn t={t} onClick={() => setShowModal(true)}>+ New Project</Btn>
@@ -1573,6 +1584,18 @@ function ProjectsTab({ t }) {
                     >
                       <SparklesIcon />
                     </button>
+                    <button
+                      onClick={() => setMatchProject(p)}
+                      title="Match Modules"
+                      style={{
+                        background: t.greenSoft, color: t.green, border: `1px solid ${t.green}30`,
+                        borderRadius: 6, width: 28, height: 28, padding: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", fontSize: 12, flexShrink: 0,
+                      }}
+                    >
+                      <PuzzleIcon color={t.green} />
+                    </button>
                     <Btn t={t} variant="ghost" onClick={() => setEditingProject(p)} style={{ padding: "4px 10px" }}>Edit</Btn>
                     <Btn t={t} variant="danger" disabled={deleting === p.id} onClick={() => deleteProject(p.id)} style={{ padding: "4px 10px" }}>
                       {deleting === p.id ? "…" : "Delete"}
@@ -1584,6 +1607,1081 @@ function ProjectsTab({ t }) {
             );
           })}
         </div>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Puzzle-piece Icon (for module matching from projects)
+// ---------------------------------------------------------------------------
+function PuzzleIcon({ color }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.315 8.685a.98.98 0 0 1 .837-.276c.47.07.802.48.968.925a2.501 2.501 0 1 0 3.214-3.214c-.446-.166-.855-.497-.925-.968a.979.979 0 0 1 .276-.837l1.61-1.61a2.404 2.404 0 0 1 1.705-.707c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/>
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Module Status Pill
+// ---------------------------------------------------------------------------
+const MODULE_STATUS_COLORS = {
+  active:   { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  draft:    { bg: "transparent", color: "#8b96a4", b: "rgba(255,255,255,0.07)" },
+  archived: { bg: "rgba(248,113,113,0.08)", color: "#f87171", b: "#f8717125" },
+};
+
+function ModuleStatusPill({ status }) {
+  const v = MODULE_STATUS_COLORS[status] || MODULE_STATUS_COLORS.draft;
+  return (
+    <span style={{
+      background: v.bg, color: v.color, border: `1px solid ${v.b}`,
+      borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600,
+      display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: "50%", background: v.color, flexShrink: 0 }} />
+      {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Draft"}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Deploy Status Pill
+// ---------------------------------------------------------------------------
+const DEPLOY_STATUS_COLORS = {
+  pending:  { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
+  active:   { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  complete: { bg: "rgba(74,127,165,0.1)",  color: "#6a9fc0", b: "#4a7fa530" },
+  failed:   { bg: "rgba(248,113,113,0.08)", color: "#f87171", b: "#f8717125" },
+};
+
+function DeployStatusPill({ status }) {
+  const v = DEPLOY_STATUS_COLORS[status] || DEPLOY_STATUS_COLORS.pending;
+  return (
+    <span style={{
+      background: v.bg, color: v.color, border: `1px solid ${v.b}`,
+      borderRadius: 99, padding: "2px 9px", fontSize: 11, fontWeight: 600,
+      display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 4, height: 4, borderRadius: "50%", background: v.color, flexShrink: 0 }} />
+      {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Pending"}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tag Input Component
+// ---------------------------------------------------------------------------
+function TagInput({ tags, onChange, placeholder, t }) {
+  const [input, setInput] = useState("");
+
+  function handleKeyDown(e) {
+    if ((e.key === "Enter" || e.key === ",") && input.trim()) {
+      e.preventDefault();
+      if (!tags.includes(input.trim())) {
+        onChange([...tags, input.trim()]);
+      }
+      setInput("");
+    } else if (e.key === "Backspace" && !input && tags.length) {
+      onChange(tags.slice(0, -1));
+    }
+  }
+
+  return (
+    <div style={{
+      display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center",
+      background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+      padding: "4px 8px", minHeight: 36, boxSizing: "border-box",
+    }}>
+      {tags.map((tag, i) => (
+        <span key={i} style={{
+          background: t.accentSoft, color: t.accentLight, border: `1px solid ${t.accent}30`,
+          borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 600,
+          display: "inline-flex", alignItems: "center", gap: 4,
+        }}>
+          {tag}
+          <button onClick={() => onChange(tags.filter((_, j) => j !== i))}
+            style={{ background: "none", border: "none", color: t.textSub, cursor: "pointer", padding: 0, fontSize: 12, lineHeight: 1, fontFamily: "inherit" }}>×</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={tags.length === 0 ? placeholder : ""}
+        style={{
+          flex: 1, minWidth: 60, background: "transparent", border: "none",
+          outline: "none", fontSize: 12, color: t.text, fontFamily: "inherit", padding: "2px 0",
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Module Modal (New/Edit)
+// ---------------------------------------------------------------------------
+const EMPTY_MODULE_FORM = {
+  name: "", description: "", practice_areas: [], firm_sizes: [], tools: [],
+  workflow_stage: "discovery", runtime: "n8n", avg_hours: "", status: "active",
+};
+
+const WORKFLOW_STAGES = [
+  ["discovery", "Discovery"], ["planning", "Planning"], ["implementation", "Implementation"],
+  ["review", "Review"], ["deployment", "Deployment"], ["maintenance", "Maintenance"],
+];
+
+const RUNTIMES = [["n8n", "n8n"], ["zapier", "Zapier"], ["make", "Make"], ["custom", "Custom"]];
+
+const FIRM_SIZE_OPTIONS = ["Solo", "Small (2-10)", "Medium (11-50)", "Large (50+)"];
+
+function ModuleModal({ module, onClose, onSuccess, t }) {
+  const [form, setForm] = useState(module ? {
+    name: module.name || "",
+    description: module.description || "",
+    practice_areas: module.practice_areas || [],
+    firm_sizes: module.firm_sizes || [],
+    tools: module.tools || [],
+    workflow_stage: module.workflow_stage || "discovery",
+    runtime: module.runtime || "n8n",
+    avg_hours: String(module.avg_hours ?? ""),
+    status: module.status || "active",
+  } : { ...EMPTY_MODULE_FORM });
+
+  const [steps, setSteps] = useState([]);
+  const [workflow, setWorkflow] = useState({ workflow_json: "", variables: [], n8n_workflow_id: "" });
+  const [showWorkflow, setShowWorkflow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [loadingDetails, setLoadingDetails] = useState(!!module);
+  const isEdit = !!module;
+
+  useEffect(() => {
+    if (!module) return;
+    (async () => {
+      setLoadingDetails(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/modules/${module.id}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSteps((data.steps || []).map(s => ({ title: s.title, description: s.description || "", tool: s.tool || "", notes: s.notes || "" })));
+        if (data.workflow) {
+          setWorkflow({
+            workflow_json: data.workflow.workflow_json || "",
+            variables: data.workflow.variables || [],
+            n8n_workflow_id: data.workflow.n8n_workflow_id || "",
+          });
+        }
+      }
+      setLoadingDetails(false);
+    })();
+  }, [module]);
+
+  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
+
+  function addStep() {
+    setSteps(s => [...s, { title: "", description: "", tool: "", notes: "" }]);
+  }
+
+  function removeStep(i) {
+    setSteps(s => s.filter((_, j) => j !== i));
+  }
+
+  function updateStep(i, key, val) {
+    setSteps(s => s.map((step, j) => j === i ? { ...step, [key]: val } : step));
+  }
+
+  function moveStep(i, dir) {
+    setSteps(s => {
+      const arr = [...s];
+      const target = i + dir;
+      if (target < 0 || target >= arr.length) return arr;
+      [arr[i], arr[target]] = [arr[target], arr[i]];
+      return arr;
+    });
+  }
+
+  function addVariable() {
+    setWorkflow(w => ({ ...w, variables: [...w.variables, { key: "", value: "" }] }));
+  }
+
+  function removeVariable(i) {
+    setWorkflow(w => ({ ...w, variables: w.variables.filter((_, j) => j !== i) }));
+  }
+
+  function updateVariable(i, key, val) {
+    setWorkflow(w => ({ ...w, variables: w.variables.map((v, j) => j === i ? { ...v, [key]: val } : v) }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError("Name is required"); return; }
+    setError("");
+    setSaving(true);
+
+    const payload = {
+      ...form,
+      avg_hours: form.avg_hours ? Number(form.avg_hours) : null,
+      steps: steps.filter(s => s.title.trim()),
+      workflow: (workflow.workflow_json || workflow.n8n_workflow_id || workflow.variables.length)
+        ? workflow : null,
+    };
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = isEdit ? `/api/modules/${module.id}` : "/api/modules";
+      const method = isEdit ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message || "Failed to save"); setSaving(false); return; }
+      onSuccess();
+    } catch {
+      setError("Network error");
+    }
+    setSaving(false);
+  }
+
+  function toggleFirmSize(size) {
+    setForm(f => ({
+      ...f,
+      firm_sizes: f.firm_sizes.includes(size) ? f.firm_sizes.filter(s => s !== size) : [...f.firm_sizes, size],
+    }));
+  }
+
+  const field = (label, child) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</label>
+      {child}
+    </div>
+  );
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 400,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto",
+    }}>
+      <div style={{
+        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
+        padding: "28px 28px", width: "100%", maxWidth: 720, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        margin: "auto", overflowY: "auto", maxHeight: "90vh",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>{isEdit ? "Edit Module" : "New Module"}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        {loadingDetails ? (
+          <div style={{ color: t.textSub, fontSize: 13, textAlign: "center", padding: "32px 0" }}>Loading…</div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
+              {field("Name", <Input t={t} value={form.name} onChange={set("name")} placeholder="e.g. Client Intake Automation" />)}
+              {field("Description",
+                <textarea value={form.description} onChange={set("description")} placeholder="What does this module do?"
+                  style={{
+                    width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                    padding: "8px 12px", fontSize: 13, color: t.text, outline: "none",
+                    resize: "vertical", minHeight: 60, fontFamily: "inherit", boxSizing: "border-box",
+                  }} />
+              )}
+
+              <div style={{ display: "flex", gap: 14, width: "100%", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 45%" }}>
+                  {field("Practice Areas", <TagInput tags={form.practice_areas} onChange={v => setForm(f => ({ ...f, practice_areas: v }))} placeholder="e.g. Corporate, IP, Litigation" t={t} />)}
+                </div>
+                <div style={{ flex: "1 1 45%" }}>
+                  {field("Tools", <TagInput tags={form.tools} onChange={v => setForm(f => ({ ...f, tools: v }))} placeholder="e.g. Clio, NetDocuments" t={t} />)}
+                </div>
+              </div>
+
+              {field("Firm Sizes",
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {FIRM_SIZE_OPTIONS.map(size => (
+                    <label key={size} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.text, cursor: "pointer" }}>
+                      <input type="checkbox" checked={form.firm_sizes.includes(size)} onChange={() => toggleFirmSize(size)}
+                        style={{ accentColor: t.accent, width: 14, height: 14, cursor: "pointer" }} />
+                      {size}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 14, width: "100%", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 30%" }}>
+                  {field("Workflow Stage",
+                    <Select t={t} value={form.workflow_stage} onChange={set("workflow_stage")} options={WORKFLOW_STAGES} style={{ width: "100%" }} />
+                  )}
+                </div>
+                <div style={{ flex: "1 1 30%" }}>
+                  {field("Runtime",
+                    <Select t={t} value={form.runtime} onChange={set("runtime")} options={RUNTIMES} style={{ width: "100%" }} />
+                  )}
+                </div>
+                <div style={{ flex: "1 1 15%" }}>
+                  {field("Avg Hours", <Input t={t} type="number" value={form.avg_hours} onChange={set("avg_hours")} placeholder="0" />)}
+                </div>
+                <div style={{ flex: "1 1 15%" }}>
+                  {field("Status",
+                    <Select t={t} value={form.status} onChange={set("status")}
+                      options={[["active", "Active"], ["draft", "Draft"], ["archived", "Archived"]]}
+                      style={{ width: "100%" }} />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <SectionLabel t={t}>Steps ({steps.length})</SectionLabel>
+                <Btn t={t} variant="ghost" onClick={addStep} style={{ padding: "3px 10px", fontSize: 11 }}>+ Add Step</Btn>
+              </div>
+              {steps.length === 0 ? (
+                <div style={{ color: t.textDim, fontSize: 12, padding: "12px 0" }}>No steps added yet.</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {steps.map((step, i) => (
+                    <div key={i} style={{
+                      background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 8,
+                      padding: "10px 12px", display: "flex", gap: 8, alignItems: "flex-start",
+                    }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                        <button onClick={() => moveStep(i, -1)} disabled={i === 0}
+                          style={{ background: "none", border: "none", color: i === 0 ? t.textDim : t.textSub, cursor: i === 0 ? "default" : "pointer", padding: 0, fontSize: 10, lineHeight: 1, fontFamily: "inherit" }}>▲</button>
+                        <span style={{ color: t.textDim, fontSize: 10, textAlign: "center" }}>{i + 1}</span>
+                        <button onClick={() => moveStep(i, 1)} disabled={i === steps.length - 1}
+                          style={{ background: "none", border: "none", color: i === steps.length - 1 ? t.textDim : t.textSub, cursor: i === steps.length - 1 ? "default" : "pointer", padding: 0, fontSize: 10, lineHeight: 1, fontFamily: "inherit" }}>▼</button>
+                      </div>
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <input value={step.title} onChange={e => updateStep(i, "title", e.target.value)} placeholder="Step title"
+                          style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 8px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input value={step.tool} onChange={e => updateStep(i, "tool", e.target.value)} placeholder="Tool (optional)"
+                            style={{ flex: 1, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 8px", fontSize: 11, color: t.text, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                          <input value={step.description} onChange={e => updateStep(i, "description", e.target.value)} placeholder="Description (optional)"
+                            style={{ flex: 2, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 8px", fontSize: 11, color: t.text, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                        </div>
+                      </div>
+                      <button onClick={() => removeStep(i)}
+                        style={{ background: "none", border: "none", color: t.red, cursor: "pointer", padding: "2px", fontSize: 14, lineHeight: 1, fontFamily: "inherit", flexShrink: 0 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Workflow Definition (collapsible) */}
+            <div style={{ marginTop: 16 }}>
+              <button type="button" onClick={() => setShowWorkflow(!showWorkflow)}
+                style={{
+                  background: "none", border: "none", color: t.textSub, cursor: "pointer",
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+                  padding: 0, fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+                }}>
+                {showWorkflow ? "▾" : "▸"} Workflow Definition
+              </button>
+              {showWorkflow && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+                  {field("n8n Workflow ID",
+                    <Input t={t} value={workflow.n8n_workflow_id} onChange={e => setWorkflow(w => ({ ...w, n8n_workflow_id: e.target.value }))} placeholder="e.g. abc123" />
+                  )}
+                  {field("Workflow JSON",
+                    <textarea value={workflow.workflow_json} onChange={e => setWorkflow(w => ({ ...w, workflow_json: e.target.value }))} placeholder='{"nodes": [...], "connections": {...}}'
+                      style={{
+                        width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                        padding: "8px 12px", fontSize: 12, color: t.text, outline: "none",
+                        resize: "vertical", minHeight: 80, fontFamily: "monospace", boxSizing: "border-box",
+                      }} />
+                  )}
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Variables</label>
+                      <Btn t={t} variant="ghost" onClick={addVariable} style={{ padding: "2px 8px", fontSize: 10 }}>+ Add</Btn>
+                    </div>
+                    {workflow.variables.map((v, i) => (
+                      <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                        <input value={v.key} onChange={e => updateVariable(i, "key", e.target.value)} placeholder="Key"
+                          style={{ flex: 1, background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 8px", fontSize: 11, color: t.text, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                        <input value={v.value} onChange={e => updateVariable(i, "value", e.target.value)} placeholder="Default value"
+                          style={{ flex: 1, background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 8px", fontSize: 11, color: t.text, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                        <button onClick={() => removeVariable(i)}
+                          style={{ background: "none", border: "none", color: t.red, cursor: "pointer", padding: "0 4px", fontSize: 14, lineHeight: 1, fontFamily: "inherit" }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12, marginTop: 12 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 16 }}>
+              <Btn t={t} variant="ghost" onClick={onClose}>Cancel</Btn>
+              <Btn t={t} disabled={saving} style={{ minWidth: 100 }}>
+                {saving ? "Saving…" : isEdit ? "Save Changes" : "Create Module"}
+              </Btn>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Deploy Modal
+// ---------------------------------------------------------------------------
+function DeployModal({ modules, projects, onClose, onSuccess, t, preselectedModuleId, preselectedProjectId }) {
+  const [moduleId, setModuleId] = useState(preselectedModuleId || "");
+  const [projectId, setProjectId] = useState(preselectedProjectId || "");
+  const [connectorConfig, setConnectorConfig] = useState({});
+  const [status, setStatus] = useState("pending");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [variables, setVariables] = useState([]);
+
+  // Load workflow variables when module changes
+  useEffect(() => {
+    if (!moduleId) { setVariables([]); return; }
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/modules/${moduleId}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const vars = data.workflow?.variables || [];
+        setVariables(vars);
+        const cfg = {};
+        vars.forEach(v => { cfg[v.key] = v.value || ""; });
+        setConnectorConfig(cfg);
+      }
+    })();
+  }, [moduleId]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!moduleId || !projectId) { setError("Module and project are required"); return; }
+    setError("");
+    setSaving(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/modules/deploy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ module_id: moduleId, project_id: projectId, connector_config: connectorConfig, status }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message || "Deploy failed"); setSaving(false); return; }
+      onSuccess();
+    } catch {
+      setError("Network error");
+    }
+    setSaving(false);
+  }
+
+  const field = (label, child) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</label>
+      {child}
+    </div>
+  );
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 400,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    }}>
+      <div style={{
+        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
+        padding: "28px 28px", width: "100%", maxWidth: 520, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        overflowY: "auto", maxHeight: "90vh",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Deploy Module</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {field("Module",
+            <select value={moduleId} onChange={e => setModuleId(e.target.value)}
+              style={{
+                width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                padding: "7px 10px", fontSize: 12, color: t.text, cursor: "pointer", fontFamily: "inherit", outline: "none",
+              }}>
+              <option value="">Select a module…</option>
+              {modules.filter(m => m.status === "active").map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+
+          {field("Project",
+            <select value={projectId} onChange={e => setProjectId(e.target.value)}
+              style={{
+                width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                padding: "7px 10px", fontSize: 12, color: t.text, cursor: "pointer", fontFamily: "inherit", outline: "none",
+              }}>
+              <option value="">Select a project…</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.client_name ? `${p.client_name} – ${p.name}` : p.name}</option>
+              ))}
+            </select>
+          )}
+
+          {variables.length > 0 && (
+            <div>
+              <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, display: "block" }}>
+                Connector Config
+              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {variables.map(v => (
+                  <div key={v.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ color: t.textSub, fontSize: 11, fontWeight: 600, minWidth: 80 }}>{v.key}</span>
+                    <Input t={t} value={connectorConfig[v.key] || ""} onChange={e => setConnectorConfig(c => ({ ...c, [v.key]: e.target.value }))} placeholder={v.value || "Value"} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {field("Status",
+            <Select t={t} value={status} onChange={e => setStatus(e.target.value)}
+              options={[["pending", "Pending"], ["active", "Active"]]}
+              style={{ width: "100%" }} />
+          )}
+
+          {error && (
+            <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+            <Btn t={t} variant="ghost" onClick={onClose}>Cancel</Btn>
+            <Btn t={t} disabled={saving} style={{ minWidth: 100 }}>
+              {saving ? "Deploying…" : "Deploy"}
+            </Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Match Modal (AI-powered module matching)
+// ---------------------------------------------------------------------------
+function MatchModal({ projectSummary, projectId, onClose, onDeploy, t }) {
+  const [brief, setBrief] = useState(projectSummary || "");
+  const [loading, setLoading] = useState(false);
+  const [matches, setMatches] = useState(null);
+  const [error, setError] = useState("");
+
+  async function findMatches() {
+    if (!brief.trim()) return;
+    setError("");
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/modules/match", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ brief_text: brief, project_id: projectId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message || "Matching failed"); setLoading(false); return; }
+      setMatches(json.matches || []);
+    } catch {
+      setError("Network error");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 400,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto",
+    }}>
+      <div style={{
+        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
+        padding: "28px 28px", width: "100%", maxWidth: 600, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        margin: "auto", overflowY: "auto", maxHeight: "90vh",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <span style={{ color: t.text, fontSize: 15, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+            <PuzzleIcon color={t.accentLight} /> Match Modules
+          </span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <textarea value={brief} onChange={e => setBrief(e.target.value)} placeholder="Describe the project needs, practice area, tools in use…"
+            style={{
+              width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+              padding: "10px 12px", fontSize: 13, color: t.text, outline: "none",
+              resize: "vertical", minHeight: 80, fontFamily: "inherit", boxSizing: "border-box",
+            }} />
+
+          <Btn t={t} onClick={findMatches} disabled={loading || !brief.trim()} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6 }}>
+            <SparklesIcon /> {loading ? "Finding Matches…" : "Find Matches"}
+          </Btn>
+
+          {loading && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+              <div style={{ width: 18, height: 18, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <span style={{ color: t.textSub, fontSize: 13 }}>Analysing with AI…</span>
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          {matches !== null && matches.length === 0 && (
+            <div style={{ color: t.textSub, fontSize: 13, padding: "16px 0", textAlign: "center" }}>No matching modules found.</div>
+          )}
+
+          {matches !== null && matches.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {matches.map((m, i) => (
+                <div key={i} style={{
+                  background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 10,
+                  padding: "14px 16px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{m.module?.name}</div>
+                      <div style={{ color: t.textSub, fontSize: 11, marginBottom: 8, lineHeight: 1.5 }}>{m.reasoning}</div>
+                      {/* Score bar */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, maxWidth: 120, height: 4, background: t.border, borderRadius: 99, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${m.score}%`, background: m.score > 70 ? "#4ade80" : m.score > 40 ? "#f59e0b" : "#f87171", borderRadius: 99 }} />
+                        </div>
+                        <span style={{ color: t.textSub, fontSize: 10, fontWeight: 600 }}>{m.score}%</span>
+                      </div>
+                    </div>
+                    <Btn t={t} onClick={() => onDeploy(m.module)} style={{ padding: "5px 12px", fontSize: 11, flexShrink: 0 }}>
+                      Deploy
+                    </Btn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Outcome Modal
+// ---------------------------------------------------------------------------
+function OutcomeModal({ module, projects, onClose, onSuccess, t }) {
+  const [form, setForm] = useState({ hours_saved: "", rating: "3", notes: "", project_id: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/modules/outcomes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          module_id: module.id,
+          project_id: form.project_id || null,
+          hours_saved: form.hours_saved ? Number(form.hours_saved) : null,
+          rating: Number(form.rating),
+          notes: form.notes || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.message || "Failed to save"); setSaving(false); return; }
+      onSuccess();
+    } catch {
+      setError("Network error");
+    }
+    setSaving(false);
+  }
+
+  const field = (label, child) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</label>
+      {child}
+    </div>
+  );
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 400,
+      background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+    }}>
+      <div style={{
+        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
+        padding: "28px 28px", width: "100%", maxWidth: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        overflowY: "auto", maxHeight: "90vh",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <span style={{ color: t.text, fontSize: 15, fontWeight: 500 }}>Add Outcome — {module.name}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: t.textSub, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {field("Hours Saved", <Input t={t} type="number" value={form.hours_saved} onChange={e => setForm(f => ({ ...f, hours_saved: e.target.value }))} placeholder="e.g. 12" />)}
+
+          {field("Rating (1-5)",
+            <div style={{ display: "flex", gap: 4 }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <button key={n} type="button" onClick={() => setForm(f => ({ ...f, rating: String(n) }))}
+                  style={{
+                    width: 32, height: 32, borderRadius: 6,
+                    background: Number(form.rating) >= n ? t.accent : t.surfaceHigh,
+                    color: Number(form.rating) >= n ? "#fff" : t.textSub,
+                    border: `1px solid ${Number(form.rating) >= n ? t.accent : t.border}`,
+                    cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600,
+                  }}>{n}</button>
+              ))}
+            </div>
+          )}
+
+          {field("Notes",
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes…"
+              style={{
+                width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                padding: "8px 12px", fontSize: 13, color: t.text, outline: "none",
+                resize: "vertical", minHeight: 60, fontFamily: "inherit", boxSizing: "border-box",
+              }} />
+          )}
+
+          {field("Project (optional)",
+            <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+              style={{
+                width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
+                padding: "7px 10px", fontSize: 12, color: t.text, cursor: "pointer", fontFamily: "inherit", outline: "none",
+              }}>
+              <option value="">None</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.client_name ? `${p.client_name} – ${p.name}` : p.name}</option>
+              ))}
+            </select>
+          )}
+
+          {error && (
+            <div style={{ background: t.redSoft, border: `1px solid ${t.red}25`, borderRadius: 8, padding: "8px 12px", color: t.red, fontSize: 12 }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+            <Btn t={t} variant="ghost" onClick={onClose}>Cancel</Btn>
+            <Btn t={t} disabled={saving} style={{ minWidth: 100 }}>
+              {saving ? "Saving…" : "Save Outcome"}
+            </Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TAB 4: Library Tab (Modules + Deployments)
+// ---------------------------------------------------------------------------
+function LibraryTab({ t }) {
+  const [subView, setSubView] = useState("modules");
+  const [modules, setModules] = useState([]);
+  const [deployments, setDeployments] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [deployFilter, setDeployFilter] = useState("all");
+
+  // Modal states
+  const [showModuleModal, setShowModuleModal] = useState(false);
+  const [editingModule, setEditingModule] = useState(null);
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [matchModule, setMatchModule] = useState(null);
+  const [outcomeModule, setOutcomeModule] = useState(null);
+  const [deployPreselect, setDeployPreselect] = useState({});
+
+  const loadModules = useCallback(async () => {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const [modsRes, depsRes, projsRes] = await Promise.all([
+      fetch("/api/modules", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+      fetch("/api/modules/deployments/list", { headers: { Authorization: `Bearer ${session.access_token}` } }),
+      supabase.from("projects").select("id, name, client_name, summary").order("id"),
+    ]);
+    if (modsRes.ok) setModules(await modsRes.json());
+    if (depsRes.ok) setDeployments(await depsRes.json());
+    setProjects(projsRes.data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { loadModules(); }, [loadModules]);
+
+  function archiveModule(mod) {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`/api/modules/${mod.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ status: mod.status === "archived" ? "active" : "archived" }),
+      });
+      loadModules();
+    })();
+  }
+
+  function handleDeployFromMatch(mod) {
+    setMatchModule(null);
+    setDeployPreselect({ moduleId: mod.id });
+    setShowDeployModal(true);
+  }
+
+  const filteredModules = modules.filter(m => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (m.name || "").toLowerCase().includes(s) ||
+      (m.description || "").toLowerCase().includes(s) ||
+      (m.practice_areas || []).some(a => a.toLowerCase().includes(s)) ||
+      (m.tools || []).some(t => t.toLowerCase().includes(s));
+  });
+
+  const filteredDeployments = deployFilter === "all"
+    ? deployments
+    : deployments.filter(d => d.status === deployFilter);
+
+  return (
+    <>
+      {/* Modals */}
+      {(showModuleModal || editingModule) && (
+        <ModuleModal
+          module={editingModule}
+          t={t}
+          onClose={() => { setShowModuleModal(false); setEditingModule(null); }}
+          onSuccess={() => { setShowModuleModal(false); setEditingModule(null); loadModules(); }}
+        />
+      )}
+
+      {showDeployModal && (
+        <DeployModal
+          modules={modules}
+          projects={projects}
+          t={t}
+          preselectedModuleId={deployPreselect.moduleId || ""}
+          preselectedProjectId={deployPreselect.projectId || ""}
+          onClose={() => { setShowDeployModal(false); setDeployPreselect({}); }}
+          onSuccess={() => { setShowDeployModal(false); setDeployPreselect({}); loadModules(); }}
+        />
+      )}
+
+      {matchModule && (
+        <MatchModal
+          projectSummary=""
+          projectId={null}
+          t={t}
+          onClose={() => setMatchModule(null)}
+          onDeploy={handleDeployFromMatch}
+        />
+      )}
+
+      {outcomeModule && (
+        <OutcomeModal
+          module={outcomeModule}
+          projects={projects}
+          t={t}
+          onClose={() => setOutcomeModule(null)}
+          onSuccess={() => { setOutcomeModule(null); loadModules(); }}
+        />
+      )}
+
+      {/* Sub-view pills */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 2, background: t.surfaceHigh, borderRadius: 8, padding: 2 }}>
+          {[["modules", "Modules"], ["deployments", "Deployments"]].map(([key, label]) => (
+            <button key={key} onClick={() => setSubView(key)}
+              style={{
+                background: subView === key ? t.surface : "transparent",
+                color: subView === key ? t.text : t.textSub,
+                border: subView === key ? `1px solid ${t.border}` : "1px solid transparent",
+                borderRadius: 6, padding: "5px 16px", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
+      ) : subView === "modules" ? (
+        /* ---- Modules View ---- */
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <Input t={t} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search modules…" style={{ maxWidth: 280 }} />
+            <Btn t={t} onClick={() => setShowModuleModal(true)}>+ New Module</Btn>
+          </div>
+
+          {filteredModules.length === 0 ? (
+            <div style={{
+              background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 12,
+              padding: "48px 0", textAlign: "center",
+            }}>
+              <div style={{ color: t.textSub, fontSize: 13, marginBottom: 16 }}>
+                {search ? "No modules match your search." : "No modules in the library yet."}
+              </div>
+              {!search && <Btn t={t} onClick={() => setShowModuleModal(true)}>+ Create First Module</Btn>}
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 14 }}>
+              {filteredModules.map(m => (
+                <div key={m.id} style={{
+                  background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12,
+                  padding: "18px 20px", boxShadow: t.shadow, display: "flex", flexDirection: "column", gap: 10,
+                }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: t.text, fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{m.name}</div>
+                      <ModuleStatusPill status={m.status} />
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  {m.description && (
+                    <div style={{ color: t.textSub, fontSize: 12, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                      {m.description}
+                    </div>
+                  )}
+
+                  {/* Tags */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {(m.practice_areas || []).map((a, i) => (
+                      <span key={`pa-${i}`} style={{
+                        background: t.accentSoft, color: t.accentLight, borderRadius: 4,
+                        padding: "1px 7px", fontSize: 10, fontWeight: 600,
+                      }}>{a}</span>
+                    ))}
+                    {(m.tools || []).map((tool, i) => (
+                      <span key={`t-${i}`} style={{
+                        background: t.greenSoft, color: t.green, borderRadius: 4,
+                        padding: "1px 7px", fontSize: 10, fontWeight: 600,
+                      }}>{tool}</span>
+                    ))}
+                  </div>
+
+                  {/* Footer stats */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: t.textSub, fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {m.workflow_stage && <span>{m.workflow_stage}</span>}
+                    {m.avg_hours && <span>{m.avg_hours}h avg</span>}
+                    <span>{m.times_used || 0} uses</span>
+                    {m.runtime && <span>{m.runtime}</span>}
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", borderTop: `1px solid ${t.border}`, paddingTop: 10 }}>
+                    <Btn t={t} variant="ghost" onClick={() => setEditingModule(m)} style={{ padding: "3px 10px", fontSize: 11 }}>Edit</Btn>
+                    <Btn t={t} variant="ghost" onClick={() => archiveModule(m)} style={{ padding: "3px 10px", fontSize: 11 }}>
+                      {m.status === "archived" ? "Restore" : "Archive"}
+                    </Btn>
+                    <Btn t={t} variant="ghost" onClick={() => setMatchModule(m)} style={{ padding: "3px 10px", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+                      <PuzzleIcon color={t.textSub} /> Match
+                    </Btn>
+                    <Btn t={t} variant="ghost" onClick={() => setOutcomeModule(m)} style={{ padding: "3px 10px", fontSize: 11 }}>Outcome</Btn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        /* ---- Deployments View ---- */
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["all", "All"], ["pending", "Pending"], ["active", "Active"], ["complete", "Complete"]].map(([key, label]) => (
+                <button key={key} onClick={() => setDeployFilter(key)}
+                  style={{
+                    background: deployFilter === key ? t.accentSoft : "transparent",
+                    color: deployFilter === key ? t.accentLight : t.textSub,
+                    border: `1px solid ${deployFilter === key ? t.accent + "30" : t.border}`,
+                    borderRadius: 6, padding: "4px 12px", fontSize: 11, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Btn t={t} onClick={() => { setDeployPreselect({}); setShowDeployModal(true); }}>+ Deploy Module</Btn>
+          </div>
+
+          {filteredDeployments.length === 0 ? (
+            <div style={{
+              background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 12,
+              padding: "48px 0", textAlign: "center",
+            }}>
+              <div style={{ color: t.textSub, fontSize: 13 }}>No deployments{deployFilter !== "all" ? ` with status "${deployFilter}"` : ""} yet.</div>
+            </div>
+          ) : (
+            <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, overflowX: "auto", boxShadow: t.shadow }}>
+              {/* Header */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 140px 120px", borderBottom: `1px solid ${t.border}` }}>
+                {["Module", "Project", "Status", "Deployed at", "Deployed by"].map((h, i) => (
+                  <div key={i} style={{ padding: "10px 18px", color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
+                ))}
+              </div>
+
+              {filteredDeployments.map((d, i) => (
+                <div key={d.id}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px 140px 120px", alignItems: "center" }}>
+                    <div style={{ padding: "12px 18px", color: t.text, fontSize: 13, fontWeight: 500 }}>{d.modules?.name || "—"}</div>
+                    <div style={{ padding: "12px 18px", color: t.text, fontSize: 13 }}>{d.projects?.name || "—"}</div>
+                    <div style={{ padding: "12px 18px" }}><DeployStatusPill status={d.status} /></div>
+                    <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 12 }}>
+                      {d.deployed_at ? new Date(d.deployed_at).toLocaleDateString() : "—"}
+                    </div>
+                    <div style={{ padding: "12px 18px", color: t.textSub, fontSize: 12 }}>{d.deployed_by ? d.deployed_by.slice(0, 8) + "…" : "—"}</div>
+                  </div>
+                  {i < filteredDeployments.length - 1 && <Line t={t} />}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </>
   );
@@ -1613,7 +2711,7 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
           <div style={{ width: 1, height: 16, background: t.border }} />
           {/* Tabs */}
           <div style={{ display: "flex", gap: 0, overflowX: "auto", flexWrap: "nowrap" }}>
-            {[["clients", "Clients"], ["team", "Team"], ["projects", "Projects"]].map(([key, label]) => (
+            {[["clients", "Clients"], ["team", "Team"], ["projects", "Projects"], ["library", "Library"]].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
@@ -1649,6 +2747,7 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
         {activeTab === "clients"  && <ClientsTab  t={t} mode={mode} />}
         {activeTab === "team"     && <TeamTab     t={t} mode={mode} />}
         {activeTab === "projects" && <ProjectsTab t={t} />}
+        {activeTab === "library"  && <LibraryTab  t={t} />}
       </div>
     </div>
   );
