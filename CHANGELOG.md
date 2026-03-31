@@ -1,5 +1,9 @@
 # LexOps Client Portal — Changelog
 
+## [78] — 2026-03-31 04:50
+Added Module Library — modules CRUD, steps, workflow definitions, brief matcher via Claude API, deployment engine, Library section in admin panel with n8n integration
+
+
 ## [77] — 2026-03-31 04:35
 Added Module Library with n8n integration — modules CRUD, steps, workflow definitions, brief matcher via Claude API, deployment engine, admin panel Library section
 

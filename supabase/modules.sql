@@ -59,30 +59,16 @@ CREATE TABLE module_deployments (
   created_at timestamptz DEFAULT now()
 );
 
--- RLS: Enable on all 5 tables
+-- RLS policies (unique names per table)
+CREATE POLICY "staff full access modules" ON modules FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member')));
+CREATE POLICY "staff full access module_steps" ON module_steps FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member')));
+CREATE POLICY "staff full access module_workflow_definitions" ON module_workflow_definitions FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member')));
+CREATE POLICY "staff full access module_outcomes" ON module_outcomes FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member')));
+CREATE POLICY "staff full access module_deployments" ON module_deployments FOR ALL USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member')));
+
+-- Enable RLS on all 5 tables
 ALTER TABLE modules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE module_steps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE module_workflow_definitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE module_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE module_deployments ENABLE ROW LEVEL SECURITY;
-
--- Staff (lexops_admin + lexops_member) full access, clients no access
-CREATE POLICY "staff full access" ON modules FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
-
-CREATE POLICY "staff full access" ON module_steps FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
-
-CREATE POLICY "staff full access" ON module_workflow_definitions FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
-
-CREATE POLICY "staff full access" ON module_outcomes FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
-
-CREATE POLICY "staff full access" ON module_deployments FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
