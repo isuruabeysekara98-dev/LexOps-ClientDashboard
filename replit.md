@@ -56,5 +56,19 @@ A new "Flowchart" tab sits between Documents and Invoices for both Internal and 
 - Do NOT modify `package.json`, `vite.config.ts`, `server/vite.ts`, or `drizzle.config.ts` directly — use the package manager tool for installs.
 - `client/src/pages/home.tsx` is unused scaffold (App.tsx does not import it). Leave alone.
 
+## Resilience patterns (April 2026)
+- **Tab-switch / blank-screen fix**: `Dashboard.jsx` and `FlowchartTab.jsx` both listen for `visibilitychange` and `focus` events. When the tab returns to visible, projects + flowchart data are re-fetched and (in the flowchart's case) the realtime subscription is re-established if it had dropped. `App.tsx` keeps a 5-second safety timeout on the auth bootstrap and an internal `mounted` guard.
+- **Supabase realtime resilience**: the flowchart channel tracks status via `subscribedRef`. On `CHANNEL_ERROR | TIMED_OUT | CLOSED`, the subscription is rebuilt with exponential backoff (500ms → 1s → 2s → 4s, capped). On visibility return the channel is re-subscribed if not currently `SUBSCRIBED`.
+- A spinner (teal on white) is shown during initial / re-fetch loads so users never see a blank screen.
+
+## Responsiveness (April 2026)
+- `useIsMobile(768)` drives all responsive branching.
+- Sidebar collapses on `<768px` and slides in as an overlay (`sidebarOpen` state, hamburger toggle in header, dim backdrop).
+- Tab bar uses `overflow-x: auto` + `.hide-scrollbar` (cross-browser scrollbar hide rule lives in `index.css`); tabs are `flex-shrink: 0` so they never wrap.
+- Project stat cards (Progress / Due Date / Budget / Tasks) render as a **2-column grid** on mobile (`gridTemplateColumns: "1fr 1fr"` when `mobile`).
+- Flowchart canvas already supports touch panning via `onTouchStart / onTouchMove / onTouchEnd` (mirrors the mouse pan path).
+- Page bodies have `overflow-x: hidden` + `max-width: 100%` (in `index.css` base layer) so nothing horizontal-scrolls except the flowchart canvas itself.
+- WCAG 44×44 minimum tap targets are enforced on touch devices via a `[data-tap]` opt-in selector in `index.css` (applied to the tab-bar buttons; add `data-tap` to other inline-styled buttons as needed).
+
 ## Running
 The `Start application` workflow runs `npm run dev` which starts Express + Vite on port 5000.

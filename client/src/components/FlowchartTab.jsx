@@ -204,15 +204,62 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime subscription
+  // Realtime subscription with status tracking, visibility re-subscribe, and
+  // exponential backoff retry (500ms → 1s → 2s → 4s) when the connection fails.
+  const channelRef = useRef(null);
+  const subscribedRef = useRef(false);
+  const retryRef = useRef(0);
+  const retryTimerRef = useRef(null);
+
   useEffect(() => {
     if (missingTables) return;
-    const ch = supabase
-      .channel(`flowchart-${projectId}`)
-      .on("postgres_changes", { event:"*", schema:"public", table:"flowchart_nodes", filter:`project_id=eq.${projectId}` }, () => load())
-      .on("postgres_changes", { event:"*", schema:"public", table:"flowchart_arrows", filter:`project_id=eq.${projectId}` }, () => load())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+
+    const teardown = () => {
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+      subscribedRef.current = false;
+    };
+
+    const subscribe = () => {
+      teardown();
+      const ch = supabase
+        .channel(`flowchart-${projectId}-${Date.now()}`)
+        .on("postgres_changes", { event:"*", schema:"public", table:"flowchart_nodes", filter:`project_id=eq.${projectId}` }, () => load())
+        .on("postgres_changes", { event:"*", schema:"public", table:"flowchart_arrows", filter:`project_id=eq.${projectId}` }, () => load())
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            subscribedRef.current = true;
+            retryRef.current = 0;
+          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            subscribedRef.current = false;
+            const delay = Math.min(4000, 500 * Math.pow(2, retryRef.current));
+            retryRef.current = Math.min(retryRef.current + 1, 3);
+            retryTimerRef.current = setTimeout(subscribe, delay);
+          }
+        });
+      channelRef.current = ch;
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+      // Always re-fetch to recover any missed events
+      load();
+      // If subscription dropped while idle, re-subscribe
+      if (!subscribedRef.current) {
+        retryRef.current = 0;
+        subscribe();
+      }
+    };
+
+    subscribe();
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+
+    return () => {
+      teardown();
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+    };
   }, [projectId, missingTables, load]);
 
   // Auto-seed sample data (admin only, when empty)

@@ -155,7 +155,7 @@ function OverviewTab({project,isInternal,t,mobile}) {
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
-    <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":`repeat(${stats.length},1fr)`,gap:12}}>
+    <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":`repeat(${stats.length},1fr)`,gap:12}}>
       {stats.map((s,i)=>(
         <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
           <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
@@ -804,7 +804,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {isInternal&&(
-      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
         {[{label:"Total Value",value:`$${(total||0).toLocaleString()}`,color:t.text},{label:"Collected",value:`$${(paid||0).toLocaleString()}`,color:t.green},{label:"Outstanding",value:`$${((total-paid)||0).toLocaleString()}`,color:t.amber}].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
@@ -1642,7 +1642,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
       </div>
     )}
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
         {[{label:"Open",val:counts.open,color:t.amber},{label:"In Progress",val:counts["in-progress"],color:t.accentLight},{label:"Resolved",val:counts.resolved,color:t.green}].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"16px 20px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
@@ -1839,7 +1839,7 @@ function ClientOverviewTab({ project, t, mobile }) {
       )}
 
       {/* Stats - simplified for clients */}
-      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "repeat(3,1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(3,1fr)", gap: 12 }}>
         {[
           { label: "Progress", value: `${project.progress}%`, sub: project.phase, color: t.accentLight },
           { label: "Deliverables", value: `${deliverables.filter(d => d.status === "done").length} / ${deliverables.length}`, sub: "completed", color: t.green },
@@ -2181,24 +2181,21 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
 
   useEffect(()=>{ loadProjects(); },[loadProjects]);
 
-  // Fix: prevent persistent loading screen on tab switch
+  // Resilience: re-fetch all data + verify session whenever the tab becomes visible.
+  // Supabase realtime drops silently while the tab is idle, so we always reload.
   useEffect(()=>{
     const handleVisibility=async()=>{
       if(document.visibilityState!=="visible") return;
       const {data:{session}}=await supabase.auth.getSession();
-      if(session){
-        // Session still valid — if stuck loading, force reload projects
-        setLoading(prev=>{
-          if(prev) loadProjects();
-          return prev;
-        });
-      } else {
-        // Session expired — redirect to login
-        if(onLogout) onLogout();
-      }
+      if(!session){ if(onLogout) onLogout(); return; }
+      loadProjects();
     };
     document.addEventListener("visibilitychange",handleVisibility);
-    return()=>document.removeEventListener("visibilitychange",handleVisibility);
+    window.addEventListener("focus",handleVisibility);
+    return()=>{
+      document.removeEventListener("visibilitychange",handleVisibility);
+      window.removeEventListener("focus",handleVisibility);
+    };
   },[loadProjects,onLogout]);
 
   // Safety timeout: force loading to false after 5 seconds
@@ -2358,7 +2355,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                 <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
                 <div className="hide-scrollbar" style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",width:"100%"}}>
                   {allTabs.map(tb=>(
-                    <button key={tb} onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:mobile?"8px 12px":"8px 18px",fontSize:mobile?12:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0}}>
+                    <button key={tb} data-tap onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:mobile?"12px 14px":"8px 18px",fontSize:mobile?13:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0,minHeight:mobile?44:undefined}}>
                       {tabLabels[tb]}
                     </button>
                   ))}

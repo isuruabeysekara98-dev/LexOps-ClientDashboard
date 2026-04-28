@@ -216,12 +216,24 @@
     margin: 0;
     padding: 0;
     height: 100%;
+    overflow-x: hidden;
+    max-width: 100%;
     @apply font-sans antialiased bg-background text-foreground;
   }
 
   #root {
     height: 100%;
   }
+}
+
+/* Cross-browser scrollbar hide (used for mobile tab bar overflow) */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* WCAG 44x44 minimum tap targets on touch devices.
+   Applied to opt-in elements via data-tap attribute so we don't break inline-sized icon buttons. */
+@media (hover: none) and (pointer: coarse) {
+  [data-tap] { min-height: 44px; min-width: 44px; }
 }
 
 /**

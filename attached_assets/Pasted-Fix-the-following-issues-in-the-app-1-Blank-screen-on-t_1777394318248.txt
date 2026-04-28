@@ -1,0 +1,64 @@
+Fix the following issues in the app:
+
+## 1 — Blank screen on tab switch
+
+The app loses state and shows a blank screen when the user 
+switches browser tabs and comes back. Fix this by:
+
+- Wrapping all top-level data fetching in useEffect with 
+  proper cleanup so subscriptions restart on focus
+- Adding a window event listener for visibilitychange — 
+  when document.visibilityState === 'visible', re-fetch 
+  all active data and re-establish Supabase realtime 
+  subscriptions
+- Make sure no component relies solely on in-memory state 
+  for critical data — all project/node/arrow data should 
+  re-fetch from Supabase on visibility restore
+- Add a simple loading spinner during re-fetch so the user 
+  sees activity instead of a blank screen
+
+Example pattern to implement:
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refetchData();
+        resubscribe();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener(
+      'visibilitychange', handleVisibility
+    );
+  }, []);
+
+## 2 — General responsiveness
+
+Make the app properly responsive across screen sizes:
+
+- Sidebar: collapses to a hamburger menu on screens 
+  below 768px, slides in as an overlay when opened
+- Tab bar: horizontally scrollable on mobile 
+  (overflow-x: auto, no wrapping, hide scrollbar)
+- Project stat cards (Progress, Due Date, Budget, Tasks): 
+  2x2 grid on mobile instead of single row
+- Main content area: full width when sidebar is collapsed
+- Flowchart canvas: touch-pannable on mobile using 
+  touch events (touchstart, touchmove) mirroring the 
+  mouse pan behaviour
+- All font sizes scale down gracefully on mobile — 
+  use clamp() where appropriate
+- Minimum tap target size: 44x44px for all buttons 
+  and interactive elements (WCAG standard)
+- No horizontal scroll on any page except the 
+  flowchart canvas itself
+
+## 3 — Supabase subscription resilience
+
+Supabase realtime subscriptions drop silently when 
+the browser is idle. Fix by:
+
+- Tracking subscription status in a ref
+- On visibilitychange visible: check if subscription 
+  is still active, if not re-subscribe
+- Add exponential backoff retry (500ms, 1s, 2s, 4s) 
+  if subscription fails to connect
