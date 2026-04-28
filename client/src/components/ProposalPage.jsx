@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
-  bg: "#0f1318", surface: "#161c24", surfaceHigh: "#1c2330",
-  border: "rgba(255,255,255,0.07)", text: "#edf0f5", textSub: "#8b96a4",
-  accent: "#4a7fa5", accentLight: "#6a9fc0", green: "#4ade80",
-  red: "#f87171", redSoft: "rgba(248,113,113,0.08)",
-  shadow: "0 1px 3px rgba(0,0,0,0.4)",
+  bg: "#2C1A0E", surface: "#3D2410", surfaceHigh: "#4A2D14",
+  border: "rgba(196,98,45,0.2)", text: "#F5E6D3", textSub: "#D4A57A",
+  accent: "#C4622D", accentLight: "#E8823A", green: "#F0A500",
+  red: "#E07856", redSoft: "rgba(224,120,86,0.1)",
+  shadow: "0 1px 3px rgba(0,0,0,0.5)",
 };
 
 function Logo() {
@@ -118,7 +118,7 @@ export default function ProposalPage({ token }) {
 
   if (error) {
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'Cormorant Garamond', Georgia, serif", padding: 24 }}>
         <Logo />
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow, maxHeight: "90vh", overflowY: "auto" }}>
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
@@ -177,7 +177,7 @@ export default function ProposalPage({ token }) {
     };
 
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans','Helvetica Neue',sans-serif", padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Cormorant Garamond', Georgia, serif", padding: 24 }}>
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "44px 36px", maxWidth: 480, width: "100%", boxShadow: t.shadow, overflowY: "auto", maxHeight: "90vh" }}>
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
@@ -251,7 +251,7 @@ export default function ProposalPage({ token }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans','Helvetica Neue',sans-serif", color: t.text }}>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Cormorant Garamond', Georgia, serif", color: t.text }}>
       {/* Header */}
       <div style={{ background: t.surface, borderBottom: `1px solid ${t.border}`, padding: "0 28px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: t.shadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>

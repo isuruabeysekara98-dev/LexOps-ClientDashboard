@@ -2,16 +2,16 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
-  bg: "#0f1318",
-  surface: "#161c24",
-  surfaceHigh: "#1c2330",
-  border: "rgba(255,255,255,0.07)",
-  text: "#edf0f5",
-  textSub: "#8b96a4",
-  accent: "#4a7fa5",
-  red: "#f87171",
-  green: "#4ade80",
-  shadow: "0 1px 3px rgba(0,0,0,0.4)",
+  bg: "#2C1A0E",
+  surface: "#3D2410",
+  surfaceHigh: "#4A2D14",
+  border: "rgba(196,98,45,0.2)",
+  text: "#F5E6D3",
+  textSub: "#D4A57A",
+  accent: "#C4622D",
+  red: "#E07856",
+  green: "#F0A500",
+  shadow: "0 1px 3px rgba(0,0,0,0.5)",
 };
 
 function LogoLight({ h = 24 }) {
@@ -84,7 +84,7 @@ export default function SetPasswordPage() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      fontFamily: "'DM Sans','Helvetica Neue',sans-serif",
+      fontFamily: "'Cormorant Garamond', Georgia, serif",
       color: t.text,
       padding: 24,
     }}>

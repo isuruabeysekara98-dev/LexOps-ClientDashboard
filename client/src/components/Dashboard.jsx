@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import AdminPanel from "./AdminPanel";
+import FlowchartTab from "./FlowchartTab.jsx";
 import { supabase } from "@/lib/supabase.js";
 
 function useIsMobile(breakpoint=768){
@@ -14,28 +15,20 @@ function useIsMobile(breakpoint=768){
   return mobile;
 }
 
-const themes = {
-  dark: {
-    bg:"#0f1318", surface:"#161c24", surfaceHigh:"#1c2330",
-    border:"rgba(255,255,255,0.07)", text:"#edf0f5", textSub:"#8b96a4", textDim:"#3d4650",
-    accent:"#4a7fa5", accentLight:"#6a9fc0", accentSoft:"rgba(74,127,165,0.1)",
-    green:"#4ade80", greenSoft:"rgba(74,222,128,0.08)",
-    amber:"#f59e0b", amberSoft:"rgba(245,158,11,0.08)",
-    red:"#f87171", redSoft:"rgba(248,113,113,0.08)",
-    purple:"#a78bfa", purpleSoft:"rgba(167,139,250,0.08)",
-    shadow:"0 1px 3px rgba(0,0,0,0.4)",
-  },
-  light: {
-    bg:"#f4f5f7", surface:"#ffffff", surfaceHigh:"#eef0f4",
-    border:"rgba(0,0,0,0.07)", text:"#1a2235", textSub:"#6b7280", textDim:"#c4cad3",
-    accent:"#375971", accentLight:"#4a7fa5", accentSoft:"rgba(55,89,113,0.07)",
-    green:"#16a34a", greenSoft:"rgba(22,163,74,0.07)",
-    amber:"#d97706", amberSoft:"rgba(217,119,6,0.07)",
-    red:"#dc2626", redSoft:"rgba(220,38,38,0.07)",
-    purple:"#7c3aed", purpleSoft:"rgba(124,58,237,0.07)",
-    shadow:"0 1px 3px rgba(0,0,0,0.06)",
-  }
+// Warm brown / amber palette — single dark theme (rebrand 2026)
+const warmTheme = {
+  bg:"#2C1A0E", surface:"#3D2410", surfaceHigh:"#4A2D14",
+  border:"rgba(196,98,45,0.2)", text:"#F5E6D3", textSub:"#D4A57A", textDim:"rgba(245,230,211,0.4)",
+  accent:"#C4622D", accentLight:"#E8823A", accentSoft:"rgba(196,98,45,0.12)",
+  green:"#F0A500", greenSoft:"rgba(240,165,0,0.1)",
+  amber:"#F0A500", amberSoft:"rgba(240,165,0,0.1)",
+  red:"#E07856", redSoft:"rgba(224,120,86,0.1)",
+  purple:"#B5764D", purpleSoft:"rgba(181,118,77,0.1)",
+  shadow:"0 1px 3px rgba(0,0,0,0.5)",
+  // Flowchart-specific tokens
+  glassSurface:"rgba(61,36,16,0.6)", goldGlow:"#F0A500",
 };
+const themes = { dark: warmTheme, light: warmTheme };
 
 function LogoLight({h=20}) {
   return <svg width={h*(307/97)} height={h} viewBox="0 0 307 97" fill="none">
@@ -1793,10 +1786,10 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
     <div style={{
       position:"fixed",inset:0,zIndex:500,background:t.bg,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,padding:24,
+      fontFamily:"'Cormorant Garamond', Georgia, serif",color:t.text,padding:24,
     }}>
       <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
-        <LogoDark h={28}/>
+        <LogoLight h={28}/>
         <div style={{textAlign:"center"}}>
           <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 16px",color:t.text}}>
             Welcome, {firstName}.
@@ -2125,7 +2118,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [mode,setMode]=useState(()=>{try{return localStorage.getItem("lexops-theme")||"light";}catch{return "light";}});
+  const [mode,setMode]=useState("dark");
   const [profileOpen,setProfileOpen]=useState(false);
   const [view,setView]=useState(isClient ? "client" : "internal");
   const [selected,setSelected]=useState(null);
@@ -2239,11 +2232,11 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   );
   const isClientView = view === "client";
   const allTabs = isClientView
-    ? ["overview","actions","documents","invoices","software","book"]
-    : ["overview","plan","documents","invoices","software","maintenance","book"];
+    ? ["overview","actions","documents","flowchart","invoices","software","book"]
+    : ["overview","plan","documents","flowchart","invoices","software","maintenance","book"];
   const tabLabels = isClientView
-    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",invoices:"Invoices",software:"Software",book:"Book a Call"}
-    : {overview:"Overview",plan:"Plan",documents:"Documents",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",book:"Book a Call"}
+    : {overview:"Overview",plan:"Plan",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
 
   async function dismissWelcome(){
     setShowWelcome(false);
@@ -2253,7 +2246,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   }
 
   return (
-    <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'DM Sans','Helvetica Neue',sans-serif",color:t.text,display:"flex",flexDirection:"column",transition:"background 0.25s,color 0.25s"}}>
+    <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'Cormorant Garamond', Georgia, serif",color:t.text,display:"flex",flexDirection:"column",letterSpacing:"0.01em"}}>
       {showWelcome&&<WelcomeScreen userProfile={userProfile} project={selected} t={t} onDismiss={dismissWelcome}/>}
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
       {/* Mobile sidebar overlay */}
@@ -2266,7 +2259,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               {sidebarOpen?"✕":"☰"}
             </button>
           )}
-          {mode==="dark"?<LogoLight h={mobile?16:20}/>:<LogoDark h={mobile?16:20}/>}
+          <LogoLight h={mobile?16:20}/>
           {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:mobile?6:10,flexWrap:mobile?"wrap":"nowrap"}}>
@@ -2276,9 +2269,6 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>}
-          <button onClick={()=>setMode(m=>{const next=m==="dark"?"light":"dark";try{localStorage.setItem("lexops-theme",next);}catch{}return next;})} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14,color:t.textSub}}>
-            {mode==="dark"?"☀":"☾"}
-          </button>
           {/* Profile avatar + dropdown */}
           <div style={{position:"relative"}}>
             <button onClick={()=>setProfileOpen(o=>!o)} style={{
@@ -2384,6 +2374,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
                 ? <ClientDocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} onRefresh={()=>refreshProject(selected.id)} t={t}/>
                 : <DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>
               )}
+              {tab==="flowchart"   &&<FlowchartTab    projectId={selected.id} isInternal={!isClientView} userProfile={userProfile} t={t} mobile={mobile}/>}
               {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
               {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}

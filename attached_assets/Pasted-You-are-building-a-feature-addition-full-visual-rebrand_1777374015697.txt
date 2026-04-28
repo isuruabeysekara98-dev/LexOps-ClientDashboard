@@ -1,0 +1,189 @@
+You are building a feature addition + full visual rebrand for a client portal web application called LexOps (a legal operations SaaS for law firms). The app currently has a sidebar with projects, and a main content area with tabs: Overview, Plan, Documents, Invoices, Software, Maintenance, Book a Call.
+
+Your job is to:
+1. Add a new "Flowchart" tab to the existing tab navigation
+2. Fully rebrand the entire UI with a new color palette and font
+3. Build a complete drag-and-drop flowchart builder (admin view) + interactive client view
+
+---
+
+## PART 1 — FULL UI REBRAND
+
+Apply these styles globally across the entire application:
+
+### Colors
+- Primary background: #2C1A0E
+- Card/surface background: #3D2410
+- Accent: #C4622D
+- CTA/Highlight buttons: #E8823A
+- Primary text: #F5E6D3
+- Secondary text: #D4A57A
+- Border/divider: rgba(196, 98, 45, 0.2)
+- Glassmorphism surfaces: rgba(61, 36, 16, 0.6) with backdrop-filter: blur(12px)
+- Success/Done glow: #F0A500 (golden amber)
+- Pending muted: rgba(245, 230, 211, 0.2)
+
+### Font
+- Use IvyMode from Adobe Fonts: add this to the HTML head:
+  <link rel="stylesheet" href="https://use.typekit.net/[your-kit-id].css">
+  font-family: 'ivymode', serif;
+- If IvyMode is unavailable, fall back to: 'Cormorant Garamond', serif (available on Google Fonts as a close match)
+- Headings: IvyMode, font-weight 300–400, letter-spacing: 0.04em
+- Body: IvyMode or fallback, font-weight 300
+- All existing headings, nav items, labels, buttons must use this font
+
+### General UI rules
+- Replace all white/light backgrounds with the dark warm brown palette
+- All cards use the glassmorphism surface style with a subtle 1px border in rgba(196, 98, 45, 0.2)
+- All primary buttons: background #E8823A, text #2C1A0E, font-weight 500, border-radius 6px
+- All secondary/ghost buttons: transparent background, border 1px solid #C4622D, text #F5E6D3
+- Sidebar background: #2C1A0E, active item highlight: rgba(232, 130, 58, 0.15) with left border 3px solid #E8823A
+- Tab navigation underline color: #E8823A
+- Status indicators: green dot → replace with amber/orange glow dot
+
+---
+
+## PART 2 — FLOWCHART TAB
+
+Add "Flowchart" as a new tab in the project tab bar (between Documents and Invoices).
+
+The Flowchart feature has TWO modes toggled by a top-right switch:
+- "Builder" (admin/internal mode)
+- "Client View" (what the client sees)
+
+---
+
+### A. BUILDER MODE (Admin)
+
+Build a full drag-and-drop canvas flowchart editor with these specs:
+
+**Canvas**
+- Full-width canvas area with a subtle dot-grid background in dark brown tones
+- Infinite/pannable canvas (drag to pan, scroll to zoom)
+- Snap-to-grid enabled (20px grid)
+- Minimap in bottom-right corner showing overview of full chart
+
+**Tools (left toolbar)**
+- Rectangle Node tool — click to place a rectangular node on canvas
+- Arrow/Connector tool — click source node then target node to draw a directed arrow
+- Select/Move tool — drag nodes to reposition
+- Delete selected — delete key or trash icon
+
+**Rectangle Nodes**
+Each node has:
+- Title (editable inline by double-clicking)
+- Status badge: Pending / In Progress / Done (dropdown inside node)
+- On right-click or clicking an edit icon: opens a side panel with:
+  - Title field
+  - Description / notes (textarea)
+  - Estimated completion date (date picker)
+  - Status selector (Pending / In Progress / Done)
+  - Attachments section (upload or link documents)
+  - Comments thread (admin can see all comments)
+
+**Node visual states:**
+- Pending: muted, semi-transparent, dimmed text
+- In Progress: amber border glow (box-shadow: 0 0 12px #E8823A), slow pulse animation
+- Done: golden shimmer sweep animation across the node surface
+
+**Arrows**
+- Smooth curved SVG arrows with arrowhead
+- Animated: dashed line that flows/marches from source to target (CSS stroke-dashoffset animation)
+- Color: #C4622D with glow on hover
+
+**Top toolbar**
+- "Add Node" button (shortcut)
+- "Auto Layout" button — arranges nodes in a clean left-to-right tree
+- "Draft / Published" toggle — when Published, changes become visible in Client View
+- "Save" button (saves state to localStorage for persistence across sessions)
+
+**Node templates (quick-add dropdown)**
+Pre-built node titles to insert instantly:
+- Initial Consultation
+- Document Collection
+- Draft Review
+- Filing Submission
+- Awaiting Court Response
+- Final Approval
+- Completion
+
+---
+
+### B. CLIENT VIEW
+
+A read-only but richly interactive view of the published flowchart.
+
+**Visual style**
+- Same canvas with dot-grid background
+- Nodes rendered with glassmorphism: backdrop-filter blur, semi-transparent brown surface
+- Ambient floating particle effects across the canvas — tiny ember/spark dots that slowly drift upward, like warm firelight (use CSS or canvas animation)
+- The overall canvas has a very subtle radial gradient glow in the center (warm amber center, dark edges — like candlelight)
+
+**Node interactions**
+- Hover: ember/spark particles drift upward from node, node lifts slightly (transform: translateY(-3px)), warm glow intensifies
+- Click: slides open a beautiful right-side detail panel with:
+  - Step title (large, IvyMode font)
+  - Status badge with colored pill
+  - Description/notes
+  - Estimated completion date
+  - Linked documents (downloadable)
+  - Comment thread — client can type and submit a comment on this specific step
+  - Smooth slide-in animation (translateX from right)
+
+**Node visual states (same as builder but client-facing language):**
+- Pending → shown as "Upcoming" with dim styling
+- In Progress → "Currently Working On" with amber breathing glow
+- Done → "Completed" with golden shimmer sweep + a small checkmark icon
+
+**Progress bar**
+- At the top of the client view canvas, show a glowing amber progress bar
+- Label: "Your Case Progress — X% Complete"
+- Calculates automatically: (Done nodes / Total nodes) × 100
+- Bar has a shimmer/shine animation sweeping across it
+
+**Confetti celebration**
+- When progress hits 100% (all nodes = Done), trigger a full-screen confetti burst
+- Use warm colors only: #E8823A, #F0A500, #C4622D, #F5E6D3
+- Show a centered toast/banner: "🎉 Congratulations — Your Matter is Complete!" in IvyMode font
+- Confetti fades after 4 seconds, toast dismisses after 6 seconds
+
+**Comments**
+- Each node has its own comment thread
+- Client can type a comment and submit
+- Comments are stored in localStorage (keyed by node ID)
+- Comments show: avatar initial circle (client's first initial), comment text, timestamp
+
+---
+
+## PART 3 — TECHNICAL NOTES
+
+- Use React (or plain HTML/CSS/JS if React is not already in the project — match whatever stack is being used)
+- For drag and drop: use interact.js or native HTML5 drag, or react-dnd if React
+- For SVG arrows: draw using SVG path elements with quadratic bezier curves
+- For particle effects: use a lightweight canvas overlay or pure CSS keyframe animations
+- For confetti: use the canvas-confetti npm package
+- Persist all flowchart state (nodes, arrows, details, comments) in localStorage under the key "lexops_flowchart_[projectId]"
+- The Builder/Client view toggle should be in the top-right of the Flowchart tab, styled as a pill toggle matching the existing Admin/Internal/Client View toggle visible in the app header
+- All animations should respect prefers-reduced-motion media query (disable particle/confetti effects if user has reduced motion enabled)
+
+---
+
+## PART 4 — SAMPLE DATA (pre-load this so it looks great on first load)
+
+Pre-populate the flowchart with these nodes and connections for the "Estates Automation" project:
+
+Nodes (left to right):
+1. "Initial Consultation" — Done
+2. "Document Collection" — Done  
+3. "Draft Review" — In Progress
+4. "Filing Submission" — Pending
+5. "Awaiting Court Response" — Pending
+6. "Final Approval" — Pending
+
+Arrows: 1→2, 2→3, 3→4, 4→5, 5→6
+
+Each node should have placeholder description text like "This stage involves [relevant legal description]" and an estimated date 2–4 weeks apart starting from today.
+
+---
+
+Build this completely and make it production-quality. The UI should feel premium, warm, and boutique — not generic SaaS. Every interaction should feel considered and delightful.

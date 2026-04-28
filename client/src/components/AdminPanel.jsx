@@ -2697,7 +2697,7 @@ export default function AdminPanel({ onClose, mode = "dark" }) {
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 300,
-      background: t.bg, fontFamily: "'DM Sans','Helvetica Neue',sans-serif",
+      background: t.bg, fontFamily: "'Cormorant Garamond', Georgia, serif",
       color: t.text, display: "flex", flexDirection: "column",
     }}>
       {/* Header */}

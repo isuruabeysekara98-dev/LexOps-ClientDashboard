@@ -1,0 +1,243 @@
+You are building a feature addition + full visual rebrand for a client portal web application called LexOps (a legal operations SaaS for law firms). The app currently has a sidebar with projects, and a main content area with tabs: Overview, Plan, Documents, Invoices, Software, Maintenance, Book a Call.
+
+Your job is to:
+1. Add a new "Flowchart" tab to the existing tab navigation (between Documents and Invoices)
+2. Fully rebrand the entire UI with a new color palette and font
+3. Build a complete drag-and-drop flowchart builder + interactive client view
+4. Store all flowchart data in Supabase
+
+---
+
+## PART 1 — FULL UI REBRAND
+
+Apply these styles globally across the entire application. DROP the existing dark/light theme toggle entirely — the app is now dark-only with this warm brown palette.
+
+### Colors
+- Primary background: #2C1A0E
+- Card/surface background: #3D2410
+- Accent: #C4622D
+- CTA/Highlight buttons: #E8823A
+- Primary text: #F5E6D3
+- Secondary text: #D4A57A
+- Border/divider: rgba(196, 98, 45, 0.2)
+- Glassmorphism surfaces: rgba(61, 36, 16, 0.6) with backdrop-filter: blur(12px)
+- Success/Done glow: #F0A500 (golden amber)
+- Pending muted: rgba(245, 230, 211, 0.2)
+
+### Font
+- Use Cormorant Garamond from Google Fonts as the primary font throughout the entire app:
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&display=swap" rel="stylesheet">
+  font-family: 'Cormorant Garamond', serif;
+- Headings: font-weight 300–400, letter-spacing: 0.04em
+- Body: font-weight 300
+- Apply to ALL existing text: nav, sidebar, tabs, buttons, labels, modals, everything
+
+### General UI rules
+- Replace all white/light backgrounds with the dark warm brown palette
+- All cards: glassmorphism surface with 1px border rgba(196, 98, 45, 0.2)
+- Primary buttons: background #E8823A, text #2C1A0E, font-weight 500, border-radius 6px
+- Secondary/ghost buttons: transparent, border 1px solid #C4622D, text #F5E6D3
+- Sidebar: background #2C1A0E, active item: rgba(232, 130, 58, 0.15) with left border 3px solid #E8823A
+- Tab underline color: #E8823A
+- Status green dots → replace with amber/orange glow dots
+- Remove the dark/light theme toggle from the UI entirely
+
+---
+
+## PART 2 — SUPABASE SETUP
+
+Create the following Supabase tables. Use the existing Supabase client already configured in the project.
+
+### Table: flowchart_nodes
+- id: uuid, primary key, default gen_random_uuid()
+- project_id: text (links to the project, e.g. "estates-automation")
+- title: text
+- status: text — one of: 'pending', 'in_progress', 'done'
+- description: text
+- estimated_date: date
+- position_x: integer
+- position_y: integer
+- created_at: timestamptz, default now()
+
+### Table: flowchart_arrows
+- id: uuid, primary key
+- project_id: text
+- source_node_id: uuid (references flowchart_nodes.id)
+- target_node_id: uuid (references flowchart_nodes.id)
+- created_at: timestamptz, default now()
+
+### Table: flowchart_comments
+- id: uuid, primary key
+- node_id: uuid (references flowchart_nodes.id)
+- author_name: text
+- author_initial: text (single character)
+- body: text
+- created_at: timestamptz, default now()
+
+### Table: flowchart_attachments
+- id: uuid, primary key
+- node_id: uuid (references flowchart_nodes.id)
+- file_name: text
+- file_url: text
+- created_at: timestamptz, default now()
+
+Seed the database with this sample data for project_id = "estates-automation":
+
+Nodes (evenly spaced horizontally, y=300):
+1. title: "Initial Consultation", status: "done", x: 80, y: 300
+2. title: "Document Collection", status: "done", x: 320, y: 300
+3. title: "Draft Review", status: "in_progress", x: 560, y: 300
+4. title: "Filing Submission", status: "pending", x: 800, y: 300
+5. title: "Awaiting Court Response", status: "pending", x: 1040, y: 300
+6. title: "Final Approval", status: "pending", x: 1280, y: 300
+
+Arrows: 1→2, 2→3, 3→4, 4→5, 5→6
+
+Each node: add a placeholder description "This stage covers [relevant legal task description]" and estimated dates 2 weeks apart starting from today.
+
+---
+
+## PART 3 — FLOWCHART TAB
+
+### Tab placement
+Add "Flowchart" between Documents and Invoices in the tab bar.
+
+### Mode switching — tied to existing header toggle
+The existing header has a three-way toggle: Admin / Internal / Client View.
+- When header is set to "Internal" → show Builder Mode (drag-and-drop editor)
+- When header is set to "Client View" → show Client View Mode (interactive, read-only)
+- "Admin" can also show Builder Mode (same as Internal)
+Do NOT add a separate toggle inside the Flowchart tab. Use the existing header toggle state.
+
+---
+
+### A. BUILDER MODE (Internal/Admin)
+
+**Canvas**
+- Full-width, full-height canvas with subtle dot-grid background in dark brown tones
+- Pannable (drag empty canvas to pan) and zoomable (scroll wheel)
+- Snap-to-grid: 20px grid
+- Minimap in bottom-right corner: small overview of entire chart, shows current viewport position
+
+**Left toolbar — tools**
+- Select/Move tool (default): drag nodes to reposition
+- Rectangle Node tool: click canvas to place a new node, auto-saves to Supabase
+- Arrow tool: click source node then target node to draw a directed connection, saves to Supabase
+- Delete tool: select a node or arrow and press Delete key or click trash icon — removes from Supabase
+
+**Rectangle Nodes (Builder)**
+- Rounded rectangle, surface: rgba(61, 36, 16, 0.8), border: 1px solid rgba(196, 98, 45, 0.4)
+- Title text centered, Cormorant Garamond, #F5E6D3
+- Small status badge in bottom-right corner of node
+- Double-click node title to edit inline
+- Click edit icon (pencil, top-right of node) → opens right side panel:
+  - Title (text input)
+  - Description (textarea)
+  - Estimated completion date (date picker)
+  - Status selector: Pending / In Progress / Done (styled pill selector)
+  - Attachments: upload file (stores to Supabase Storage) or paste URL, lists existing attachments
+  - Comments thread: shows all comments from clients and admins, admin can reply
+  - All changes save to Supabase in real time on blur/change
+
+**Node visual states (Builder)**
+- Pending: opacity 0.5, muted text, no glow
+- In Progress: border: 1px solid #E8823A, box-shadow: 0 0 14px rgba(232, 130, 58, 0.5), slow breathing pulse animation (keyframes scale 1 → 1.02 → 1, 2.5s infinite)
+- Done: golden shimmer sweep animation across node (CSS linear-gradient moving left to right, 2s, plays once then repeats every 6s)
+
+**Arrows (Builder)**
+- Smooth quadratic bezier SVG curves between nodes
+- Arrowhead at target end
+- Animated: dashed stroke with CSS stroke-dashoffset animation (marching ants effect flowing source → target)
+- Color: #C4622D, glow on hover: drop-shadow(0 0 4px #E8823A)
+
+**Top bar (Builder)**
+- "Add Node" button — places a node at center of current viewport
+- "Auto Layout" button — arranges nodes in clean left-to-right tree layout, saves new positions to Supabase
+- "Save" indicator — shows "Saving..." then "Saved ✓" after Supabase writes (real-time feedback)
+- Quick-add node templates dropdown: Initial Consultation / Document Collection / Draft Review / Filing Submission / Awaiting Court Response / Final Approval / Completion — clicking one instantly creates that node
+
+---
+
+### B. CLIENT VIEW MODE
+
+A richly interactive, read-only view of the published flowchart. Loads node/arrow data from Supabase.
+
+**Canvas atmosphere**
+- Same dot-grid canvas
+- Ambient floating particle layer: small ember/spark dots (10–20 particles) that slowly drift upward across the full canvas, randomized positions and speeds, warm amber/orange colors (#E8823A, #F0A500, rgba(196,98,45,0.6))
+- Implement using a full-canvas overlay with requestAnimationFrame loop
+- Subtle radial gradient vignette: warm amber glow at center fading to dark edges (like candlelight)
+
+**Progress bar (top of client view)**
+- Full-width glowing amber bar: "Your Case Progress — X% Complete"
+- Calculates: (nodes with status='done' / total nodes) × 100, reads from Supabase
+- Bar itself: background #E8823A, box-shadow: 0 0 12px #F0A500
+- Shimmer sweep animation across the filled portion (CSS keyframes)
+- Cormorant Garamond label, #F5E6D3
+
+**Nodes (Client View)**
+- Glassmorphism: backdrop-filter: blur(12px), background: rgba(61, 36, 16, 0.55), border: 1px solid rgba(196, 98, 45, 0.3)
+- Status shown as a colored pill: "Upcoming" (muted), "Currently Working On" (amber glow), "Completed" (gold + ✓)
+- Hover effect:
+  - Node lifts: transform: translateY(-4px), transition 0.2s ease
+  - Glow intensifies: box-shadow increases
+  - 5–8 tiny spark particles drift upward from node position (spawned on hover, animate up and fade out)
+- Cursor: pointer
+
+**Click → Detail side panel (Client View)**
+- Slides in from right: translateX(100%) → translateX(0), 0.3s ease
+- Panel background: #3D2410, border-left: 1px solid rgba(196, 98, 45, 0.3)
+- Contains:
+  - Step title (large, Cormorant Garamond, #F5E6D3, font-weight 300)
+  - Status pill
+  - Estimated completion date
+  - Description/notes text
+  - Linked attachments list (file name + download link)
+  - Comment thread:
+    - Shows existing comments (from Supabase) in chronological order
+    - Each comment: avatar circle (initial letter, background #C4622D), author name, body, timestamp
+    - Text input + "Send" button at bottom
+    - On submit: saves new comment to Supabase flowchart_comments table, refreshes thread
+- Close button (×) slides panel back out
+
+**Node visual states (Client View)**
+- Pending → "Upcoming": dim, opacity 0.5, no glow
+- In Progress → "Currently Working On": amber border glow, slow breathing pulse
+- Done → "Completed": golden shimmer sweep, ✓ icon, full opacity
+
+**Confetti celebration**
+- On load, check if all nodes have status = 'done'
+- If yes: trigger canvas-confetti burst
+  - Colors: ['#E8823A', '#F0A500', '#C4622D', '#F5E6D3']
+  - particleCount: 200, spread: 160, origin: { y: 0.5 }
+- Show centered toast: "🎉 Congratulations — Your Matter is Complete!"
+  - Font: Cormorant Garamond, large, #F5E6D3
+  - Background: rgba(61, 36, 16, 0.95), border: 1px solid #E8823A
+  - Fades out after 6 seconds
+- Confetti fades naturally after 4 seconds
+
+---
+
+## PART 4 — TECHNICAL REQUIREMENTS
+
+- Match whatever frontend stack is already in the project (React or plain HTML/JS)
+- Drag and drop: use interact.js or native HTML5 drag, or react-dnd if React
+- SVG arrows: drawn as SVG path elements with quadratic bezier curves, rendered in an SVG overlay on top of the canvas
+- Particle effects: requestAnimationFrame canvas loop — a transparent canvas element overlaid on the flowchart
+- Confetti: import canvas-confetti npm package
+- All Supabase reads/writes use the existing supabase client in the project
+- All animations respect prefers-reduced-motion: @media (prefers-reduced-motion: reduce) — disable particles, confetti, pulse, shimmer
+- Nodes and arrows update in Supabase on every change (no separate publish step needed — data is live)
+- The Supabase realtime subscription should be used so that if the admin updates a node status, the client view refreshes automatically without a page reload
+
+---
+
+## PART 5 — QUALITY BAR
+
+The final result must feel premium, warm, and boutique — not generic SaaS. Specific checks:
+- Cormorant Garamond must be applied everywhere, not just the flowchart
+- The brown palette must replace every existing color — no leftover greys, whites, or navy blues
+- Particle effects must feel subtle and ambient, not distracting
+- The side detail panel must slide smoothly, not flash/jump
+- Supabase writes must show a visual "Saving..." indicator so the admin knows data is persisting
+- Mobile: canvas should be touch-pannable in client view (touch events for pan)
