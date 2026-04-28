@@ -117,7 +117,7 @@ function Thin({value,t,color}) {
   </div>;
 }
 function SectionLabel({children,t}) {
-  return <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:14}}>{children}</div>;
+  return <div style={{color:t.text,fontSize:18,fontWeight:600,letterSpacing:"-0.01em",marginBottom:14,fontFamily:"'Playfair Display', Georgia, serif"}}>{children}</div>;
 }
 function Card({children,t,style={}}) {
   return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,boxShadow:t.shadow,...style}}>{children}</div>;
@@ -1786,12 +1786,12 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
     <div style={{
       position:"fixed",inset:0,zIndex:500,background:t.bg,
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:"'Cormorant Garamond', Georgia, serif",color:t.text,padding:24,
+      fontFamily:"'Inter', sans-serif",color:t.text,padding:24,
     }}>
       <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
         <LogoDark h={28}/>
         <div style={{textAlign:"center"}}>
-          <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 16px",color:t.text}}>
+          <h1 style={{fontSize:36,fontWeight:600,letterSpacing:"-0.01em",margin:"0 0 16px",color:t.text,fontFamily:"'Playfair Display', Georgia, serif"}}>
             Welcome, {firstName}.
           </h1>
           {project?.client_summary ? (
@@ -2246,7 +2246,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   }
 
   return (
-    <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'Cormorant Garamond', Georgia, serif",color:t.text,display:"flex",flexDirection:"column",letterSpacing:"0.01em"}}>
+    <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'Inter', sans-serif",color:t.text,display:"flex",flexDirection:"column",letterSpacing:"0.01em"}}>
       {showWelcome&&<WelcomeScreen userProfile={userProfile} project={selected} t={t} onDismiss={dismissWelcome}/>}
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
       {/* Mobile sidebar overlay */}
@@ -2346,7 +2346,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:mobile?16:24,gap:8}}>
                 <div style={{minWidth:0}}>
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
-                  <h1 style={{margin:"0 0 7px",fontSize:mobile?18:22,fontWeight:300,letterSpacing:"-0.04em",color:t.text,lineHeight:1.2}}>{selected.project}</h1>
+                  <h1 style={{margin:"0 0 7px",fontSize:mobile?22:28,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Playfair Display', Georgia, serif"}}>{selected.project}</h1>
                   <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
                     {!isClientView&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.accentLight}}>{selected.manager}</span></span>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>

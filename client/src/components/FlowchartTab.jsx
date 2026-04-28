@@ -644,7 +644,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
           position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",zIndex:100,
           background:"rgba(240,244,244,0.95)",border:`1px solid #1A6666`,borderRadius:14,
           padding:"22px 36px",boxShadow:"0 12px 48px rgba(8,43,43,0.18), 0 0 40px rgba(26,102,102,0.4)",
-          color:t.text,fontSize:22,fontWeight:400,letterSpacing:"0.04em",fontFamily:"inherit",
+          color:t.text,fontSize:24,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display', Georgia, serif",
           animation:"fc-shimmer 4s ease-in-out infinite",
           textAlign:"center",
         }}>
@@ -731,7 +731,7 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
             style={{flex:1,background:"transparent",border:`1px solid ${t.accent}`,borderRadius:4,color:t.text,fontSize:14,padding:"3px 6px",fontFamily:"inherit",outline:"none"}}
           />
         ) : (
-          <div style={{flex:1,color:t.text,fontSize:14,fontWeight:400,letterSpacing:"0.02em",lineHeight:1.25}}>
+          <div style={{flex:1,color:t.text,fontSize:isInternal?14:16,fontWeight:isInternal?500:600,letterSpacing:isInternal?"0":"-0.01em",lineHeight:1.25,fontFamily:isInternal?"inherit":"'Playfair Display', Georgia, serif"}}>
             {isDone && "✓ "}{node.title}
           </div>
         )}
@@ -902,7 +902,7 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
-      <h2 style={{margin:"0 0 8px",fontSize:26,fontWeight:300,letterSpacing:"0.03em",color:t.text,lineHeight:1.2}}>{node.title}</h2>
+      <h2 style={{margin:"0 0 8px",fontSize:26,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Playfair Display', Georgia, serif"}}>{node.title}</h2>
       <span style={{display:"inline-block",background:`${statusColor}1F`,border:`1px solid ${statusColor}55`,borderRadius:99,color:statusColor,fontSize:11,fontWeight:500,padding:"4px 12px",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:18}}>
         {STATUS_LABELS[node.status].client}
       </span>

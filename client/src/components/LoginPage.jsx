@@ -90,7 +90,7 @@ export default function LoginPage({ authError: externalError } = {}) {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      fontFamily: "'Cormorant Garamond', Georgia, serif",
+      fontFamily: "'Inter', sans-serif",
       color: t.text,
       padding: 24,
     }}>
@@ -105,7 +105,7 @@ export default function LoginPage({ authError: externalError } = {}) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <LogoLight h={24} />
           <div style={{ textAlign: "center" }}>
-            <div style={{ color: t.text, fontSize: 18, fontWeight: 400, letterSpacing: "-0.02em", marginBottom: 4 }}>
+            <div style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 4, fontFamily: "'Playfair Display', Georgia, serif" }}>
               {forgotMode ? "Reset your password" : "Sign in to Client Portal"}
             </div>
             <div style={{ color: t.textSub, fontSize: 13 }}>

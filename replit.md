@@ -14,7 +14,7 @@ Full-stack React + Vite + Express application backed by Supabase. A legal-ops po
 - `client/src/components/AdminPanel.jsx` — admin overlay for managing clients, projects, users, packs.
 
 ## Theming (April 2026 rebrand)
-The app is now **single-theme** with a light teal palette and **Cormorant Garamond** as the global typeface.
+The app is now **single-theme** with a light teal palette and a two-font system: **Playfair Display** for headings and **Inter** for everything else.
 
 Theme tokens are defined as a single `warmTheme` object in `Dashboard.jsx` (and mirrored inline in `LoginPage.jsx`, `SetPasswordPage.jsx`, `ProposalPage.jsx`).
 
@@ -29,7 +29,18 @@ Key colors:
 
 The legacy light-mode toggle has been removed; `themes.dark` and `themes.light` both alias the same teal theme so existing 2400-line Dashboard.jsx code keeps working without find/replace. The app uses the `LogoDark` SVG variant since the background is light.
 
-The Cormorant Garamond font is loaded via Google Fonts in `client/index.html`.
+### Typography
+Both fonts are loaded via Google Fonts in `client/index.html`:
+- **Inter** (300 / 400 / 500 / 600) — global default, applied via `body { font-family: 'Inter', ... }`. Used for sidebar labels, nav, tabs, body text, buttons, badges, status pills, dates, metadata, form inputs, comments, and Builder-mode flowchart node titles. Base size 14px; 13px for secondary/metadata.
+- **Playfair Display** (400 / 500 / 600 / 700) — applied **only** to display headings via inline `fontFamily: "'Playfair Display', Georgia, serif"`. Used for:
+  - Project / page titles ("Estates Automation")
+  - Section headings (`SectionLabel` — "Project Summary", "Project Phases")
+  - Welcome screen ("Welcome, {firstName}.")
+  - Auth page titles ("Sign in to Client Portal", "Set Your Password")
+  - Proposal page h1/h2/h3
+  - Flowchart node titles in **Client View** only (Builder mode keeps Inter)
+  - The "Congratulations" toast at flowchart completion
+  - Convention: `fontWeight: 600`, `letterSpacing: "-0.01em"`
 
 ## Flowchart feature (April 2026)
 A new "Flowchart" tab sits between Documents and Invoices for both Internal and Client views. Implemented in `client/src/components/FlowchartTab.jsx`.

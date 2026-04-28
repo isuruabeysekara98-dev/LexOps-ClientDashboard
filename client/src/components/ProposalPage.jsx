@@ -118,11 +118,11 @@ export default function ProposalPage({ token }) {
 
   if (error) {
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'Cormorant Garamond', Georgia, serif", padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, fontFamily: "'Inter', sans-serif", padding: 24 }}>
         <Logo />
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow, maxHeight: "90vh", overflowY: "auto" }}>
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(248,113,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
-          <h2 style={{ color: t.text, fontSize: 18, fontWeight: 500, margin: "0 0 8px" }}>Link Invalid or Expired</h2>
+          <h2 style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", margin: "0 0 8px", fontFamily: "'Playfair Display', Georgia, serif" }}>Link Invalid or Expired</h2>
           <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>
             This proposal link is no longer valid. Please contact your LexOps representative for a new link.
           </p>
@@ -177,11 +177,11 @@ export default function ProposalPage({ token }) {
     };
 
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Cormorant Garamond', Georgia, serif", padding: 24 }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', sans-serif", padding: 24 }}>
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 16, padding: "44px 36px", maxWidth: 480, width: "100%", boxShadow: t.shadow, overflowY: "auto", maxHeight: "90vh" }}>
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
-            <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 8px" }}>Proposal Accepted</h2>
+            <h2 style={{ color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em", margin: "0 0 8px", fontFamily: "'Playfair Display', Georgia, serif" }}>Proposal Accepted</h2>
             <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: 0 }}>
               Create your account below. After signing up, you'll receive a confirmation email to activate your account.
             </p>
@@ -194,7 +194,7 @@ export default function ProposalPage({ token }) {
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               </div>
-              <h2 style={{ color: t.text, fontSize: 20, fontWeight: 500, margin: "0 0 10px" }}>You're almost in.</h2>
+              <h2 style={{ color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em", margin: "0 0 10px", fontFamily: "'Playfair Display', Georgia, serif" }}>You're almost in.</h2>
               <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: "0 0 24px" }}>
                 We've sent a confirmation link to <strong style={{ color: t.text }}>{proposal.client_email}</strong>. Click the link to activate your account and access your project dashboard.
               </p>
@@ -251,7 +251,7 @@ export default function ProposalPage({ token }) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Cormorant Garamond', Georgia, serif", color: t.text }}>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', sans-serif", color: t.text }}>
       {/* Header */}
       <div style={{ background: t.surface, borderBottom: `1px solid ${t.border}`, padding: "0 28px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: t.shadow }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -266,7 +266,7 @@ export default function ProposalPage({ token }) {
         {/* Info */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ color: t.textSub, fontSize: 12, marginBottom: 6 }}>Proposal for</div>
-          <h1 style={{ color: t.text, fontSize: 22, fontWeight: 400, margin: "0 0 6px", letterSpacing: "-0.03em" }}>
+          <h1 style={{ color: t.text, fontSize: 28, fontWeight: 600, margin: "0 0 6px", letterSpacing: "-0.01em", fontFamily: "'Playfair Display', Georgia, serif" }}>
             {proposal?.client_contact_name ?? proposal?.client_name}
           </h1>
           {projectName && <div style={{ color: t.accentLight, fontSize: 14 }}>{projectName}</div>}
@@ -286,7 +286,7 @@ export default function ProposalPage({ token }) {
 
         {/* Acceptance form */}
         <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "32px 28px", boxShadow: t.shadow, paddingBottom: 40 }}>
-          <h3 style={{ color: t.text, fontSize: 16, fontWeight: 500, margin: "0 0 20px" }}>Accept this Proposal</h3>
+          <h3 style={{ color: t.text, fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em", margin: "0 0 20px", fontFamily: "'Playfair Display', Georgia, serif" }}>Accept this Proposal</h3>
           <form onSubmit={handleAccept} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Full Name</label>
