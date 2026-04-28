@@ -14,18 +14,20 @@ Full-stack React + Vite + Express application backed by Supabase. A legal-ops po
 - `client/src/components/AdminPanel.jsx` — admin overlay for managing clients, projects, users, packs.
 
 ## Theming (April 2026 rebrand)
-The app is now **dark-only** with a warm brown / amber palette and **Cormorant Garamond** as the global typeface.
+The app is now **single-theme** with a light teal palette and **Cormorant Garamond** as the global typeface.
 
 Theme tokens are defined as a single `warmTheme` object in `Dashboard.jsx` (and mirrored inline in `LoginPage.jsx`, `SetPasswordPage.jsx`, `ProposalPage.jsx`).
 
 Key colors:
-- `bg` `#2C1A0E` — primary background
-- `surface` `#3D2410`, `surfaceHigh` `#4A2D14`
-- `accent` `#C4622D`, `accentLight` `#E8823A`
-- `green/amber` `#F0A500` (golden, used for "done" states)
-- `text` `#F5E6D3`, `textSub` `#D4A57A`
+- `bg` `#FFFFFF` — primary background
+- `surface` `#F0F4F4`, `surfaceHigh` `#E5EDED`
+- `border` `#C5D4D4`
+- `accent` `#1A6666` (CTA), `accentLight` `#0F4444` (deep accent / hover)
+- `green` (done) `#1A6666`
+- `text` `#082B2B`, `textSub` `#3A6666`
+- Glass surfaces: `rgba(240,244,244,0.7)` with `backdrop-filter: blur(12px)`
 
-The legacy light-mode toggle has been removed; `themes.dark` and `themes.light` both alias `warmTheme` so existing 2400-line Dashboard.jsx code keeps working without find/replace.
+The legacy light-mode toggle has been removed; `themes.dark` and `themes.light` both alias the same teal theme so existing 2400-line Dashboard.jsx code keeps working without find/replace. The app uses the `LogoDark` SVG variant since the background is light.
 
 The Cormorant Garamond font is loaded via Google Fonts in `client/index.html`.
 

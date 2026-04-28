@@ -102,7 +102,7 @@ function ParticleLayer({ enabled }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     let raf;
-    const colors = ["#E8823A","#F0A500","rgba(196,98,45,0.6)"];
+    const colors = ["#1A6666","#1A6666","rgba(26,102,102,0.6)"];
     const particles = Array.from({length:18},()=>spawn(canvas.width, canvas.height));
     function spawn(w,h){
       return {
@@ -253,7 +253,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     if (!allDone) return;
     setConfettiFired(true);
     setShowToast(true);
-    const colors = ["#E8823A","#F0A500","#C4622D","#F5E6D3"];
+    const colors = ["#1A6666","#1A6666","#1A6666","#FFFFFF"];
     confetti({ particleCount: 200, spread: 160, origin: { y: 0.5 }, colors });
     setTimeout(()=> confetti({ particleCount: 100, spread: 120, origin: { x: 0.2, y: 0.4 }, colors }), 250);
     setTimeout(()=> confetti({ particleCount: 100, spread: 120, origin: { x: 0.8, y: 0.4 }, colors }), 500);
@@ -446,7 +446,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
   return (
     <div style={{position:"relative",border:`1px solid ${t.border}`,borderRadius:14,overflow:"hidden",background:t.surface,boxShadow:t.shadow,height:`calc(100vh - ${mobile?220:200}px)`,minHeight:520,display:"flex",flexDirection:"column"}}>
       <style>{`
-        @keyframes fc-pulse { 0%,100%{transform:scale(1);box-shadow:0 0 14px rgba(232,130,58,0.5);} 50%{transform:scale(1.02);box-shadow:0 0 22px rgba(232,130,58,0.7);} }
+        @keyframes fc-pulse { 0%,100%{transform:scale(1);box-shadow:0 0 14px rgba(26,102,102,0.5);} 50%{transform:scale(1.02);box-shadow:0 0 22px rgba(26,102,102,0.7);} }
         @keyframes fc-shimmer { 0%{background-position:-200% 50%;} 100%{background-position:200% 50%;} }
         @keyframes fc-dash { to { stroke-dashoffset: -20; } }
         @keyframes fc-shine { 0%{transform:translateX(-100%);} 100%{transform:translateX(200%);} }
@@ -454,9 +454,9 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         @media (prefers-reduced-motion: reduce) {
           .fc-pulse, .fc-shimmer-bg, .fc-dash-anim, .fc-shine, .fc-ember { animation: none !important; }
         }
-        .fc-arrow:hover { filter: drop-shadow(0 0 4px #E8823A); }
+        .fc-arrow:hover { filter: drop-shadow(0 0 4px #1A6666); }
         .fc-node-glass {
-          background: rgba(61,36,16,0.55);
+          background: rgba(240,244,244,0.55);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
         }
@@ -485,7 +485,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
               {showTemplates && (
                 <>
                   <div onClick={()=>setShowTemplates(false)} style={{position:"fixed",inset:0,zIndex:50}}/>
-                  <div style={{position:"absolute",top:36,left:0,zIndex:51,background:t.surface,border:`1px solid ${t.border}`,borderRadius:8,minWidth:220,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>
+                  <div style={{position:"absolute",top:36,left:0,zIndex:51,background:t.surface,border:`1px solid ${t.border}`,borderRadius:8,minWidth:220,boxShadow:"0 8px 24px rgba(8,43,43,0.12)"}}>
                     {TEMPLATES.map(name => (
                       <button key={name} onClick={()=>{
                         const rect = canvasRef.current.getBoundingClientRect();
@@ -507,8 +507,8 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         ) : (
           <>
             <span style={{color:t.text,fontSize:15,fontWeight:400,letterSpacing:"0.04em"}}>Your Case Progress — <span style={{color:t.accentLight,fontWeight:500}}>{progress}% Complete</span></span>
-            <div style={{flex:1,position:"relative",height:10,background:"rgba(245,230,211,0.08)",borderRadius:99,overflow:"hidden",marginLeft:14}}>
-              <div style={{width:`${progress}%`,height:"100%",background:`linear-gradient(90deg, #C4622D, #E8823A, #F0A500)`,boxShadow:"0 0 12px #F0A500",borderRadius:99,transition:"width 0.6s ease"}}>
+            <div style={{flex:1,position:"relative",height:10,background:"rgba(8,43,43,0.08)",borderRadius:99,overflow:"hidden",marginLeft:14}}>
+              <div style={{width:`${progress}%`,height:"100%",background:`linear-gradient(90deg, #1A6666, #1A6666, #1A6666)`,boxShadow:"0 0 12px #1A6666",borderRadius:99,transition:"width 0.6s ease"}}>
                 <div className="fc-shine" style={{position:"absolute",inset:0,background:"linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)",animation:reducedMotion?"none":"fc-shine 2.4s linear infinite"}}/>
               </div>
             </div>
@@ -531,7 +531,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         style={{
           flex:1, position:"relative", overflow:"hidden", cursor: isInternal ? (tool==="rect"?"crosshair":tool==="arrow"?"alias":tool==="delete"?"not-allowed":"grab") : "grab",
           backgroundColor: t.bg,
-          backgroundImage: `radial-gradient(circle, rgba(196,98,45,0.18) 1px, transparent 1px)`,
+          backgroundImage: `radial-gradient(circle, rgba(26,102,102,0.18) 1px, transparent 1px)`,
           backgroundSize: `${20*zoom}px ${20*zoom}px`,
           backgroundPosition: `${pan.x}px ${pan.y}px`,
         }}
@@ -539,7 +539,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         {/* Vignette + particles for client view */}
         {!isInternal && (
           <>
-            <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,background:"radial-gradient(ellipse at center, rgba(232,130,58,0.10), transparent 65%)"}}/>
+            <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:1,background:"radial-gradient(ellipse at center, rgba(26,102,102,0.10), transparent 65%)"}}/>
             <ParticleLayer enabled={!reducedMotion}/>
           </>
         )}
@@ -549,7 +549,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
           <svg style={{position:"absolute",left:-2000,top:-2000,width:6000,height:6000,overflow:"visible",pointerEvents:"none"}}>
             <defs>
               <marker id={`arrowhead-${projectId}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#C4622D"/>
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#1A6666"/>
               </marker>
             </defs>
             <g transform="translate(2000, 2000)">
@@ -561,7 +561,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
                 return (
                   <g key={a.id} className="fc-arrow" style={{pointerEvents:"auto",cursor: isInternal?"pointer":"default"}}
                      onClick={()=>{ if(isInternal) deleteArrow(a.id); }}>
-                    <path d={d} fill="none" stroke="#C4622D" strokeWidth="2.2" strokeDasharray="6 5"
+                    <path d={d} fill="none" stroke="#1A6666" strokeWidth="2.2" strokeDasharray="6 5"
                           markerEnd={`url(#arrowhead-${projectId})`}
                           style={{strokeDashoffset:0, animation: reducedMotion ? "none" : "fc-dash 0.9s linear infinite"}}/>
                     {/* invisible wider hit area */}
@@ -642,8 +642,8 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
       {showToast && !isInternal && (
         <div style={{
           position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",zIndex:100,
-          background:"rgba(61,36,16,0.95)",border:`1px solid #E8823A`,borderRadius:14,
-          padding:"22px 36px",boxShadow:"0 12px 48px rgba(0,0,0,0.6), 0 0 40px rgba(232,130,58,0.4)",
+          background:"rgba(240,244,244,0.95)",border:`1px solid #1A6666`,borderRadius:14,
+          padding:"22px 36px",boxShadow:"0 12px 48px rgba(8,43,43,0.18), 0 0 40px rgba(26,102,102,0.4)",
           color:t.text,fontSize:22,fontWeight:400,letterSpacing:"0.04em",fontFamily:"inherit",
           animation:"fc-shimmer 4s ease-in-out infinite",
           textAlign:"center",
@@ -666,15 +666,15 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
   const stateStyle = {};
   if (isInProgress && !reducedMotion) {
     stateStyle.animation = "fc-pulse 2.5s ease-in-out infinite";
-    stateStyle.borderColor = "#E8823A";
+    stateStyle.borderColor = "#1A6666";
   } else if (isInProgress) {
-    stateStyle.boxShadow = "0 0 14px rgba(232,130,58,0.5)";
-    stateStyle.borderColor = "#E8823A";
+    stateStyle.boxShadow = "0 0 14px rgba(26,102,102,0.5)";
+    stateStyle.borderColor = "#1A6666";
   }
   if (isPending) { stateStyle.opacity = 0.55; }
 
   const statusLabel = STATUS_LABELS[node.status]?.[isInternal?"admin":"client"] || node.status;
-  const statusColor = isDone ? "#F0A500" : isInProgress ? "#E8823A" : "#D4A57A";
+  const statusColor = isDone ? "#1A6666" : isInProgress ? "#1A6666" : "#7AA8A8";
 
   return (
     <div
@@ -685,11 +685,11 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
       style={{
         position:"absolute", left: node.position_x, top: node.position_y,
         width: NODE_W, height: NODE_H, borderRadius: 12,
-        background: isInternal ? "rgba(61,36,16,0.85)" : "rgba(61,36,16,0.55)",
+        background: isInternal ? "rgba(240,244,244,0.85)" : "rgba(240,244,244,0.55)",
         backdropFilter: isInternal ? "none" : "blur(12px)",
         WebkitBackdropFilter: isInternal ? "none" : "blur(12px)",
-        border: `${selected?2:1}px solid ${selected ? "#E8823A" : isArrowSrc ? "#F0A500" : "rgba(196,98,45,0.4)"}`,
-        boxShadow: selected ? "0 0 0 3px rgba(232,130,58,0.2), 0 4px 16px rgba(0,0,0,0.4)" : "0 4px 14px rgba(0,0,0,0.3)",
+        border: `${selected?2:1}px solid ${selected ? "#1A6666" : isArrowSrc ? "#1A6666" : "rgba(26,102,102,0.4)"}`,
+        boxShadow: selected ? "0 0 0 3px rgba(26,102,102,0.2), 0 4px 16px rgba(8,43,43,0.12)" : "0 4px 14px rgba(8,43,43,0.18)",
         cursor: isInternal ? "move" : "pointer",
         userSelect:"none", pointerEvents:"auto",
         padding: "12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between",
@@ -700,13 +700,13 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
       onMouseEnter={e => {
         if (!isInternal) {
           e.currentTarget.style.transform = "translateY(-4px)";
-          e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(232,130,58,0.3)";
+          e.currentTarget.style.boxShadow = "0 8px 24px rgba(8,43,43,0.15), 0 0 20px rgba(26,102,102,0.3)";
         }
       }}
       onMouseLeave={e => {
         if (!isInternal) {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.3)";
+          e.currentTarget.style.boxShadow = "0 4px 14px rgba(8,43,43,0.18)";
         }
       }}
     >
@@ -714,7 +714,7 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
       {isDone && !reducedMotion && (
         <div style={{
           position:"absolute",inset:0,borderRadius:12,pointerEvents:"none",
-          background:"linear-gradient(110deg, transparent 30%, rgba(240,165,0,0.35) 50%, transparent 70%)",
+          background:"linear-gradient(110deg, transparent 30%, rgba(26,102,102,0.35) 50%, transparent 70%)",
           backgroundSize:"200% 100%",
           animation:"fc-shimmer 6s ease-in-out infinite",
         }}/>
@@ -728,7 +728,7 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
             onBlur={onTitleBlur}
             onKeyDown={e=>{ if(e.key==="Enter"){ e.target.blur(); } if(e.key==="Escape"){ onTitleChange(""); onTitleBlur(); } }}
             onClick={e=>e.stopPropagation()}
-            style={{flex:1,background:"rgba(0,0,0,0.3)",border:`1px solid ${t.accent}`,borderRadius:4,color:t.text,fontSize:14,padding:"3px 6px",fontFamily:"inherit",outline:"none"}}
+            style={{flex:1,background:"transparent",border:`1px solid ${t.accent}`,borderRadius:4,color:t.text,fontSize:14,padding:"3px 6px",fontFamily:"inherit",outline:"none"}}
           />
         ) : (
           <div style={{flex:1,color:t.text,fontSize:14,fontWeight:400,letterSpacing:"0.02em",lineHeight:1.25}}>
@@ -748,7 +748,7 @@ function NodeView({ node, t, isInternal, selected, isArrowSrc, editingTitle, edi
             onChange={(e)=>onStatusChange(e.target.value)}
             onClick={e=>e.stopPropagation()}
             onMouseDown={e=>e.stopPropagation()}
-            style={{background:"rgba(0,0,0,0.25)",border:`1px solid ${statusColor}40`,borderRadius:99,color:statusColor,fontSize:10,fontWeight:500,padding:"3px 8px",fontFamily:"inherit",cursor:"pointer",outline:"none",letterSpacing:"0.04em"}}>
+            style={{background:"transparent",border:`1px solid 40`,borderRadius:99,color:statusColor,fontSize:10,fontWeight:500,padding:"3px 8px",fontFamily:"inherit",cursor:"pointer",outline:"none",letterSpacing:"0.04em"}}>
             <option value="pending" style={{background:t.surface,color:t.text}}>Pending</option>
             <option value="in_progress" style={{background:t.surface,color:t.text}}>In Progress</option>
             <option value="done" style={{background:t.surface,color:t.text}}>Done</option>
@@ -898,7 +898,7 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
     if (!error && data) { setComments(c => [...c, data]); setNewComment(""); }
   }
 
-  const statusColor = node.status==="done" ? "#F0A500" : node.status==="in_progress" ? "#E8823A" : "#D4A57A";
+  const statusColor = node.status==="done" ? "#1A6666" : node.status==="in_progress" ? "#1A6666" : "#7AA8A8";
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
@@ -946,13 +946,13 @@ function SidePanel({ t, mobile, onClose, children }) {
   useEffect(() => { requestAnimationFrame(()=>setEnter(true)); }, []);
   return (
     <>
-      <div onClick={onClose} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.3)",zIndex:40,opacity:enter?1:0,transition:"opacity 0.25s"}}/>
+      <div onClick={onClose} style={{position:"absolute",inset:0,background:"rgba(8,43,43,0.18)",zIndex:40,opacity:enter?1:0,transition:"opacity 0.25s"}}/>
       <div style={{
         position:"absolute",top:0,right:0,bottom:0,zIndex:41,
         width: mobile ? "100%" : 420,
         background: t.surface,
         borderLeft: `1px solid ${t.border}`,
-        boxShadow: "-12px 0 40px rgba(0,0,0,0.5)",
+        boxShadow: "-12px 0 40px rgba(8,43,43,0.15)",
         padding: "24px 26px",
         overflowY:"auto",
         transform: enter ? "translateX(0)" : "translateX(100%)",
@@ -968,7 +968,7 @@ function SidePanel({ t, mobile, onClose, children }) {
 function CommentRow({ c, t }) {
   return (
     <div style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${t.border}`}}>
-      <div style={{width:30,height:30,borderRadius:"50%",background:t.accent,color:"#2C1A0E",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,flexShrink:0,letterSpacing:"0.02em"}}>{c.author_initial || (c.author_name?.[0]?.toUpperCase()) || "?"}</div>
+      <div style={{width:30,height:30,borderRadius:"50%",background:t.accent,color:"#FFFFFF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,flexShrink:0,letterSpacing:"0.02em"}}>{c.author_initial || (c.author_name?.[0]?.toUpperCase()) || "?"}</div>
       <div style={{flex:1,minWidth:0}}>
         <div style={{display:"flex",alignItems:"baseline",gap:8}}>
           <span style={{color:t.text,fontSize:13,fontWeight:500}}>{c.author_name || "Anonymous"}</span>
@@ -998,17 +998,17 @@ function Minimap({ nodes, arrows, t, pan, zoom, viewport }) {
   const vpW = viewport.width / zoom;
   const vpH = viewport.height / zoom;
   return (
-    <div style={{position:"absolute",bottom:14,right:14,width:mmW,height:mmH,background:"rgba(44,26,14,0.85)",border:`1px solid ${t.border}`,borderRadius:8,overflow:"hidden",zIndex:5,backdropFilter:"blur(8px)"}}>
+    <div style={{position:"absolute",bottom:14,right:14,width:mmW,height:mmH,background:"rgba(255,255,255,0.85)",border:`1px solid ${t.border}`,borderRadius:8,overflow:"hidden",zIndex:5,backdropFilter:"blur(8px)"}}>
       <svg width={mmW} height={mmH} style={{display:"block"}}>
         {nodes.map(n => (
           <rect key={n.id}
             x={(n.position_x - minX)*s} y={(n.position_y - minY)*s}
             width={NODE_W*s} height={NODE_H*s}
-            fill={n.status==="done"?"#F0A500":n.status==="in_progress"?"#E8823A":"#D4A57A"}
+            fill={n.status==="done"?"#1A6666":n.status==="in_progress"?"#1A6666":"#7AA8A8"}
             opacity="0.8" rx="2"/>
         ))}
         <rect x={(vpX - minX)*s} y={(vpY - minY)*s} width={vpW*s} height={vpH*s}
-          fill="none" stroke="#F5E6D3" strokeWidth="1.2" opacity="0.6"/>
+          fill="none" stroke="#1A6666" strokeWidth="1.2" opacity="0.6"/>
       </svg>
     </div>
   );
@@ -1064,7 +1064,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE flowchart_nodes, flowchart_arrows,
       <p style={{color:t.textSub,fontSize:14,lineHeight:1.6,fontWeight:300,marginBottom:18}}>
         The flowchart feature needs four small tables in Supabase. Open your Supabase project → <strong style={{color:t.text}}>SQL Editor</strong> → paste the script below → click <strong style={{color:t.text}}>Run</strong>. Then refresh this page.
       </p>
-      <pre style={{background:"#1f1108",border:`1px solid ${t.border}`,borderRadius:8,padding:16,color:t.text,fontSize:11,fontFamily:"'Geist Mono', monospace",overflowX:"auto",lineHeight:1.45,maxHeight:380,overflowY:"auto"}}>{sql}</pre>
+      <pre style={{background:"#F0F4F4",border:`1px solid ${t.border}`,borderRadius:8,padding:16,color:t.text,fontSize:11,fontFamily:"'Geist Mono', monospace",overflowX:"auto",lineHeight:1.45,maxHeight:380,overflowY:"auto"}}>{sql}</pre>
       <button onClick={()=>{navigator.clipboard?.writeText(sql);}} style={{...primaryBtn(t),marginTop:12}}>Copy SQL</button>
     </div>
   );
@@ -1101,7 +1101,7 @@ function inputStyle(t) {
   };
 }
 function primaryBtn(t) {
-  return { background:"#E8823A", color:"#2C1A0E", border:"none", borderRadius:6, padding:"7px 14px", fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit", letterSpacing:"0.04em" };
+  return { background:"#1A6666", color:"#FFFFFF", border:"none", borderRadius:6, padding:"7px 14px", fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit", letterSpacing:"0.04em" };
 }
 function ghostBtn(t) {
   return { background:"transparent", color:t.text, border:`1px solid ${t.accent}`, borderRadius:6, padding:"7px 14px", fontSize:12, fontWeight:500, cursor:"pointer", fontFamily:"inherit", letterSpacing:"0.04em" };

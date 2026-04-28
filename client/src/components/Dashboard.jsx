@@ -15,18 +15,18 @@ function useIsMobile(breakpoint=768){
   return mobile;
 }
 
-// Warm brown / amber palette — single dark theme (rebrand 2026)
+// Light teal palette — single light theme (rebrand 2026)
 const warmTheme = {
-  bg:"#2C1A0E", surface:"#3D2410", surfaceHigh:"#4A2D14",
-  border:"rgba(196,98,45,0.2)", text:"#F5E6D3", textSub:"#D4A57A", textDim:"rgba(245,230,211,0.4)",
-  accent:"#C4622D", accentLight:"#E8823A", accentSoft:"rgba(196,98,45,0.12)",
-  green:"#F0A500", greenSoft:"rgba(240,165,0,0.1)",
-  amber:"#F0A500", amberSoft:"rgba(240,165,0,0.1)",
-  red:"#E07856", redSoft:"rgba(224,120,86,0.1)",
-  purple:"#B5764D", purpleSoft:"rgba(181,118,77,0.1)",
-  shadow:"0 1px 3px rgba(0,0,0,0.5)",
+  bg:"#FFFFFF", surface:"#F0F4F4", surfaceHigh:"#E5EDED",
+  border:"#C5D4D4", text:"#082B2B", textSub:"#3A6666", textDim:"rgba(8,43,43,0.38)",
+  accent:"#1A6666", accentLight:"#0F4444", accentSoft:"rgba(26,102,102,0.08)",
+  green:"#1A6666", greenSoft:"rgba(26,102,102,0.08)",
+  amber:"#D97706", amberSoft:"rgba(217,119,6,0.08)",
+  red:"#DC2626", redSoft:"rgba(220,38,38,0.08)",
+  purple:"#7C3AED", purpleSoft:"rgba(124,58,237,0.08)",
+  shadow:"0 1px 3px rgba(8,43,43,0.06)",
   // Flowchart-specific tokens
-  glassSurface:"rgba(61,36,16,0.6)", goldGlow:"#F0A500",
+  glassSurface:"rgba(240,244,244,0.7)", goldGlow:"#1A6666",
 };
 const themes = { dark: warmTheme, light: warmTheme };
 
@@ -1789,7 +1789,7 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
       fontFamily:"'Cormorant Garamond', Georgia, serif",color:t.text,padding:24,
     }}>
       <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
-        <LogoLight h={28}/>
+        <LogoDark h={28}/>
         <div style={{textAlign:"center"}}>
           <h1 style={{fontSize:32,fontWeight:300,letterSpacing:"-0.04em",margin:"0 0 16px",color:t.text}}>
             Welcome, {firstName}.
@@ -2259,7 +2259,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
               {sidebarOpen?"✕":"☰"}
             </button>
           )}
-          <LogoLight h={mobile?16:20}/>
+          <LogoDark h={mobile?16:20}/>
           {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:mobile?6:10,flexWrap:mobile?"wrap":"nowrap"}}>
