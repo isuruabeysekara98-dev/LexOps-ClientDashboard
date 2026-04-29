@@ -1,20 +1,17 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
+import ReactFlow, {
+  Background, BackgroundVariant,
+  ReactFlowProvider, useReactFlow,
+  Handle, Position, ConnectionMode, MarkerType,
+  applyNodeChanges, applyEdgeChanges, addEdge,
+} from "reactflow";
+import "reactflow/dist/style.css";
 import { supabase } from "@/lib/supabase.js";
 import confetti from "canvas-confetti";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
+// CONSTANTS — Frost & Teal palette
 // ─────────────────────────────────────────────────────────────────────────────
-const NODE_W = 160;
-const NODE_H = 60;
-const GRID = 24;
-const ZOOM_MIN = 0.8;
-const ZOOM_MAX = 1.5;
-
-const STATUS_CYCLE = { pending: "in_progress", in_progress: "done", done: "pending" };
-const STATUS_LABEL_ADMIN = { pending: "Pending", in_progress: "In Progress", done: "Done" };
-const STATUS_LABEL_CLIENT = { pending: "Upcoming", in_progress: "Currently Working On", done: "Completed" };
-
 const COLOR = {
   bg: "#FFFFFF",
   panel: "#F0F4F4",
@@ -24,62 +21,173 @@ const COLOR = {
   subtle: "#7AA8A8",
   accent: "#1A6666",
   arrow: "#7AA8A8",
-  arrowHover: "#1A6666",
+  arrowSelected: "#1A6666",
   dot: "#C5D4D4",
 };
+const NODE_W = 180;
+const NODE_H = 64;
+const STATUS_CYCLE = { pending: "in_progress", in_progress: "done", done: "pending" };
+const STATUS_LABEL_ADMIN = { pending: "Pending", in_progress: "In Progress", done: "✓ Done" };
+const STATUS_LABEL_CLIENT = { pending: "Upcoming", in_progress: "Currently Working On", done: "Completed" };
 
-function snap(v) { return Math.round(v / GRID) * GRID; }
 function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
-// Pick the closest of 4 sides (top/right/bottom/left) of a node for arrow attachment.
-function nodeAnchor(node, side) {
-  const cx = node.position_x + NODE_W / 2;
-  const cy = node.position_y + NODE_H / 2;
-  if (side === "top")    return { x: cx, y: node.position_y };
-  if (side === "bottom") return { x: cx, y: node.position_y + NODE_H };
-  if (side === "left")   return { x: node.position_x, y: cy };
-  return { x: node.position_x + NODE_W, y: cy };
-}
-function bestSide(srcNode, tgtPoint) {
-  // Choose the source side facing the target point.
-  const cx = srcNode.position_x + NODE_W / 2;
-  const cy = srcNode.position_y + NODE_H / 2;
-  const dx = tgtPoint.x - cx;
-  const dy = tgtPoint.y - cy;
-  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left";
-  return dy > 0 ? "bottom" : "top";
-}
-function arrowPath(srcNode, tgtNode) {
-  const sCenter = { x: srcNode.position_x + NODE_W/2, y: srcNode.position_y + NODE_H/2 };
-  const tCenter = { x: tgtNode.position_x + NODE_W/2, y: tgtNode.position_y + NODE_H/2 };
-  const sSide = bestSide(srcNode, tCenter);
-  const tSide = bestSide(tgtNode, sCenter);
-  const s = nodeAnchor(srcNode, sSide);
-  const t = nodeAnchor(tgtNode, tSide);
-  // Quadratic bezier control point bowed slightly perpendicular to the line.
-  const mx = (s.x + t.x) / 2;
-  const my = (s.y + t.y) / 2;
-  const dx = t.x - s.x, dy = t.y - s.y;
-  const len = Math.max(1, Math.hypot(dx, dy));
-  const bow = Math.min(60, len * 0.15);
-  const nx = -dy / len, ny = dx / len; // perpendicular unit vector
-  const cx = mx + nx * bow;
-  const cy = my + ny * bow;
-  return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
-}
-function previewArrowPath(s, t) {
-  const mx = (s.x + t.x) / 2;
-  const my = (s.y + t.y) / 2;
-  const dx = t.x - s.x, dy = t.y - s.y;
-  const len = Math.max(1, Math.hypot(dx, dy));
-  const bow = Math.min(60, len * 0.15);
-  const nx = -dy / len, ny = dx / len;
-  const cx = mx + nx * bow;
-  const cy = my + ny * bow;
-  return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
+// Builder-context for custom node ↔ parent communication
+const FCContext = createContext({});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM NODE — clean white rectangle with editable title + status pill
+// ─────────────────────────────────────────────────────────────────────────────
+function StepNode({ id, data, selected }) {
+  const ctx = useContext(FCContext);
+  const { tool, isInternal, editingTitleId, beginTitleEdit, commitTitle, cycleStatus, openDetail } = ctx;
+  const editing = editingTitleId === id;
+  const [val, setVal] = useState(data.title);
+
+  useEffect(() => {
+    if (editing) setVal(data.title);
+  }, [editing, data.title]);
+
+  const isDone = data.status === "done";
+  const isInProgress = data.status === "in_progress";
+  const showHandles = isInternal && tool === "arrow";
+
+  const badgeStyle = isDone
+    ? { background: COLOR.accent, color: "#FFFFFF", border: "none" }
+    : isInProgress
+    ? { background: "rgba(26,102,102,0.10)", color: COLOR.accent, border: `1px solid ${COLOR.accent}` }
+    : { background: COLOR.panel, color: COLOR.subtle, border: "none" };
+  const badgeText = isInternal
+    ? STATUS_LABEL_ADMIN[data.status] || "Pending"
+    : STATUS_LABEL_CLIENT[data.status] || "Upcoming";
+
+  const borderColor = selected
+    ? COLOR.accent
+    : (isInternal && tool === "arrow") ? COLOR.subtle : COLOR.border;
+
+  function onClickNode(e) {
+    if (!isInternal) {
+      e.stopPropagation();
+      openDetail?.(id);
+      return;
+    }
+    if (tool === "text" && !editing) {
+      e.stopPropagation();
+      beginTitleEdit?.(id);
+    }
+  }
+  function onDoubleClickNode(e) {
+    if (!isInternal) return;
+    e.stopPropagation();
+    if (!editing) beginTitleEdit?.(id);
+  }
+  function onPillClick(e) {
+    e.stopPropagation();
+    if (!isInternal) return;
+    cycleStatus?.(id);
+  }
+
+  return (
+    <div
+      onClick={onClickNode}
+      onDoubleClick={onDoubleClickNode}
+      style={{
+        width: NODE_W, height: NODE_H,
+        position: "relative",
+        background: isInternal ? "#FFFFFF" : "rgba(255,255,255,0.78)",
+        backdropFilter: isInternal ? "none" : "blur(10px)",
+        WebkitBackdropFilter: isInternal ? "none" : "blur(10px)",
+        border: `1.5px solid ${borderColor}`,
+        borderRadius: 10,
+        boxShadow: selected
+          ? "0 0 0 3px rgba(26,102,102,0.18), 0 4px 14px rgba(8,43,43,0.10)"
+          : "0 2px 8px rgba(8,43,43,0.08)",
+        padding: "10px 14px",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        cursor: !isInternal ? "pointer" : (tool === "text" ? "text" : "default"),
+        transition: "border-color 0.15s, box-shadow 0.15s",
+        animation: (isInProgress && !data.reducedMotion) ? "fc-pulse 2.6s ease-in-out infinite" : "none",
+      }}
+    >
+      {/* Title */}
+      {editing ? (
+        <input
+          autoFocus
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={() => commitTitle?.(id, val)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
+            else if (e.key === "Escape") { e.target.blur(); }
+          }}
+          onFocus={(e) => e.target.select()}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            width: "100%", textAlign: "center", background: "transparent",
+            border: `1px solid ${COLOR.accent}`, borderRadius: 4,
+            color: COLOR.text, fontSize: 14, padding: "4px 6px",
+            fontFamily: "Inter, sans-serif", outline: "none",
+          }}
+        />
+      ) : (
+        <div style={{
+          width: "100%", textAlign: "center",
+          color: COLOR.text, fontSize: 14, fontWeight: 500,
+          fontFamily: "Inter, sans-serif", lineHeight: 1.25,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {data.title}
+        </div>
+      )}
+
+      {/* Status pill — bottom-right */}
+      <button
+        onClick={onPillClick}
+        onMouseDown={(e) => e.stopPropagation()}
+        title={isInternal ? "Click to cycle status" : ""}
+        style={{
+          position: "absolute", bottom: -10, right: 10,
+          fontSize: 10, fontWeight: 600,
+          padding: "3px 9px", borderRadius: 99,
+          fontFamily: "Inter, sans-serif",
+          letterSpacing: "0.02em",
+          cursor: isInternal ? "pointer" : "default",
+          ...badgeStyle,
+        }}
+      >
+        {badgeText}
+      </button>
+
+      {/* Connection handles — only visible when arrow tool active (admin) */}
+      {["top", "right", "bottom", "left"].map((side) => {
+        const pos = side === "top" ? Position.Top
+                  : side === "right" ? Position.Right
+                  : side === "bottom" ? Position.Bottom
+                  : Position.Left;
+        return (
+          <Handle
+            key={side}
+            id={side}
+            type="source"
+            position={pos}
+            isConnectable={showHandles}
+            style={{
+              width: 11, height: 11,
+              background: "#FFFFFF",
+              border: `1.5px solid ${COLOR.accent}`,
+              opacity: showHandles ? 1 : 0,
+              pointerEvents: showHandles ? "auto" : "none",
+              transition: "opacity 0.15s",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,30 +244,36 @@ function ParticleLayer({ enabled }) {
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [enabled]);
   if (!enabled) return null;
-  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2 }} />;
+  return <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT
+// MAIN — wrapped in ReactFlowProvider so Inner can use useReactFlow()
 // ─────────────────────────────────────────────────────────────────────────────
-export default function FlowchartTab({ projectId, isInternal, userProfile, t, mobile }) {
+export default function FlowchartTab(props) {
+  return (
+    <ReactFlowProvider>
+      <FlowchartInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INNER — all the logic
+// ─────────────────────────────────────────────────────────────────────────────
+const NODE_TYPES = { stepNode: StepNode };
+
+function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
   const [nodes, setNodes] = useState([]);
-  const [arrows, setArrows] = useState([]);
+  const [edges, setEdges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [missingTables, setMissingTables] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(""); // "Saving…" | "Saved ✓" | ""
+  const [saveStatus, setSaveStatus] = useState("");
 
   // Builder state
-  const [tool, setTool] = useState("hand"); // hand | rect | arrow | text
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const [tool, setTool] = useState("hand");
   const [editingTitleId, setEditingTitleId] = useState(null);
-  const [editingTitleVal, setEditingTitleVal] = useState("");
-  const [hoveredNodeId, setHoveredNodeId] = useState(null);
-  const [arrowDraft, setArrowDraft] = useState(null); // { fromNodeId, fromSide, toX, toY }
-  const [selectedId, setSelectedId] = useState(null);
-  const [contextMenu, setContextMenu] = useState(null); // { kind: "node"|"arrow", id, x, y }
-  const [textTooltip, setTextTooltip] = useState(null); // { x, y } in screen coords
+  const [contextMenu, setContextMenu] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
 
   // Client state
@@ -167,23 +281,39 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
   const [confettiFired, setConfettiFired] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
-  const canvasRef = useRef(null);
-  const draggingNode = useRef(null);
-  const panning = useRef(null);
+  const wrapperRef = useRef(null);
   const reducedMotion = useMemo(() => prefersReducedMotion(), []);
-  const tooltipTimerRef = useRef(null);
-
-  // Mirror tool + arrowDraft in refs so event handlers always read the latest value
-  const toolRef = useRef(tool);
-  useEffect(() => { toolRef.current = tool; }, [tool]);
-  const arrowDraftRef = useRef(arrowDraft);
-  useEffect(() => { arrowDraftRef.current = arrowDraft; }, [arrowDraft]);
+  const rf = useReactFlow();
 
   const flashSaved = useCallback(() => {
     setSaveStatus("Saving…");
     setTimeout(() => setSaveStatus("Saved ✓"), 250);
     setTimeout(() => setSaveStatus(""), 1700);
   }, []);
+
+  // ───── Convert between Supabase rows and React Flow shapes ─────
+  const toRfNode = useCallback((row) => ({
+    id: row.id,
+    type: "stepNode",
+    position: { x: row.position_x || 0, y: row.position_y || 0 },
+    data: {
+      title: row.title || "Step",
+      status: row.status || "pending",
+      reducedMotion,
+      raw: row,
+    },
+    draggable: true,
+  }), [reducedMotion]);
+
+  const toRfEdge = useCallback((row) => ({
+    id: row.id,
+    source: row.source_node_id,
+    target: row.target_node_id,
+    type: "default",
+    animated: false,
+    style: { stroke: COLOR.arrow, strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: COLOR.arrow, width: 16, height: 16 },
+  }), []);
 
   // ───── Load + realtime ─────
   const load = useCallback(async () => {
@@ -196,14 +326,14 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
       setMissingTables(true); setLoading(false); return;
     }
     setMissingTables(false);
-    setNodes(nRes.data || []);
-    setArrows(aRes.data || []);
+    setNodes((nRes.data || []).map(toRfNode));
+    setEdges((aRes.data || []).map(toRfEdge));
     setLoading(false);
-  }, [projectId]);
+  }, [projectId, toRfNode, toRfEdge]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime with status tracking, visibility re-subscribe, exponential backoff (500/1000/2000/4000ms)
+  // Realtime with reconnect / visibility resilience
   const channelRef = useRef(null);
   const subscribedRef = useRef(false);
   const retryRef = useRef(0);
@@ -249,10 +379,10 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     };
   }, [projectId, missingTables, load]);
 
-  // Confetti when 100% complete (client view)
+  // Confetti when 100%
   useEffect(() => {
     if (isInternal || confettiFired || nodes.length === 0 || reducedMotion) return;
-    const allDone = nodes.every(n => n.status === "done");
+    const allDone = nodes.every(n => n.data.status === "done");
     if (!allDone) return;
     setConfettiFired(true);
     setShowToast(true);
@@ -263,7 +393,7 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     setTimeout(() => setShowToast(false), 6000);
   }, [nodes, isInternal, confettiFired, reducedMotion]);
 
-  // ───── DB mutations (with silent retry up to 3 times) ─────
+  // ───── DB helpers ─────
   async function withRetry(fn) {
     for (let attempt = 0; attempt < 3; attempt++) {
       const { error, data } = await fn();
@@ -272,348 +402,309 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     }
     return { data: null };
   }
-  function createNode(x, y, title = "Step") {
-    const sx = snap(x), sy = snap(y);
-    // Optimistic: append a temp node synchronously and return its id immediately
-    // so the caller can switch to inline edit without awaiting Supabase.
+
+  const persistNode = useCallback(async (id, patch) => {
+    flashSaved();
+    await withRetry(() => supabase.from("flowchart_nodes").update(patch).eq("id", id).select());
+  }, [flashSaved]);
+
+  const dbCreateNode = useCallback((x, y) => {
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const optimistic = {
-      id: tempId, project_id: projectId, title, status: "pending",
-      description: "", estimated_date: null,
-      position_x: sx, position_y: sy, _temp: true,
+      id: tempId, type: "stepNode",
+      position: { x: Math.round(x), y: Math.round(y) },
+      data: { title: "Step", status: "pending", reducedMotion, raw: null },
+      draggable: true,
     };
-    setNodes(ns => [...ns, optimistic]);
+    setNodes((ns) => [...ns, optimistic]);
     flashSaved();
-    // Background save → swap temp for real, preserving any user edits made meanwhile.
     (async () => {
-      const { data } = await withRetry(() => supabase.from("flowchart_nodes").insert({
-        project_id: projectId, title, status: "pending",
-        description: "", estimated_date: null,
-        position_x: sx, position_y: sy,
-      }).select().single());
+      const { data } = await withRetry(() =>
+        supabase.from("flowchart_nodes").insert({
+          project_id: projectId, title: "Step", status: "pending",
+          description: "", estimated_date: null,
+          position_x: Math.round(x), position_y: Math.round(y),
+        }).select().single()
+      );
       if (!data) {
-        setNodes(ns => ns.filter(n => n.id !== tempId));
+        setNodes((ns) => ns.filter((n) => n.id !== tempId));
         return;
       }
-      setNodes(ns => {
-        const local = ns.find(n => n.id === tempId);
-        const merged = { ...data };
+      setNodes((ns) => {
+        const local = ns.find((n) => n.id === tempId);
+        const merged = toRfNode(data);
         if (local) {
-          // Preserve any title / status / position changes typed during the round-trip
-          if (local.title !== title) merged.title = local.title;
-          if (local.status !== "pending") merged.status = local.status;
-          if (local.position_x !== sx) merged.position_x = local.position_x;
-          if (local.position_y !== sy) merged.position_y = local.position_y;
+          if (local.data.title !== "Step") merged.data.title = local.data.title;
+          if (local.data.status !== "pending") merged.data.status = local.data.status;
+          merged.position = local.position;
         }
-        // Persist any drift back to Supabase
         const drift = {};
-        if (merged.title !== title) drift.title = merged.title;
-        if (merged.status !== "pending") drift.status = merged.status;
-        if (merged.position_x !== sx) drift.position_x = merged.position_x;
-        if (merged.position_y !== sy) drift.position_y = merged.position_y;
+        if (merged.data.title !== "Step") drift.title = merged.data.title;
+        if (merged.data.status !== "pending") drift.status = merged.data.status;
+        if (merged.position.x !== Math.round(x)) drift.position_x = Math.round(merged.position.x);
+        if (merged.position.y !== Math.round(y)) drift.position_y = Math.round(merged.position.y);
         if (Object.keys(drift).length) {
           withRetry(() => supabase.from("flowchart_nodes").update(drift).eq("id", data.id).select());
         }
-        return ns.map(n => n.id === tempId ? merged : n);
+        return ns.map((n) => (n.id === tempId ? merged : n));
       });
-      // Redirect editing/selection to the real id if it was pointing at the temp.
-      setEditingTitleId(prev => prev === tempId ? data.id : prev);
-      setSelectedId(prev => prev === tempId ? data.id : prev);
+      setEditingTitleId((prev) => (prev === tempId ? data.id : prev));
     })();
     return tempId;
-  }
-  async function updateNode(id, patch) {
-    setNodes(ns => ns.map(n => n.id === id ? { ...n, ...patch } : n));
+  }, [projectId, flashSaved, toRfNode, reducedMotion]);
+
+  const dbDeleteNode = useCallback(async (id) => {
     flashSaved();
-    await withRetry(() => supabase.from("flowchart_nodes").update(patch).eq("id", id).select());
-  }
-  async function deleteNode(id) {
-    flashSaved();
-    setNodes(ns => ns.filter(n => n.id !== id));
-    setArrows(as => as.filter(a => a.source_node_id !== id && a.target_node_id !== id));
-    if (selectedId === id) setSelectedId(null);
+    setNodes((ns) => ns.filter((n) => n.id !== id));
+    setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+    if (id.startsWith("temp-")) return;
     await withRetry(() => supabase.from("flowchart_arrows").delete().or(`source_node_id.eq.${id},target_node_id.eq.${id}`).select());
     await withRetry(() => supabase.from("flowchart_nodes").delete().eq("id", id).select());
-  }
-  async function createArrow(sourceId, targetId) {
-    if (sourceId === targetId) return;
-    if (arrows.some(a => a.source_node_id === sourceId && a.target_node_id === targetId)) return;
+  }, [flashSaved]);
+
+  const dbDeleteEdge = useCallback(async (id) => {
     flashSaved();
-    const { data } = await withRetry(() => supabase.from("flowchart_arrows").insert({
-      project_id: projectId, source_node_id: sourceId, target_node_id: targetId,
-    }).select().single());
-    if (data) setArrows(as => [...as, data]);
-  }
-  async function deleteArrow(id) {
-    flashSaved();
-    setArrows(as => as.filter(a => a.id !== id));
+    setEdges((es) => es.filter((e) => e.id !== id));
+    if (id.startsWith("temp-")) return;
     await withRetry(() => supabase.from("flowchart_arrows").delete().eq("id", id).select());
-  }
+  }, [flashSaved]);
 
-  // ───── Coordinate helpers ─────
-  function getCanvasCoords(clientX, clientY) {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left - pan.x) / zoom,
-      y: (clientY - rect.top - pan.y) / zoom,
-    };
-  }
+  const dbCreateEdge = useCallback(async (source, target) => {
+    if (source === target) return;
+    if (edges.some((e) => e.source === source && e.target === target)) return;
+    if (source.startsWith("temp-") || target.startsWith("temp-")) {
+      // Wait for the underlying node to be persisted; skip edge creation
+      flashSaved();
+      return;
+    }
+    flashSaved();
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setEdges((es) => addEdge({
+      id: tempId, source, target, type: "default",
+      style: { stroke: COLOR.arrow, strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: COLOR.arrow, width: 16, height: 16 },
+    }, es));
+    const { data } = await withRetry(() =>
+      supabase.from("flowchart_arrows").insert({
+        project_id: projectId, source_node_id: source, target_node_id: target,
+      }).select().single()
+    );
+    if (!data) {
+      setEdges((es) => es.filter((e) => e.id !== tempId));
+      return;
+    }
+    setEdges((es) => es.map((e) => (e.id === tempId ? toRfEdge(data) : e)));
+  }, [edges, projectId, flashSaved, toRfEdge]);
 
-  // ───── Tool keyboard shortcuts ─────
+  // ───── React Flow change handlers ─────
+  const onNodesChange = useCallback((changes) => {
+    setNodes((ns) => applyNodeChanges(changes, ns));
+  }, []);
+  const onEdgesChange = useCallback((changes) => {
+    setEdges((es) => applyEdgeChanges(changes, es));
+  }, []);
+  const onConnect = useCallback((conn) => {
+    if (!isInternal) return;
+    dbCreateEdge(conn.source, conn.target);
+  }, [isInternal, dbCreateEdge]);
+  const onNodeDragStop = useCallback((_e, node) => {
+    if (!isInternal) return;
+    if (node.id.startsWith("temp-")) return;
+    persistNode(node.id, {
+      position_x: Math.round(node.position.x),
+      position_y: Math.round(node.position.y),
+    });
+  }, [isInternal, persistNode]);
+
+  // ───── Pane click — Rectangle tool drops a node ─────
+  const onPaneClick = useCallback((e) => {
+    if (!isInternal) return;
+    setContextMenu(null);
+    if (tool !== "rect") return;
+    if (!rf) return;
+    const pos = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const newId = dbCreateNode(pos.x - NODE_W / 2, pos.y - NODE_H / 2);
+    setEditingTitleId(newId);
+  }, [isInternal, tool, rf, dbCreateNode]);
+
+  // ───── Right-click context menu ─────
+  const onNodeContextMenu = useCallback((e, node) => {
+    if (!isInternal) return;
+    e.preventDefault();
+    const wrapperRect = wrapperRef.current.getBoundingClientRect();
+    setContextMenu({
+      kind: "node", id: node.id,
+      x: e.clientX - wrapperRect.left,
+      y: e.clientY - wrapperRect.top,
+    });
+  }, [isInternal]);
+  const onEdgeContextMenu = useCallback((e, edge) => {
+    if (!isInternal) return;
+    e.preventDefault();
+    const wrapperRect = wrapperRef.current.getBoundingClientRect();
+    setContextMenu({
+      kind: "edge", id: edge.id,
+      x: e.clientX - wrapperRect.left,
+      y: e.clientY - wrapperRect.top,
+    });
+  }, [isInternal]);
+
+  // ───── Title edit ─────
+  const beginTitleEdit = useCallback((id) => {
+    setEditingTitleId(id);
+  }, []);
+  const commitTitle = useCallback((id, value) => {
+    const v = (value || "").trim();
+    setEditingTitleId(null);
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, title: v || n.data.title } } : n)));
+    if (!v) return;
+    if (id.startsWith("temp-")) return; // swap effect will catch new title
+    persistNode(id, { title: v });
+  }, [persistNode]);
+
+  // ───── Status pill cycle ─────
+  const cycleStatus = useCallback((id) => {
+    setNodes((ns) => {
+      const node = ns.find((n) => n.id === id);
+      if (!node) return ns;
+      const next = STATUS_CYCLE[node.data.status] || "pending";
+      if (!id.startsWith("temp-")) persistNode(id, { status: next });
+      return ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, status: next } } : n));
+    });
+  }, [persistNode]);
+
+  // ───── Open detail (client) ─────
+  const openDetail = useCallback((id) => { setDetailId(id); }, []);
+
+  // ───── Keyboard shortcuts ─────
   useEffect(() => {
     if (!isInternal) return;
     function onKey(e) {
       const tag = document.activeElement?.tagName;
       const inField = tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable;
       if (inField) {
-        if (e.key === "Escape") { setEditingTitleId(null); }
+        if (e.key === "Escape") setEditingTitleId(null);
         return;
       }
-      if (e.key === "h" || e.key === "H") { setTool("hand"); cancelArrowDraft(); }
-      else if (e.key === "r" || e.key === "R") { setTool("rect"); cancelArrowDraft(); }
-      else if (e.key === "a" || e.key === "A") { setTool("arrow"); cancelArrowDraft(); }
-      else if (e.key === "t" || e.key === "T") { setTool("text"); cancelArrowDraft(); }
+      if (e.key === "h" || e.key === "H") setTool("hand");
+      else if (e.key === "r" || e.key === "R") setTool("rect");
+      else if (e.key === "a" || e.key === "A") setTool("arrow");
+      else if (e.key === "t" || e.key === "T") setTool("text");
       else if (e.key === "Escape") {
-        cancelArrowDraft();
         setEditingTitleId(null);
         setContextMenu(null);
         setTool("hand");
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
-        e.preventDefault();
-        deleteNode(selectedId);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInternal, selectedId]);
-
-  function cancelArrowDraft() { setArrowDraft(null); }
-
-  // ───── Canvas event handlers (admin/builder) ─────
-  function onCanvasMouseDown(e) {
-    if (!isInternal) {
-      // Client mode: pan only
-      panning.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
-      return;
-    }
-    // Right click handled separately (context menu)
-    if (e.button === 2) return;
-
-    setContextMenu(null);
-    setSelectedId(null);
-
-    const activeTool = toolRef.current;
-
-    if (activeTool === "hand") {
-      panning.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
-    } else if (activeTool === "rect") {
-      const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      const newId = createNode(x - NODE_W / 2, y - NODE_H / 2, "Step");
-      // Synchronously enter inline edit on the freshly placed (optimistic) rect
-      setEditingTitleId(newId);
-      setEditingTitleVal("Step");
-    } else if (activeTool === "text") {
-      // Show subtle tooltip when clicking empty canvas
-      const rect = canvasRef.current.getBoundingClientRect();
-      setTextTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
-      tooltipTimerRef.current = setTimeout(() => setTextTooltip(null), 1500);
-    } else if (activeTool === "arrow" && arrowDraftRef.current) {
-      // Clicking empty canvas while drafting an arrow → cancel
-      cancelArrowDraft();
-    }
-  }
-
-  function onCanvasMouseMove(e) {
-    if (panning.current) {
-      setPan({
-        x: panning.current.panX + (e.clientX - panning.current.startX),
-        y: panning.current.panY + (e.clientY - panning.current.startY),
-      });
-      return;
-    }
-    if (draggingNode.current) {
-      const { id, offsetX, offsetY } = draggingNode.current;
-      const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      const nx = x - offsetX, ny = y - offsetY;
-      setNodes(ns => ns.map(n => n.id === id ? { ...n, position_x: nx, position_y: ny } : n));
-      draggingNode.current.moved = true;
-      return;
-    }
-    if (arrowDraft) {
-      const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      setArrowDraft(d => d ? { ...d, toX: x, toY: y } : d);
-    }
-  }
-
-  async function onCanvasMouseUp() {
-    panning.current = null;
-    if (draggingNode.current) {
-      const { id, moved } = draggingNode.current;
-      const node = nodes.find(n => n.id === id);
-      if (node && moved) {
-        const sx = snap(node.position_x), sy = snap(node.position_y);
-        await updateNode(id, { position_x: sx, position_y: sy });
-      }
-      draggingNode.current = null;
-    }
-    // If arrow draft active and not released on a node anchor → cancel silently
-    if (arrowDraft) cancelArrowDraft();
-  }
-
-  function onWheel(e) {
-    e.preventDefault();
-    const delta = -e.deltaY * 0.0015;
-    setZoom(z => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)));
-  }
-  function onTouchStart(e) {
-    if (e.touches.length === 1) {
-      const tch = e.touches[0];
-      panning.current = { startX: tch.clientX, startY: tch.clientY, panX: pan.x, panY: pan.y };
-    }
-  }
-  function onTouchMove(e) {
-    if (!panning.current || e.touches.length !== 1) return;
-    const tch = e.touches[0];
-    setPan({
-      x: panning.current.panX + (tch.clientX - panning.current.startX),
-      y: panning.current.panY + (tch.clientY - panning.current.startY),
-    });
-  }
-  function onTouchEnd() { panning.current = null; }
-
-  // ───── Node interactions (builder) ─────
-  function onNodeMouseDown(e, node) {
-    if (!isInternal) return;
-    if (e.button === 2) return; // right click handled below
-    e.stopPropagation();
-    setContextMenu(null);
-
-    if (tool === "hand") {
-      setSelectedId(node.id);
-      const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      draggingNode.current = { id: node.id, offsetX: x - node.position_x, offsetY: y - node.position_y, moved: false };
-    } else if (tool === "text") {
-      setEditingTitleId(node.id);
-      setEditingTitleVal(node.title);
-    } else if (tool === "rect") {
-      // Stay on rect tool; clicking on a node is a no-op (don't create node on top of node)
-    }
-    // Arrow tool: handled by clicking on the connection dots specifically
-  }
-  function onNodeClick(e, node) {
-    if (!isInternal) {
-      e.stopPropagation();
-      setDetailId(node.id);
-    }
-  }
-  function onNodeDoubleClick(e, node) {
-    if (!isInternal) return;
-    e.stopPropagation();
-    setEditingTitleId(node.id);
-    setEditingTitleVal(node.title);
-  }
-  function onNodeContextMenu(e, node) {
-    if (!isInternal) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = canvasRef.current.getBoundingClientRect();
-    setContextMenu({ kind: "node", id: node.id, x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-  function onArrowContextMenu(e, arrow) {
-    if (!isInternal) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = canvasRef.current.getBoundingClientRect();
-    setContextMenu({ kind: "arrow", id: arrow.id, x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  // ───── Status badge cycle ─────
-  function cycleStatus(node) {
-    const next = STATUS_CYCLE[node.status] || "pending";
-    updateNode(node.id, { status: next });
-  }
-
-  // ───── Connection dot interactions ─────
-  function onAnchorMouseDown(e, node, side) {
-    if (!isInternal || tool !== "arrow") return;
-    e.stopPropagation();
-    e.preventDefault();
-    const start = nodeAnchor(node, side);
-    setArrowDraft({ fromNodeId: node.id, fromSide: side, toX: start.x, toY: start.y });
-  }
-  function onAnchorMouseUp(e, node, side) {
-    if (!isInternal || tool !== "arrow" || !arrowDraft) return;
-    e.stopPropagation();
-    if (arrowDraft.fromNodeId !== node.id) {
-      createArrow(arrowDraft.fromNodeId, node.id);
-    }
-    cancelArrowDraft();
-  }
+  }, [isInternal]);
 
   // ───── Templates ─────
-  async function loadTemplates() {
-    const { data, error } = await supabase
-      .from("flowchart_templates")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) return [];
-    return data || [];
-  }
-  async function saveTemplate(name) {
+  const saveTemplate = useCallback(async (name) => {
     const snapshot = {
-      nodes: nodes.map(n => ({
-        title: n.title, status: n.status, description: n.description,
-        position_x: n.position_x, position_y: n.position_y,
-        // local key so we can rewire arrows after re-insert
-        _key: n.id,
+      nodes: nodes.map((n) => ({
+        _key: n.id, title: n.data.title, status: n.data.status,
+        position_x: n.position.x, position_y: n.position.y,
       })),
-      arrows: arrows.map(a => ({ source_key: a.source_node_id, target_key: a.target_node_id })),
+      arrows: edges.map((e) => ({ source_key: e.source, target_key: e.target })),
     };
     flashSaved();
-    const { data } = await withRetry(() => supabase.from("flowchart_templates").insert({
-      name, project_id: projectId, snapshot,
-    }).select().single());
+    const { data } = await withRetry(() =>
+      supabase.from("flowchart_templates").insert({ name, project_id: projectId, snapshot }).select().single()
+    );
     return data;
-  }
-  async function applyTemplate(template) {
-    const snapshot = template.snapshot || { nodes: [], arrows: [] };
-    const tplNodes = snapshot.nodes || [];
-    const tplArrows = snapshot.arrows || [];
-    if (!tplNodes.length) return;
-    // Compute centroid offset so the template lands near viewport center
-    const cx = tplNodes.reduce((a, n) => a + n.position_x, 0) / tplNodes.length;
-    const cy = tplNodes.reduce((a, n) => a + n.position_y, 0) / tplNodes.length;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const targetX = (rect.width / 2 - pan.x) / zoom;
-    const targetY = (rect.height / 2 - pan.y) / zoom;
+  }, [nodes, edges, projectId, flashSaved]);
+  const applyTemplate = useCallback(async (template) => {
+    const snap = template.snapshot || { nodes: [], arrows: [] };
+    if (!snap.nodes?.length) return;
+    const cx = snap.nodes.reduce((a, n) => a + n.position_x, 0) / snap.nodes.length;
+    const cy = snap.nodes.reduce((a, n) => a + n.position_y, 0) / snap.nodes.length;
+    let targetX = 0, targetY = 0;
+    if (rf && wrapperRef.current) {
+      const r = wrapperRef.current.getBoundingClientRect();
+      const center = rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      targetX = center.x; targetY = center.y;
+    }
     const dx = targetX - cx, dy = targetY - cy;
     const keyMap = {};
     flashSaved();
-    for (const tn of tplNodes) {
-      const { data } = await withRetry(() => supabase.from("flowchart_nodes").insert({
-        project_id: projectId,
-        title: tn.title, status: tn.status || "pending",
-        description: tn.description || "", estimated_date: null,
-        position_x: snap(tn.position_x + dx),
-        position_y: snap(tn.position_y + dy),
-      }).select().single());
+    for (const tn of snap.nodes) {
+      const { data } = await withRetry(() =>
+        supabase.from("flowchart_nodes").insert({
+          project_id: projectId,
+          title: tn.title, status: tn.status || "pending",
+          description: "", estimated_date: null,
+          position_x: Math.round(tn.position_x + dx),
+          position_y: Math.round(tn.position_y + dy),
+        }).select().single()
+      );
       if (data) keyMap[tn._key] = data.id;
     }
-    for (const ta of tplArrows) {
+    for (const ta of (snap.arrows || [])) {
       const sId = keyMap[ta.source_key], tId = keyMap[ta.target_key];
       if (sId && tId) {
-        await withRetry(() => supabase.from("flowchart_arrows").insert({
-          project_id: projectId, source_node_id: sId, target_node_id: tId,
-        }).select().single());
+        await withRetry(() =>
+          supabase.from("flowchart_arrows").insert({
+            project_id: projectId, source_node_id: sId, target_node_id: tId,
+          }).select().single()
+        );
       }
     }
     load();
-  }
-  async function deleteTemplate(id) {
+  }, [rf, projectId, flashSaved, load]);
+  const deleteTemplate = useCallback(async (id) => {
     await withRetry(() => supabase.from("flowchart_templates").delete().eq("id", id).select());
-  }
+  }, []);
+
+  // Context value passed to custom node
+  const ctxValue = useMemo(() => ({
+    tool, isInternal, editingTitleId,
+    beginTitleEdit, commitTitle, cycleStatus, openDetail,
+  }), [tool, isInternal, editingTitleId, beginTitleEdit, commitTitle, cycleStatus, openDetail]);
+
+  // Tool → React Flow interaction props
+  const interactionProps = !isInternal ? {
+    nodesDraggable: false,
+    nodesConnectable: false,
+    elementsSelectable: false,
+    panOnDrag: true,
+    panOnScroll: false,
+    zoomOnScroll: true,
+    selectNodesOnDrag: false,
+  } : tool === "hand" ? {
+    nodesDraggable: true,
+    nodesConnectable: false,
+    elementsSelectable: true,
+    panOnDrag: [0, 1, 2], // any mouse button pans on empty pane
+    panOnScroll: false,
+    zoomOnScroll: true,
+    selectNodesOnDrag: false,
+  } : tool === "rect" ? {
+    nodesDraggable: true,
+    nodesConnectable: false,
+    elementsSelectable: true,
+    panOnDrag: false,   // clicks should drop a node, not pan
+    panOnScroll: false,
+    zoomOnScroll: true,
+    selectNodesOnDrag: false,
+  } : tool === "arrow" ? {
+    nodesDraggable: false,
+    nodesConnectable: true,
+    elementsSelectable: true,
+    panOnDrag: false,   // dragging from a handle creates an edge
+    panOnScroll: false,
+    zoomOnScroll: true,
+    selectNodesOnDrag: false,
+  } : { /* text */
+    nodesDraggable: true,
+    nodesConnectable: false,
+    elementsSelectable: true,
+    panOnDrag: [1, 2],  // pan with middle/right; left click on a node enters text edit
+    panOnScroll: false,
+    zoomOnScroll: true,
+    selectNodesOnDrag: false,
+  };
 
   // ───── Render ─────
   if (missingTables) return <SetupNotice t={t} />;
@@ -623,20 +714,20 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     </div>
   );
 
-  const doneCount = nodes.filter(n => n.status === "done").length;
+  const doneCount = nodes.filter(n => n.data.status === "done").length;
   const progress = nodes.length ? Math.round((doneCount / nodes.length) * 100) : 0;
   const detailNode = nodes.find(n => n.id === detailId);
+  const detailRaw = detailNode?.data?.raw;
 
-  // Cursor for canvas based on active tool
-  const canvasCursor = !isInternal
-    ? (panning.current ? "grabbing" : "grab")
-    : tool === "hand" ? (panning.current ? "grabbing" : "grab")
+  const cursor = !isInternal ? "default"
+    : tool === "hand" ? "grab"
     : tool === "rect" ? "crosshair"
     : tool === "arrow" ? "crosshair"
     : "text";
 
   return (
     <div
+      ref={wrapperRef}
       style={{
         position: "relative",
         border: `1px solid ${t.border}`,
@@ -658,15 +749,57 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         @media (prefers-reduced-motion: reduce) {
           .fc-pulse, .fc-shimmer-bg, .fc-shine { animation: none !important; }
         }
-        .fc-arrow-path { transition: stroke 0.15s; }
-        .fc-arrow-hit:hover + .fc-arrow-path,
-        .fc-arrow-path:hover { stroke: ${COLOR.arrowHover} !important; }
-        .fc-anchor { transition: transform 0.12s, fill 0.12s; }
-        .fc-anchor:hover { transform: scale(1.3); fill: ${COLOR.accent} !important; }
+        /* React Flow overrides */
+        .react-flow { background: ${COLOR.bg}; }
+        .react-flow__attribution { display: none !important; }
+        .react-flow__edge.selected .react-flow__edge-path { stroke: ${COLOR.arrowSelected} !important; }
+        .react-flow__edge:hover .react-flow__edge-path { stroke: ${COLOR.arrowSelected} !important; }
+        .react-flow__handle { z-index: 10; }
+        .react-flow__node { font-family: Inter, sans-serif; }
+        .react-flow__controls { box-shadow: 0 4px 14px rgba(8,43,43,0.10) !important; border: 0.5px solid ${COLOR.border} !important; border-radius: 8px !important; overflow: hidden; }
+        .react-flow__controls-button { background: #FFFFFF !important; border-bottom: 0.5px solid ${COLOR.border} !important; color: ${COLOR.muted} !important; }
+        .react-flow__controls-button:hover { background: ${COLOR.panel} !important; }
+        .react-flow__controls-button svg { fill: ${COLOR.muted} !important; }
       `}</style>
 
-      {/* Client view top progress bar — kept for client mode */}
-      {!isInternal && (
+      {/* Top bar — admin builder toolbar OR client progress bar */}
+      {isInternal ? (
+        <div style={{
+          padding: "10px 14px", borderBottom: `1px solid ${t.border}`,
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          background: t.surfaceHigh, zIndex: 10,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4, padding: 4,
+            background: COLOR.panel, border: `0.5px solid ${COLOR.border}`,
+            borderRadius: 10,
+          }}>
+            <ToolButton active={tool === "hand"} title="Hand (H) — pan + move nodes" onClick={() => setTool("hand")}><HandIcon /></ToolButton>
+            <ToolButton active={tool === "rect"} title="Rectangle (R) — click canvas to add" onClick={() => setTool("rect")}><RectIcon /></ToolButton>
+            <ToolButton active={tool === "arrow"} title="Arrow (A) — drag from a handle to connect" onClick={() => setTool("arrow")}><ArrowIcon /></ToolButton>
+            <ToolButton active={tool === "text"} title="Text (T) — click a rectangle to rename" onClick={() => setTool("text")}><TextIcon /></ToolButton>
+          </div>
+          <div style={{ flex: 1 }} />
+          <span style={{
+            color: saveStatus.includes("Saving") ? COLOR.subtle : COLOR.accent,
+            fontSize: 12, minWidth: 64, textAlign: "right",
+            transition: "color 0.2s",
+            fontFamily: "Inter, sans-serif",
+          }}>{saveStatus}</span>
+          <button
+            onClick={() => setShowTemplates(true)}
+            style={{
+              background: "transparent", color: COLOR.text,
+              border: `0.5px solid ${COLOR.border}`, borderRadius: 8,
+              padding: "6px 12px", fontSize: 12, fontWeight: 500,
+              cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.04em",
+            }}
+            data-tap
+          >
+            Templates
+          </button>
+        </div>
+      ) : (
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: t.surfaceHigh, zIndex: 10 }}>
           <span style={{ color: t.text, fontSize: 15, fontWeight: 400, letterSpacing: "0.04em" }}>
             Your Case Progress — <span style={{ color: t.accentLight, fontWeight: 500 }}>{progress}% Complete</span>
@@ -679,213 +812,60 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         </div>
       )}
 
-      {/* CANVAS AREA */}
-      <div
-        ref={canvasRef}
-        onMouseDown={onCanvasMouseDown}
-        onMouseMove={onCanvasMouseMove}
-        onMouseUp={onCanvasMouseUp}
-        onMouseLeave={onCanvasMouseUp}
-        onWheel={onWheel}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onContextMenu={(e) => { if (isInternal) e.preventDefault(); }}
-        style={{
-          flex: 1,
-          position: "relative",
-          overflow: "hidden",
-          cursor: canvasCursor,
-          backgroundColor: COLOR.bg,
-          backgroundImage: `radial-gradient(circle, ${COLOR.dot} 1.5px, transparent 1.5px)`,
-          backgroundSize: `${GRID * zoom}px ${GRID * zoom}px`,
-          backgroundPosition: `${pan.x}px ${pan.y}px`,
-          touchAction: "none",
-        }}
-      >
-        {/* Vignette + particles for client view */}
+      {/* Canvas */}
+      <div style={{ flex: 1, position: "relative", cursor }}>
+        <FCContext.Provider value={ctxValue}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            connectionMode={ConnectionMode.Loose}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeDragStop={onNodeDragStop}
+            onPaneClick={onPaneClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
+            defaultEdgeOptions={{
+              type: "default",
+              style: { stroke: COLOR.arrow, strokeWidth: 1.5 },
+              markerEnd: { type: MarkerType.ArrowClosed, color: COLOR.arrow, width: 16, height: 16 },
+            }}
+            minZoom={0.4}
+            maxZoom={2}
+            fitView={false}
+            proOptions={{ hideAttribution: true }}
+            deleteKeyCode={null}
+            edgesUpdatable={false}
+            {...interactionProps}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1.5} color={COLOR.dot} />
+          </ReactFlow>
+        </FCContext.Provider>
+
+        {/* Particles + vignette for client view */}
         {!isInternal && (
           <>
-            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, background: "radial-gradient(ellipse at center, rgba(26,102,102,0.10), transparent 65%)" }} />
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 4, background: "radial-gradient(ellipse at center, rgba(26,102,102,0.10), transparent 65%)" }} />
             <ParticleLayer enabled={!reducedMotion} />
           </>
         )}
 
-        {/* Transformed layer: arrows + nodes */}
-        <div style={{ position: "absolute", left: 0, top: 0, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0", pointerEvents: "none", zIndex: 3 }}>
-          {/* Arrows SVG */}
-          <svg style={{ position: "absolute", left: -4000, top: -4000, width: 12000, height: 12000, overflow: "visible", pointerEvents: "none" }}>
-            <defs>
-              <marker id={`fc-arrowhead-${projectId}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill={COLOR.arrow} />
-              </marker>
-              <marker id={`fc-arrowhead-hover-${projectId}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill={COLOR.arrowHover} />
-              </marker>
-            </defs>
-            <g transform="translate(4000, 4000)">
-              {arrows.map(a => {
-                const src = nodes.find(n => n.id === a.source_node_id);
-                const tgt = nodes.find(n => n.id === a.target_node_id);
-                if (!src || !tgt) return null;
-                const d = arrowPath(src, tgt);
-                return (
-                  <g key={a.id}>
-                    {/* Visible curve */}
-                    <path
-                      d={d} fill="none"
-                      stroke={COLOR.arrow}
-                      strokeWidth="1.5"
-                      markerEnd={`url(#fc-arrowhead-${projectId})`}
-                      className="fc-arrow-path"
-                      style={{ pointerEvents: "auto", cursor: isInternal ? "context-menu" : "default" }}
-                      onContextMenu={(e) => onArrowContextMenu(e, a)}
-                    />
-                    {/* Wider invisible hit area */}
-                    <path
-                      d={d} fill="none" stroke="transparent" strokeWidth="14"
-                      className="fc-arrow-hit"
-                      style={{ pointerEvents: "auto", cursor: isInternal ? "context-menu" : "default" }}
-                      onContextMenu={(e) => onArrowContextMenu(e, a)}
-                    />
-                  </g>
-                );
-              })}
-              {/* Live preview arrow */}
-              {arrowDraft && (() => {
-                const src = nodes.find(n => n.id === arrowDraft.fromNodeId);
-                if (!src) return null;
-                const start = nodeAnchor(src, arrowDraft.fromSide);
-                const d = previewArrowPath(start, { x: arrowDraft.toX, y: arrowDraft.toY });
-                return (
-                  <path d={d} fill="none" stroke={COLOR.accent} strokeWidth="1.5" strokeDasharray="6 5" />
-                );
-              })()}
-            </g>
-          </svg>
-
-          {/* Nodes */}
-          {nodes.map(node => {
-            const isSelected = selectedId === node.id;
-            const isHover = hoveredNodeId === node.id;
-            const showAnchors = isInternal && tool === "arrow" && (isHover || (arrowDraft && arrowDraft.fromNodeId === node.id));
-            return (
-              <BuilderNode
-                key={node.id}
-                node={node}
-                t={t}
-                isInternal={isInternal}
-                tool={tool}
-                selected={isSelected}
-                hovered={isHover}
-                showAnchors={showAnchors}
-                arrowDraftFromHere={arrowDraft && arrowDraft.fromNodeId === node.id ? arrowDraft.fromSide : null}
-                editingTitle={editingTitleId === node.id}
-                editingTitleVal={editingTitleVal}
-                onTitleChange={setEditingTitleVal}
-                onTitleBlur={() => {
-                  const v = editingTitleVal.trim();
-                  if (v && v !== node.title) updateNode(node.id, { title: v });
-                  setEditingTitleId(null);
-                }}
-                onMouseEnter={() => setHoveredNodeId(node.id)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-                onMouseDown={(e) => onNodeMouseDown(e, node)}
-                onClick={(e) => onNodeClick(e, node)}
-                onDoubleClick={(e) => onNodeDoubleClick(e, node)}
-                onContextMenu={(e) => onNodeContextMenu(e, node)}
-                onAnchorMouseDown={onAnchorMouseDown}
-                onAnchorMouseUp={onAnchorMouseUp}
-                onStatusClick={() => cycleStatus(node)}
-                reducedMotion={reducedMotion}
-              />
-            );
-          })}
-        </div>
-
-        {/* Empty state */}
+        {/* Empty state overlay */}
         {nodes.length === 0 && !loading && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: t.textSub, fontSize: 14, fontStyle: "italic", zIndex: 2, pointerEvents: "none", textAlign: "center", padding: 20 }}>
+          <div style={{
+            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            color: t.textSub, fontSize: 14, fontStyle: "italic", zIndex: 2, pointerEvents: "none",
+            textAlign: "center", padding: 20,
+          }}>
             {isInternal
               ? "Select the rectangle tool and click anywhere to add your first step."
               : "No flowchart published yet."}
           </div>
         )}
 
-        {/* FLOATING TOOLBAR (admin only) */}
-        {isInternal && (
-          <div
-            style={{
-              position: "absolute", top: 14, left: 14, zIndex: 20,
-              display: "flex", alignItems: "center", gap: 4, padding: 6,
-              background: COLOR.panel, border: `0.5px solid ${COLOR.border}`,
-              borderRadius: 12, boxShadow: "0 4px 16px rgba(8,43,43,0.08)",
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            onContextMenu={(e) => e.stopPropagation()}
-          >
-            <ToolButton active={tool === "hand"} title="Hand (H) — pan canvas" onClick={() => { setTool("hand"); cancelArrowDraft(); }}>
-              <HandIcon />
-            </ToolButton>
-            <ToolButton active={tool === "rect"} title="Rectangle (R) — click canvas to place" onClick={() => { setTool("rect"); cancelArrowDraft(); }}>
-              <RectIcon />
-            </ToolButton>
-            <ToolButton active={tool === "arrow"} title="Arrow (A) — drag between nodes" onClick={() => { setTool("arrow"); cancelArrowDraft(); }}>
-              <ArrowIcon />
-            </ToolButton>
-            <ToolButton active={tool === "text"} title="Text (T) — click a rectangle to edit" onClick={() => { setTool("text"); cancelArrowDraft(); }}>
-              <TextIcon />
-            </ToolButton>
-          </div>
-        )}
-
-        {/* SAVE STATUS + ZOOM (admin only) */}
-        {isInternal && (
-          <div
-            style={{
-              position: "absolute", top: 18, right: 14, zIndex: 20,
-              display: "flex", alignItems: "center", gap: 12,
-              fontSize: 12, fontFamily: "Inter, sans-serif",
-              pointerEvents: "none",
-            }}
-          >
-            <span style={{ color: saveStatus.includes("Saving") ? COLOR.subtle : COLOR.accent, minWidth: 64, textAlign: "right", transition: "color 0.2s" }}>
-              {saveStatus}
-            </span>
-            <span style={{ color: COLOR.subtle }}>{Math.round(zoom * 100)}%</span>
-            <button
-              onClick={() => setShowTemplates(true)}
-              style={{
-                pointerEvents: "auto",
-                background: "transparent", color: COLOR.text,
-                border: `0.5px solid ${COLOR.border}`,
-                borderRadius: 8, padding: "6px 12px",
-                fontSize: 12, fontWeight: 500, cursor: "pointer",
-                fontFamily: "inherit", letterSpacing: "0.04em",
-              }}
-              data-tap
-            >
-              Templates
-            </button>
-          </div>
-        )}
-
-        {/* Subtle text-tool tooltip */}
-        {textTooltip && tool === "text" && isInternal && (
-          <div
-            style={{
-              position: "absolute", left: textTooltip.x + 12, top: textTooltip.y + 12,
-              zIndex: 25, pointerEvents: "none",
-              background: "rgba(8,43,43,0.85)", color: "#FFFFFF",
-              fontSize: 12, padding: "6px 10px", borderRadius: 6,
-              animation: "fc-fade 0.15s ease",
-            }}
-          >
-            Click a rectangle to edit its text
-          </div>
-        )}
-
-        {/* Context menu */}
+        {/* Right-click context menu */}
         {contextMenu && (
           <ContextMenu
             x={contextMenu.x}
@@ -893,8 +873,8 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
             onClose={() => setContextMenu(null)}
             items={
               contextMenu.kind === "node"
-                ? [{ label: "Delete step", onClick: () => deleteNode(contextMenu.id) }]
-                : [{ label: "Delete connection", onClick: () => deleteArrow(contextMenu.id) }]
+                ? [{ label: "Delete step", onClick: () => dbDeleteNode(contextMenu.id) }]
+                : [{ label: "Delete connection", onClick: () => dbDeleteEdge(contextMenu.id) }]
             }
           />
         )}
@@ -903,10 +883,8 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
       {/* Templates side panel */}
       {showTemplates && isInternal && (
         <TemplatesPanel
-          t={t}
-          mobile={mobile}
+          t={t} mobile={mobile}
           onClose={() => setShowTemplates(false)}
-          loadTemplates={loadTemplates}
           onSave={saveTemplate}
           onApply={(tpl) => { applyTemplate(tpl); setShowTemplates(false); }}
           onDelete={deleteTemplate}
@@ -914,11 +892,11 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
         />
       )}
 
-      {/* CLIENT DETAIL PANEL */}
-      {detailNode && !isInternal && (
+      {/* Client detail panel */}
+      {detailId && !isInternal && detailRaw && (
         <NodeDetailPanel
-          key={detailNode.id}
-          node={detailNode} t={t} mobile={mobile}
+          key={detailId}
+          node={detailRaw} t={t} mobile={mobile}
           onClose={() => setDetailId(null)}
           userProfile={userProfile}
         />
@@ -942,170 +920,17 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SUB-COMPONENTS
-// ─────────────────────────────────────────────────────────────────────────────
-function BuilderNode({
-  node, t, isInternal, tool, selected, hovered, showAnchors, arrowDraftFromHere,
-  editingTitle, editingTitleVal, onTitleChange, onTitleBlur,
-  onMouseEnter, onMouseLeave, onMouseDown, onClick, onDoubleClick, onContextMenu,
-  onAnchorMouseDown, onAnchorMouseUp, onStatusClick, reducedMotion,
-}) {
-  const isDone = node.status === "done";
-  const isInProgress = node.status === "in_progress";
-
-  // Border color: hovered when arrow tool active gets teal highlight
-  const borderColor = (isInternal && tool === "arrow" && (hovered || arrowDraftFromHere))
-    ? COLOR.accent
-    : selected ? COLOR.accent : COLOR.border;
-  const borderWidth = (selected || (isInternal && tool === "arrow" && (hovered || arrowDraftFromHere))) ? 1.5 : 1.5;
-
-  const cursor = !isInternal
-    ? "pointer"
-    : tool === "hand" ? "move"
-    : tool === "text" ? "text"
-    : tool === "arrow" ? "crosshair"
-    : "default";
-
-  const pulseStyle = (isInProgress && !reducedMotion) ? { animation: "fc-pulse 2.5s ease-in-out infinite" } : {};
-
-  // Status badge styles per spec
-  const badgeStyle = isDone
-    ? { background: COLOR.accent, color: "#FFFFFF", border: "none" }
-    : isInProgress
-    ? { background: "rgba(26,102,102,0.1)", color: COLOR.accent, border: `1px solid ${COLOR.accent}` }
-    : { background: COLOR.panel, color: COLOR.subtle, border: "none" };
-  const badgeText = isDone ? "✓ Done" : isInProgress ? "In Progress" : "Pending";
-
-  return (
-    <div
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onMouseDown={onMouseDown}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onContextMenu={onContextMenu}
-      style={{
-        position: "absolute",
-        left: node.position_x, top: node.position_y,
-        width: NODE_W, height: NODE_H,
-        borderRadius: 8,
-        background: "#FFFFFF",
-        border: `${borderWidth}px solid ${borderColor}`,
-        boxShadow: selected
-          ? "0 0 0 3px rgba(26,102,102,0.18), 0 4px 14px rgba(8,43,43,0.10)"
-          : "0 2px 8px rgba(8,43,43,0.08)",
-        cursor,
-        userSelect: "none",
-        pointerEvents: "auto",
-        padding: "8px 12px",
-        display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        overflow: "visible",
-        ...pulseStyle,
-      }}
-    >
-      {/* Title (centered) */}
-      {editingTitle ? (
-        <input
-          autoFocus value={editingTitleVal}
-          onChange={(e) => onTitleChange(e.target.value)}
-          onBlur={onTitleBlur}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); e.target.blur(); }
-            else if (e.key === "Escape") { onTitleChange(""); onTitleBlur(); }
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onFocus={(e) => e.target.select()}
-          style={{
-            width: "100%", textAlign: "center",
-            background: "transparent",
-            border: `1px solid ${COLOR.accent}`,
-            borderRadius: 4, color: COLOR.text,
-            fontSize: 14, padding: "3px 6px",
-            fontFamily: "Inter, sans-serif", outline: "none",
-          }}
-        />
-      ) : (
-        <div style={{
-          width: "100%", textAlign: "center",
-          color: COLOR.text, fontSize: 14, fontWeight: 500,
-          fontFamily: "Inter, sans-serif",
-          lineHeight: 1.25,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {node.title}
-        </div>
-      )}
-
-      {/* Status badge — bottom-right */}
-      <button
-        onClick={(e) => { e.stopPropagation(); if (isInternal) onStatusClick(); }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onContextMenu={(e) => e.stopPropagation()}
-        title={isInternal ? "Click to cycle status" : ""}
-        style={{
-          position: "absolute", bottom: -10, right: 8,
-          fontSize: 10, fontWeight: 600,
-          padding: "3px 8px", borderRadius: 99,
-          fontFamily: "Inter, sans-serif",
-          letterSpacing: "0.02em",
-          cursor: isInternal ? "pointer" : "default",
-          ...badgeStyle,
-        }}
-      >
-        {badgeText}
-      </button>
-
-      {/* Connection anchors (only when arrow tool + hovered) */}
-      {showAnchors && (
-        <svg
-          width={NODE_W + 24} height={NODE_H + 24}
-          style={{ position: "absolute", left: -12, top: -12, pointerEvents: "none", overflow: "visible" }}
-        >
-          {["top", "right", "bottom", "left"].map(side => {
-            const local = (() => {
-              if (side === "top") return { x: NODE_W / 2 + 12, y: 12 };
-              if (side === "right") return { x: NODE_W + 12, y: NODE_H / 2 + 12 };
-              if (side === "bottom") return { x: NODE_W / 2 + 12, y: NODE_H + 12 };
-              return { x: 12, y: NODE_H / 2 + 12 };
-            })();
-            const isActive = arrowDraftFromHere === side;
-            return (
-              <circle
-                key={side}
-                cx={local.x} cy={local.y} r={6}
-                fill={isActive ? COLOR.accent : "#FFFFFF"}
-                stroke={COLOR.accent}
-                strokeWidth={1.5}
-                className="fc-anchor"
-                style={{ pointerEvents: "auto", cursor: "crosshair" }}
-                onMouseDown={(e) => onAnchorMouseDown(e, node, side)}
-                onMouseUp={(e) => onAnchorMouseUp(e, node, side)}
-              />
-            );
-          })}
-        </svg>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TOOL ICON BUTTONS
+// TOOL BUTTONS
 // ─────────────────────────────────────────────────────────────────────────────
 function ToolButton({ active, title, onClick, children }) {
   return (
     <button
-      onClick={onClick}
-      title={title}
-      data-tap
+      onClick={onClick} title={title} data-tap
       style={{
         width: 36, height: 36, borderRadius: 8,
         background: active ? COLOR.accent : "transparent",
         color: active ? "#FFFFFF" : COLOR.muted,
-        border: "none",
-        cursor: "pointer",
+        border: "none", cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "background 0.15s, color 0.15s",
         padding: 0,
@@ -1200,7 +1025,7 @@ function ContextMenu({ x, y, items, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATES PANEL
 // ─────────────────────────────────────────────────────────────────────────────
-function TemplatesPanel({ t, mobile, onClose, loadTemplates, onSave, onApply, onDelete, canSave }) {
+function TemplatesPanel({ t, mobile, onClose, onSave, onApply, onDelete, canSave }) {
   const [items, setItems] = useState(null);
   const [savingMode, setSavingMode] = useState(false);
   const [name, setName] = useState("");
@@ -1255,10 +1080,6 @@ function TemplatesPanel({ t, mobile, onClose, loadTemplates, onSave, onApply, on
           {items.map(tpl => (
             <div
               key={tpl.id}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                if (window.confirm(`Delete template "${tpl.name}"?`)) handleDelete(tpl.id);
-              }}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "10px 12px", background: "#FFFFFF",
@@ -1349,7 +1170,7 @@ function TemplatesPanel({ t, mobile, onClose, loadTemplates, onSave, onApply, on
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLIENT DETAIL PANEL (read-only viewing of a step)
+// CLIENT DETAIL PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
   const [comments, setComments] = useState([]);
@@ -1473,7 +1294,7 @@ function CommentRow({ c, t }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SETUP NOTICE (shown when tables are missing)
+// SETUP NOTICE
 // ─────────────────────────────────────────────────────────────────────────────
 function SetupNotice({ t }) {
   const sql = `-- Run this in your Supabase SQL editor
