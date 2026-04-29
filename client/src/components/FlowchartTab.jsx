@@ -173,6 +173,12 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
   const reducedMotion = useMemo(() => prefersReducedMotion(), []);
   const tooltipTimerRef = useRef(null);
 
+  // Mirror tool + arrowDraft in refs so event handlers always read the latest value
+  const toolRef = useRef(tool);
+  useEffect(() => { toolRef.current = tool; }, [tool]);
+  const arrowDraftRef = useRef(arrowDraft);
+  useEffect(() => { arrowDraftRef.current = arrowDraft; }, [arrowDraft]);
+
   const flashSaved = useCallback(() => {
     setSaveStatus("Saving…");
     setTimeout(() => setSaveStatus("Saved ✓"), 250);
@@ -266,16 +272,55 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     }
     return { data: null };
   }
-  async function createNode(x, y, title = "Step") {
+  function createNode(x, y, title = "Step") {
     const sx = snap(x), sy = snap(y);
-    flashSaved();
-    const { data } = await withRetry(() => supabase.from("flowchart_nodes").insert({
-      project_id: projectId, title, status: "pending",
+    // Optimistic: append a temp node synchronously and return its id immediately
+    // so the caller can switch to inline edit without awaiting Supabase.
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic = {
+      id: tempId, project_id: projectId, title, status: "pending",
       description: "", estimated_date: null,
-      position_x: sx, position_y: sy,
-    }).select().single());
-    if (data) setNodes(ns => [...ns, data]);
-    return data;
+      position_x: sx, position_y: sy, _temp: true,
+    };
+    setNodes(ns => [...ns, optimistic]);
+    flashSaved();
+    // Background save → swap temp for real, preserving any user edits made meanwhile.
+    (async () => {
+      const { data } = await withRetry(() => supabase.from("flowchart_nodes").insert({
+        project_id: projectId, title, status: "pending",
+        description: "", estimated_date: null,
+        position_x: sx, position_y: sy,
+      }).select().single());
+      if (!data) {
+        setNodes(ns => ns.filter(n => n.id !== tempId));
+        return;
+      }
+      setNodes(ns => {
+        const local = ns.find(n => n.id === tempId);
+        const merged = { ...data };
+        if (local) {
+          // Preserve any title / status / position changes typed during the round-trip
+          if (local.title !== title) merged.title = local.title;
+          if (local.status !== "pending") merged.status = local.status;
+          if (local.position_x !== sx) merged.position_x = local.position_x;
+          if (local.position_y !== sy) merged.position_y = local.position_y;
+        }
+        // Persist any drift back to Supabase
+        const drift = {};
+        if (merged.title !== title) drift.title = merged.title;
+        if (merged.status !== "pending") drift.status = merged.status;
+        if (merged.position_x !== sx) drift.position_x = merged.position_x;
+        if (merged.position_y !== sy) drift.position_y = merged.position_y;
+        if (Object.keys(drift).length) {
+          withRetry(() => supabase.from("flowchart_nodes").update(drift).eq("id", data.id).select());
+        }
+        return ns.map(n => n.id === tempId ? merged : n);
+      });
+      // Redirect editing/selection to the real id if it was pointing at the temp.
+      setEditingTitleId(prev => prev === tempId ? data.id : prev);
+      setSelectedId(prev => prev === tempId ? data.id : prev);
+    })();
+    return tempId;
   }
   async function updateNode(id, patch) {
     setNodes(ns => ns.map(n => n.id === id ? { ...n, ...patch } : n));
@@ -358,26 +403,26 @@ export default function FlowchartTab({ projectId, isInternal, userProfile, t, mo
     setContextMenu(null);
     setSelectedId(null);
 
-    if (tool === "hand") {
+    const activeTool = toolRef.current;
+
+    if (activeTool === "hand") {
       panning.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
-    } else if (tool === "rect") {
+    } else if (activeTool === "rect") {
       const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-      (async () => {
-        const created = await createNode(x - NODE_W / 2, y - NODE_H / 2, "Step");
-        if (created) {
-          setEditingTitleId(created.id);
-          setEditingTitleVal(created.title);
-        }
-      })();
-    } else if (tool === "text") {
+      const newId = createNode(x - NODE_W / 2, y - NODE_H / 2, "Step");
+      // Synchronously enter inline edit on the freshly placed (optimistic) rect
+      setEditingTitleId(newId);
+      setEditingTitleVal("Step");
+    } else if (activeTool === "text") {
       // Show subtle tooltip when clicking empty canvas
       const rect = canvasRef.current.getBoundingClientRect();
       setTextTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top });
       if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current);
       tooltipTimerRef.current = setTimeout(() => setTextTooltip(null), 1500);
+    } else if (activeTool === "arrow" && arrowDraftRef.current) {
+      // Clicking empty canvas while drafting an arrow → cancel
+      cancelArrowDraft();
     }
-    // Arrow tool: clicking empty canvas does nothing (cancels in-progress draft)
-    if (tool === "arrow" && arrowDraft) cancelArrowDraft();
   }
 
   function onCanvasMouseMove(e) {

@@ -1,0 +1,61 @@
+The flowchart builder toolbar renders correctly but the 
+Rectangle tool does not work — clicking the canvas does 
+not create any rectangle. Fix this completely.
+
+## Root cause to investigate
+
+1. Check if the click event on the canvas is being 
+   captured correctly. The canvas element may have 
+   pointer-events: none or a transparent overlay div 
+   sitting on top and swallowing clicks.
+
+2. Check if the SVG arrow layer or any other absolutely 
+   positioned div is covering the entire canvas and 
+   blocking mousedown/click events from reaching the 
+   canvas handler.
+
+3. Check if the activeTool state is actually being read 
+   by the canvas click handler — it may be a stale 
+   closure issue where the handler was defined when 
+   activeTool was 'hand' and never updated.
+
+## The fix
+
+- Add a console.log inside the canvas onClick handler 
+  that prints: "Canvas clicked, active tool:", activeTool
+  — verify this fires when Rectangle tool is selected
+
+- If the click fires but tool is wrong → fix the stale 
+  closure by using a ref for activeTool:
+    const activeToolRef = useRef(activeTool);
+    useEffect(() => { 
+      activeToolRef.current = activeTool; 
+    }, [activeTool]);
+  Then use activeToolRef.current inside event handlers 
+  instead of activeTool directly.
+
+- If the click does not fire at all → find whatever 
+  element is on top of the canvas (inspect z-index 
+  layers) and add pointer-events: none to it, OR 
+  move the click handler to that top element instead.
+
+- Once click is confirmed working, make sure the 
+  rectangle is actually appended to state AND rendered:
+  · Add node to local state immediately (optimistic UI)
+  · Then save to Supabase async
+  · Do NOT wait for Supabase to confirm before rendering 
+    — this causes the "nothing appears" experience
+
+- After placing a rectangle, immediately set it to 
+  inline edit mode so the user can type the step name
+
+## Quick test to verify fix works
+After your fix, clicking the canvas with Rectangle tool 
+selected should:
+1. Immediately show a rectangle at the click position
+2. Rectangle title should be in edit mode, cursor blinking
+3. Console should show the node being saved to Supabase
+4. No full re-render of the canvas (no flicker)
+
+Do not change anything else — only fix the rectangle 
+placement bug.
