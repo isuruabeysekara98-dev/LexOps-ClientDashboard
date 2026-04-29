@@ -56,6 +56,31 @@ A new "Flowchart" tab sits between Documents and Invoices for both Internal and 
 - Do NOT modify `package.json`, `vite.config.ts`, `server/vite.ts`, or `drizzle.config.ts` directly — use the package manager tool for installs.
 - `client/src/pages/home.tsx` is unused scaffold (App.tsx does not import it). Leave alone.
 
+## FlowchartTab — Miro-style builder rewrite (April 2026)
+The builder was completely rewritten with a four-tool, sticky-tool philosophy. Selected tool **stays selected** until the user picks another tool — it never auto-resets after an action.
+
+### Tools (floating pill toolbar, top-left of canvas)
+1. **Hand (H)** — default tool. Click+drag canvas to pan; click+drag a node to move it (saves on mouseup).
+2. **Rectangle (R)** — click anywhere on the canvas to instantly create a 160×60 rectangle titled "Step", which immediately enters inline edit mode. Tool stays active for rapid placement.
+3. **Arrow (A)** — hover a node to reveal 4 connection dots (top/right/bottom/left) plus a teal hover border. Mousedown on a dot to start, drag (live dashed-teal preview curve), release on another node's dot to create. Cancels silently if released over empty canvas.
+4. **Text (T)** — click an existing rectangle to enter inline title edit (full text pre-selected). Clicking empty canvas shows a 1.5s tooltip "Click a rectangle to edit its text".
+
+### Other UX
+- **Right-click a rectangle** → minimal "Delete step" menu. **Right-click an arrow** → "Delete connection".
+- **Status badge** on each rectangle (bottom-right pill): click cycles Pending → In Progress → Done (Done is solid teal with ✓ prefix; In Progress has a pulse animation).
+- **Floating top-right cluster**: Saving…/Saved ✓ indicator, current zoom %, Templates button.
+- **Templates** open in a side panel. Empty by default — users save the current canvas as a named template (table: `flowchart_templates` with `id, name, project_id, snapshot JSONB, created_at`). Clicking "Use" replays the template centred on the current viewport. Right-click or × to delete.
+- **Canvas**: dot grid (#C5D4D4 1.5px dots, 24px spacing), zoom 80–150% via wheel, pan via Hand tool / 1-finger touch.
+- **Keyboard**: H / R / A / T switch tools; Escape cancels arrow draft, exits title edit, returns to Hand; Delete removes selected node.
+- **Saves auto-retry up to 3 times silently**; never shows an error modal.
+- **Removed** from the previous builder: Add Node button, Auto Layout, Delete tool, side edit panel (description/date/attachments), preset template list, sample-data auto-seed. Canvas now starts empty.
+
+### Required schema addition
+The new `flowchart_templates` table needs to be created in Supabase. The SetupNotice now includes its `CREATE TABLE IF NOT EXISTS` statement and matching RLS policy. Existing installs that already created the other four tables only need to run the templates `CREATE` block.
+
+### Client view (read-only) preserved
+When `isInternal=false`, the tab still shows the progress bar at top, particle/vignette layer, glassy nodes with hover lift, click-to-open detail side panel (description, attachments, comments), and the confetti celebration when all nodes are done.
+
 ## Resilience patterns (April 2026)
 - **Tab-switch / blank-screen fix**: `Dashboard.jsx` and `FlowchartTab.jsx` both listen for `visibilitychange` and `focus` events. When the tab returns to visible, projects + flowchart data are re-fetched and (in the flowchart's case) the realtime subscription is re-established if it had dropped. `App.tsx` keeps a 5-second safety timeout on the auth bootstrap and an internal `mounted` guard.
 - **Supabase realtime resilience**: the flowchart channel tracks status via `subscribedRef`. On `CHANNEL_ERROR | TIMED_OUT | CLOSED`, the subscription is rebuilt with exponential backoff (500ms → 1s → 2s → 4s, capped). On visibility return the channel is re-subscribed if not currently `SUBSCRIBED`.

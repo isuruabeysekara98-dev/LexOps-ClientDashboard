@@ -1,0 +1,199 @@
+Completely rewrite the FlowchartTab builder from scratch.
+The current implementation is broken — tool selection resets 
+after each action, and the UX is confusing. Replace it entirely 
+with the following simpler, Miro-inspired design.
+
+---
+
+## CORE PHILOSOPHY
+
+- A selected tool STAYS selected until the user clicks a 
+  different tool. It never auto-resets.
+- The canvas is the only workspace. No sidebars, no panels 
+  cluttering the builder view.
+- Four tools only. Nothing else.
+- Right-click to delete. No delete button needed.
+- Templates start empty. Saved by the user over time.
+
+---
+
+## THE FOUR TOOLS (toolbar, top-left of canvas)
+
+Style the toolbar as a clean floating pill, 
+background #F0F4F4, border: 0.5px solid #C5D4D4, 
+border-radius: 12px, padding: 6px, gap: 4px.
+
+Each tool is a square icon button (36x36px), 
+border-radius 8px. Active tool: 
+background #1A6666, icon color white.
+Inactive: background transparent, icon color #3A6666.
+
+### Tool 1 — Hand (pan/drag) 🖐
+- Icon: hand/pan symbol
+- Cursor: grab (open hand), grabbing when dragging
+- Behaviour: click and drag anywhere on the canvas 
+  to pan. Does NOT interact with nodes.
+- This is the DEFAULT tool on load.
+- Keyboard shortcut: H
+
+### Tool 2 — Rectangle ▭
+- Icon: rectangle outline
+- Cursor: crosshair
+- Behaviour: 
+  · Click anywhere on canvas → instantly creates a 
+    rectangle node at that position
+  · Node is created with default title "Step"
+  · After placing, the node title immediately enters 
+    inline edit mode (cursor inside the text, ready to type)
+  · Press Enter or click outside to confirm title
+  · Tool remains on Rectangle — user can keep clicking 
+    to place more rectangles
+  · Node dimensions: 160px wide × 60px tall
+  · Style: background white, border 1.5px solid #C5D4D4, 
+    border-radius 8px, drop-shadow 0 2px 8px rgba(8,43,43,0.08)
+  · Title: Inter font, 14px, color #082B2B, centered
+- Keyboard shortcut: R
+
+### Tool 3 — Arrow →
+- Icon: arrow/connector symbol
+- Cursor: crosshair
+- Behaviour:
+  · Hover over a rectangle → rectangle gets a teal 
+    highlight border (#1A6666) and 4 blue connection 
+    dots appear on its edges (top, bottom, left, right)
+  · Click a connection dot → that is the arrow START, 
+    dot turns solid teal
+  · Drag toward another rectangle → a live preview 
+    curved line follows the cursor in teal dashed style
+  · Release on a connection dot of another rectangle 
+    → arrow is created and saved to Supabase
+  · If released on empty canvas → arrow is cancelled, 
+    no error shown
+  · Arrow style: smooth quadratic bezier SVG curve, 
+    stroke #7AA8A8, stroke-width 1.5px, arrowhead at end
+  · On hover: stroke brightens to #1A6666
+  · Tool stays on Arrow after creating — user can keep 
+    drawing connections
+- Keyboard shortcut: A
+
+### Tool 4 — Text T
+- Icon: letter T
+- Cursor: text/I-beam
+- Behaviour:
+  · Click directly on an existing rectangle → that 
+    rectangle's title enters inline edit mode
+  · The full text is selected so user can retype
+  · Press Enter or click outside to save — auto-saves 
+    to Supabase
+  · Do NOT allow clicking empty canvas — if user clicks 
+    empty space, show a subtle tooltip: 
+    "Click a rectangle to edit its text"
+  · Tooltip fades after 1.5 seconds
+- Keyboard shortcut: T
+
+---
+
+## RECTANGLE INTERACTIONS (all tools)
+
+### Moving rectangles (Hand tool only)
+- With Hand tool active: click and drag a rectangle 
+  to reposition it
+- Position saves to Supabase on drag end (mouseup)
+- While dragging: drop-shadow increases, node lifts slightly
+
+### Right-click to delete
+- Right-click any rectangle → show a minimal 
+  context menu:
+  · Single option: "Delete step"
+  · Style: white card, border 0.5px solid #C5D4D4, 
+    border-radius 6px, Inter 13px, color #082B2B
+  · On confirm: remove node + all connected arrows 
+    from Supabase
+- Right-click any arrow → context menu with 
+  "Delete connection"
+- Click anywhere else → dismiss context menu
+
+### Status badge (always visible on rectangle)
+- Small pill in bottom-right corner of each rectangle
+- Click the pill to cycle through: 
+  Pending → In Progress → Done → Pending
+- Colors:
+  · Pending: background #F0F4F4, text #7AA8A8
+  · In Progress: background rgba(26,102,102,0.1), 
+    text #1A6666, border 1px solid #1A6666
+  · Done: background #1A6666, text white, ✓ prefix
+- Status saves to Supabase on click
+
+---
+
+## CANVAS BEHAVIOUR
+
+- Infinite canvas, pan with Hand tool
+- Scroll wheel to zoom (80% min, 150% max)
+- Zoom level shown in top-right of canvas 
+  e.g. "100%" in Inter 12px, color #7AA8A8
+- Dot-grid background: #C5D4D4 dots, 1.5px, 24px spacing
+- Canvas background: #FFFFFF
+- Nodes render above arrows (z-index layering)
+- SVG arrow layer sits between canvas background 
+  and node layer
+
+---
+
+## TEMPLATES
+
+- Templates button in top toolbar (ghost button, 
+  right side of toolbar)
+- On load: zero templates, show empty state:
+  "No templates yet. Build a flowchart and save it 
+  as a template."
+- "Save as Template" button at bottom of templates panel:
+  · Prompts for a template name (inline input)
+  · Saves current canvas nodes + arrows + their 
+    relative positions as a named template in Supabase 
+    under table: flowchart_templates
+    (columns: id, name, project_id, snapshot JSONB, 
+    created_at)
+  · Template appears in the list immediately
+- Clicking a saved template: loads its nodes/arrows 
+  onto canvas (offset from current viewport center 
+  so it doesn't overlap existing content)
+- Right-click a template in the list → "Delete template"
+
+---
+
+## SAVING & FEEDBACK
+
+- All changes (node create, move, rename, status, 
+  arrow create/delete) auto-save to Supabase immediately
+- Show a subtle "Saved ✓" indicator in top-right 
+  of toolbar, Inter 12px, color #1A6666
+- While saving: "Saving..." in #7AA8A8
+- Never show an error modal — if save fails, 
+  retry silently up to 3 times
+
+---
+
+## WHAT TO REMOVE
+
+- Remove the existing broken builder entirely
+- Remove "Add Node" button (rectangles are placed 
+  by clicking with the Rectangle tool)
+- Remove "Auto Layout" button
+- Remove the old Templates with preset steps — 
+  templates are now user-created only, start empty
+- Remove any toolbar items beyond the 4 tools + 
+  Templates button + Saved indicator
+
+---
+
+## KEYBOARD SHORTCUTS SUMMARY
+
+H → Hand tool
+R → Rectangle tool  
+A → Arrow tool
+T → Text tool
+Escape → cancel current action (arrow in progress, 
+  edit mode), switch to Hand tool
+Delete key → if a node is selected (clicked), 
+  delete it (same as right-click delete)
