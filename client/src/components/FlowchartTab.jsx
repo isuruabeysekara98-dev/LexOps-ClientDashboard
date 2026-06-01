@@ -38,12 +38,15 @@ function prefersReducedMotion() {
 // Builder-context for custom node ↔ parent communication
 const FCContext = createContext({});
 
+// Detect if touch device
+const isTouchDevice = () => typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOM NODE — clean white rectangle with editable title + status pill
 // ─────────────────────────────────────────────────────────────────────────────
 function StepNode({ id, data, selected }) {
   const ctx = useContext(FCContext);
-  const { tool, isInternal, editingTitleId, beginTitleEdit, commitTitle, cycleStatus, openDetail } = ctx;
+  const { tool, isInternal, mobile, editingTitleId, beginTitleEdit, commitTitle, cycleStatus, openDetail, connectSource } = ctx;
   const editing = editingTitleId === id;
   const [val, setVal] = useState(data.title);
 
@@ -54,6 +57,8 @@ function StepNode({ id, data, selected }) {
   const isDone = data.status === "done";
   const isInProgress = data.status === "in_progress";
   const showHandles = isInternal && tool === "arrow";
+  const isConnectSource = connectSource === id;
+  const handleSize = mobile ? 20 : 11;
 
   const badgeStyle = isDone
     ? { background: COLOR.accent, color: "#FFFFFF", border: "none" }
@@ -64,7 +69,9 @@ function StepNode({ id, data, selected }) {
     ? STATUS_LABEL_ADMIN[data.status] || "Pending"
     : STATUS_LABEL_CLIENT[data.status] || "Upcoming";
 
-  const borderColor = selected
+  const borderColor = isConnectSource
+    ? COLOR.accent
+    : selected
     ? COLOR.accent
     : (isInternal && tool === "arrow") ? COLOR.subtle : COLOR.border;
 
@@ -81,6 +88,7 @@ function StepNode({ id, data, selected }) {
   }
   function onDoubleClickNode(e) {
     if (!isInternal) return;
+    if (mobile) return; // mobile uses single-tap → action bar
     e.stopPropagation();
     if (!editing) beginTitleEdit?.(id);
   }
@@ -90,19 +98,25 @@ function StepNode({ id, data, selected }) {
     cycleStatus?.(id);
   }
 
+  // Node width grows a touch on mobile for easy tapping
+  const nodeW = mobile ? NODE_W + 20 : NODE_W;
+  const nodeH = mobile ? NODE_H + 6 : NODE_H;
+
   return (
     <div
       onClick={onClickNode}
       onDoubleClick={onDoubleClickNode}
       style={{
-        width: NODE_W, height: NODE_H,
+        width: nodeW, height: nodeH,
         position: "relative",
         background: isInternal ? "#FFFFFF" : "rgba(255,255,255,0.78)",
         backdropFilter: isInternal ? "none" : "blur(10px)",
         WebkitBackdropFilter: isInternal ? "none" : "blur(10px)",
         border: `1.5px solid ${borderColor}`,
         borderRadius: 10,
-        boxShadow: selected
+        boxShadow: isConnectSource
+          ? `0 0 0 3px rgba(26,102,102,0.35), 0 4px 14px rgba(8,43,43,0.10)`
+          : selected
           ? "0 0 0 3px rgba(26,102,102,0.18), 0 4px 14px rgba(8,43,43,0.10)"
           : "0 2px 8px rgba(8,43,43,0.08)",
         padding: "10px 14px",
@@ -110,6 +124,7 @@ function StepNode({ id, data, selected }) {
         cursor: !isInternal ? "pointer" : (tool === "text" ? "text" : "default"),
         transition: "border-color 0.15s, box-shadow 0.15s",
         animation: (isInProgress && !data.reducedMotion) ? "fc-pulse 2.6s ease-in-out infinite" : "none",
+        touchAction: "none",
       }}
     >
       {/* Title */}
@@ -129,14 +144,14 @@ function StepNode({ id, data, selected }) {
           style={{
             width: "100%", textAlign: "center", background: "transparent",
             border: `1px solid ${COLOR.accent}`, borderRadius: 4,
-            color: COLOR.text, fontSize: 14, padding: "4px 6px",
+            color: COLOR.text, fontSize: mobile ? 15 : 14, padding: "4px 6px",
             fontFamily: "Inter, sans-serif", outline: "none",
           }}
         />
       ) : (
         <div style={{
           width: "100%", textAlign: "center",
-          color: COLOR.text, fontSize: 14, fontWeight: 500,
+          color: COLOR.text, fontSize: mobile ? 15 : 14, fontWeight: 500,
           fontFamily: "Inter, sans-serif", lineHeight: 1.25,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
@@ -156,6 +171,7 @@ function StepNode({ id, data, selected }) {
           fontFamily: "Inter, sans-serif",
           letterSpacing: "0.02em",
           cursor: isInternal ? "pointer" : "default",
+          minHeight: mobile ? 26 : "auto",
           ...badgeStyle,
         }}
       >
@@ -176,7 +192,7 @@ function StepNode({ id, data, selected }) {
             position={pos}
             isConnectable={showHandles}
             style={{
-              width: 11, height: 11,
+              width: handleSize, height: handleSize,
               background: "#FFFFFF",
               border: `1.5px solid ${COLOR.accent}`,
               opacity: showHandles ? 1 : 0,
@@ -275,6 +291,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [connectSource, setConnectSource] = useState(null); // mobile connect mode
 
   // Client state
   const [detailId, setDetailId] = useState(null);
@@ -657,20 +674,43 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     await withRetry(() => supabase.from("flowchart_templates").delete().eq("id", id).select());
   }, []);
 
+  // Mobile: node click with connect-mode support
+  const onNodeClick = useCallback((_e, node) => {
+    if (!isInternal || !mobile) return;
+    if (connectSource) {
+      // Second tap = complete the connection
+      if (connectSource !== node.id) dbCreateEdge(connectSource, node.id);
+      setConnectSource(null);
+    }
+    // First tap just selects (RF does that); action bar reads nodes.find(n=>n.selected)
+  }, [isInternal, mobile, connectSource, dbCreateEdge]);
+
   // Context value passed to custom node
   const ctxValue = useMemo(() => ({
-    tool, isInternal, editingTitleId,
+    tool, isInternal, mobile, editingTitleId, connectSource,
     beginTitleEdit, commitTitle, cycleStatus, openDetail,
-  }), [tool, isInternal, editingTitleId, beginTitleEdit, commitTitle, cycleStatus, openDetail]);
+  }), [tool, isInternal, mobile, editingTitleId, connectSource, beginTitleEdit, commitTitle, cycleStatus, openDetail]);
 
   // Tool → React Flow interaction props
+  // On mobile all tools use pan-by-drag because connect is done via the action bar
   const interactionProps = !isInternal ? {
     nodesDraggable: false,
     nodesConnectable: false,
     elementsSelectable: false,
     panOnDrag: true,
     panOnScroll: false,
-    zoomOnScroll: true,
+    zoomOnScroll: !mobile,
+    zoomOnPinch: true,
+    selectNodesOnDrag: false,
+  } : mobile ? {
+    // Mobile builder — always pan/drag, connections via action bar
+    nodesDraggable: true,
+    nodesConnectable: false,
+    elementsSelectable: true,
+    panOnDrag: true,
+    panOnScroll: false,
+    zoomOnScroll: false,
+    zoomOnPinch: true,
     selectNodesOnDrag: false,
   } : tool === "hand" ? {
     nodesDraggable: true,
@@ -679,6 +719,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     panOnDrag: [0, 1, 2], // any mouse button pans on empty pane
     panOnScroll: false,
     zoomOnScroll: true,
+    zoomOnPinch: true,
     selectNodesOnDrag: false,
   } : tool === "rect" ? {
     nodesDraggable: true,
@@ -687,6 +728,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     panOnDrag: false,   // clicks should drop a node, not pan
     panOnScroll: false,
     zoomOnScroll: true,
+    zoomOnPinch: true,
     selectNodesOnDrag: false,
   } : tool === "arrow" ? {
     nodesDraggable: false,
@@ -695,6 +737,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     panOnDrag: false,   // dragging from a handle creates an edge
     panOnScroll: false,
     zoomOnScroll: true,
+    zoomOnPinch: true,
     selectNodesOnDrag: false,
   } : { /* text */
     nodesDraggable: true,
@@ -703,6 +746,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     panOnDrag: [1, 2],  // pan with middle/right; left click on a node enters text edit
     panOnScroll: false,
     zoomOnScroll: true,
+    zoomOnPinch: true,
     selectNodesOnDrag: false,
   };
 
@@ -725,18 +769,24 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     : tool === "arrow" ? "crosshair"
     : "text";
 
+  // Derive selected node id from RF node state
+  const selectedNodeId = nodes.find(n => n.selected)?.id ?? null;
+
   return (
     <div
       ref={wrapperRef}
       style={{
         position: "relative",
         border: `1px solid ${t.border}`,
-        borderRadius: 14,
+        borderRadius: mobile ? 10 : 14,
         overflow: "hidden",
         background: COLOR.bg,
         boxShadow: t.shadow,
-        height: `calc(100vh - ${mobile ? 220 : 200}px)`,
-        minHeight: 520,
+        // Use 100dvh on modern mobile browsers (avoids address-bar jump)
+        height: mobile
+          ? "calc(100dvh - 190px)"
+          : "calc(100vh - 200px)",
+        minHeight: mobile ? 380 : 520,
         display: "flex",
         flexDirection: "column",
       }}
@@ -746,11 +796,12 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
         @keyframes fc-shimmer { 0%{background-position:-200% 50%;} 100%{background-position:200% 50%;} }
         @keyframes fc-shine { 0%{transform:translateX(-100%);} 100%{transform:translateX(200%);} }
         @keyframes fc-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fc-slide-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @media (prefers-reduced-motion: reduce) {
           .fc-pulse, .fc-shimmer-bg, .fc-shine { animation: none !important; }
         }
         /* React Flow overrides */
-        .react-flow { background: ${COLOR.bg}; }
+        .react-flow { background: ${COLOR.bg}; touch-action: none; }
         .react-flow__attribution { display: none !important; }
         .react-flow__edge.selected .react-flow__edge-path { stroke: ${COLOR.arrowSelected} !important; }
         .react-flow__edge:hover .react-flow__edge-path { stroke: ${COLOR.arrowSelected} !important; }
@@ -765,55 +816,98 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
       {/* Top bar — admin builder toolbar OR client progress bar */}
       {isInternal ? (
         <div style={{
-          padding: "10px 14px", borderBottom: `1px solid ${t.border}`,
-          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-          background: t.surfaceHigh, zIndex: 10,
+          padding: mobile ? "8px 10px" : "10px 14px",
+          borderBottom: `1px solid ${t.border}`,
+          display: "flex", alignItems: "center", gap: mobile ? 6 : 10,
+          background: t.surfaceHigh, zIndex: 10, flexShrink: 0,
         }}>
+          {/* Tool pill */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 4, padding: 4,
+            display: "flex", alignItems: "center", gap: 2, padding: 3,
             background: COLOR.panel, border: `0.5px solid ${COLOR.border}`,
             borderRadius: 10,
           }}>
-            <ToolButton active={tool === "hand"} title="Hand (H) — pan + move nodes" onClick={() => setTool("hand")}><HandIcon /></ToolButton>
-            <ToolButton active={tool === "rect"} title="Rectangle (R) — click canvas to add" onClick={() => setTool("rect")}><RectIcon /></ToolButton>
-            <ToolButton active={tool === "arrow"} title="Arrow (A) — drag from a handle to connect" onClick={() => setTool("arrow")}><ArrowIcon /></ToolButton>
-            <ToolButton active={tool === "text"} title="Text (T) — click a rectangle to rename" onClick={() => setTool("text")}><TextIcon /></ToolButton>
+            <ToolButton mobile={mobile} active={tool === "hand"} title="Hand (H)" onClick={() => { setTool("hand"); setConnectSource(null); }}><HandIcon /></ToolButton>
+            <ToolButton mobile={mobile} active={tool === "rect"} title="Add step (R)" onClick={() => { setTool("rect"); setConnectSource(null); }}><RectIcon /></ToolButton>
+            {!mobile && <ToolButton active={tool === "arrow"} title="Arrow (A)" onClick={() => setTool("arrow")}><ArrowIcon /></ToolButton>}
+            <ToolButton mobile={mobile} active={tool === "text"} title="Rename (T)" onClick={() => { setTool("text"); setConnectSource(null); }}><TextIcon /></ToolButton>
           </div>
+
           <div style={{ flex: 1 }} />
+
+          {/* Save indicator */}
           <span style={{
             color: saveStatus.includes("Saving") ? COLOR.subtle : COLOR.accent,
-            fontSize: 12, minWidth: 64, textAlign: "right",
-            transition: "color 0.2s",
-            fontFamily: "Inter, sans-serif",
+            fontSize: 11, minWidth: mobile ? 0 : 64, textAlign: "right",
+            transition: "color 0.2s", fontFamily: "Inter, sans-serif",
+            display: saveStatus ? "block" : "none",
           }}>{saveStatus}</span>
+
+          {/* Templates button */}
           <button
             onClick={() => setShowTemplates(true)}
             style={{
               background: "transparent", color: COLOR.text,
               border: `0.5px solid ${COLOR.border}`, borderRadius: 8,
-              padding: "6px 12px", fontSize: 12, fontWeight: 500,
-              cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.04em",
+              padding: mobile ? "7px 10px" : "6px 12px",
+              fontSize: mobile ? 13 : 12, fontWeight: 500,
+              cursor: "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 5,
+              minHeight: 36,
             }}
-            data-tap
+            data-tap title="Templates"
           >
-            Templates
+            {mobile ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+            ) : "Templates"}
           </button>
+
+          {/* Mobile: Add node FAB inline */}
+          {mobile && (
+            <button
+              onClick={() => {
+                // Place a node in the center of the current viewport
+                if (!rf) return;
+                const r = wrapperRef.current?.getBoundingClientRect();
+                if (!r) return;
+                const pos = rf.screenToFlowPosition({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+                const newId = dbCreateNode(pos.x - (NODE_W + 20) / 2, pos.y - (NODE_H + 6) / 2);
+                setEditingTitleId(newId);
+              }}
+              style={{
+                background: COLOR.accent, color: "#FFFFFF",
+                border: "none", borderRadius: 8,
+                padding: "7px 12px", fontSize: 20,
+                fontWeight: 300, cursor: "pointer", lineHeight: 1,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                minHeight: 36, minWidth: 36,
+              }}
+              data-tap title="Add step"
+            >
+              +
+            </button>
+          )}
         </div>
       ) : (
-        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: t.surfaceHigh, zIndex: 10 }}>
-          <span style={{ color: t.text, fontSize: 15, fontWeight: 400, letterSpacing: "0.04em" }}>
-            Your Case Progress — <span style={{ color: t.accentLight, fontWeight: 500 }}>{progress}% Complete</span>
-          </span>
-          <div style={{ flex: 1, position: "relative", height: 10, background: "rgba(8,43,43,0.08)", borderRadius: 99, overflow: "hidden", marginLeft: 14 }}>
-            <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, #1A6666, #1A6666, #1A6666)", boxShadow: "0 0 12px #1A6666", borderRadius: 99, transition: "width 0.6s ease" }}>
-              <div className="fc-shine" style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)", animation: reducedMotion ? "none" : "fc-shine 2.4s linear infinite" }} />
+        <div style={{ padding: mobile ? "8px 12px" : "10px 14px", borderBottom: `1px solid ${t.border}`, background: t.surfaceHigh, zIndex: 10, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: mobile ? "wrap" : "nowrap" }}>
+            <span style={{ color: t.text, fontSize: mobile ? 13 : 15, fontWeight: 400, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+              {mobile ? `${progress}% complete` : `Your Case Progress — `}
+              {!mobile && <span style={{ color: t.accentLight, fontWeight: 500 }}>{progress}% Complete</span>}
+            </span>
+            <div style={{ flex: 1, position: "relative", height: 8, background: "rgba(8,43,43,0.08)", borderRadius: 99, overflow: "hidden", minWidth: 60 }}>
+              <div style={{ width: `${progress}%`, height: "100%", background: "#1A6666", boxShadow: "0 0 10px #1A6666", borderRadius: 99, transition: "width 0.6s ease" }}>
+                <div className="fc-shine" style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)", animation: reducedMotion ? "none" : "fc-shine 2.4s linear infinite" }} />
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* Canvas */}
-      <div style={{ flex: 1, position: "relative", cursor }}>
+      <div style={{ flex: 1, position: "relative", cursor: mobile ? "default" : cursor, overflow: "hidden" }}>
         <FCContext.Provider value={ctxValue}>
           <ReactFlow
             nodes={nodes}
@@ -825,6 +919,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
             onConnect={onConnect}
             onNodeDragStop={onNodeDragStop}
             onPaneClick={onPaneClick}
+            onNodeClick={onNodeClick}
             onNodeContextMenu={onNodeContextMenu}
             onEdgeContextMenu={onEdgeContextMenu}
             defaultEdgeOptions={{
@@ -832,7 +927,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
               style: { stroke: COLOR.arrow, strokeWidth: 1.5 },
               markerEnd: { type: MarkerType.ArrowClosed, color: COLOR.arrow, width: 16, height: 16 },
             }}
-            minZoom={0.4}
+            minZoom={0.3}
             maxZoom={2}
             fitView={false}
             proOptions={{ hideAttribution: true }}
@@ -860,13 +955,13 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
             textAlign: "center", padding: 20,
           }}>
             {isInternal
-              ? "Select the rectangle tool and click anywhere to add your first step."
+              ? (mobile ? "Tap + in the toolbar to add your first step." : "Select the rectangle tool and click anywhere to add your first step.")
               : "No flowchart published yet."}
           </div>
         )}
 
-        {/* Right-click context menu */}
-        {contextMenu && (
+        {/* Right-click context menu (desktop only) */}
+        {contextMenu && !mobile && (
           <ContextMenu
             x={contextMenu.x}
             y={contextMenu.y}
@@ -877,6 +972,47 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
                 : [{ label: "Delete connection", onClick: () => dbDeleteEdge(contextMenu.id) }]
             }
           />
+        )}
+
+        {/* Mobile: floating action bar when a node is selected */}
+        {mobile && isInternal && selectedNodeId && (
+          <MobileActionBar
+            nodeId={selectedNodeId}
+            nodes={nodes}
+            connectSource={connectSource}
+            onRename={() => beginTitleEdit(selectedNodeId)}
+            onCycleStatus={() => cycleStatus(selectedNodeId)}
+            onDelete={() => {
+              dbDeleteNode(selectedNodeId);
+              setConnectSource(null);
+            }}
+            onConnect={() => {
+              if (connectSource === selectedNodeId) {
+                setConnectSource(null);
+              } else {
+                setConnectSource(selectedNodeId);
+              }
+            }}
+            onDismiss={() => {
+              setNodes(ns => ns.map(n => ({ ...n, selected: false })));
+              setConnectSource(null);
+            }}
+          />
+        )}
+
+        {/* Mobile: connect-mode hint */}
+        {mobile && isInternal && connectSource && !selectedNodeId && (
+          <div style={{
+            position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)",
+            background: COLOR.accent, color: "#FFFFFF",
+            borderRadius: 99, padding: "10px 20px",
+            fontSize: 13, fontWeight: 500, zIndex: 50,
+            pointerEvents: "none", textAlign: "center",
+            animation: "fc-slide-up 0.2s ease",
+            boxShadow: "0 4px 18px rgba(26,102,102,0.35)",
+          }}>
+            Tap another step to connect →
+          </div>
         )}
       </div>
 
@@ -920,14 +1056,68 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MOBILE ACTION BAR — appears when a node is selected on mobile
+// ─────────────────────────────────────────────────────────────────────────────
+function MobileActionBar({ nodeId, nodes, connectSource, onRename, onCycleStatus, onDelete, onConnect, onDismiss }) {
+  const node = nodes.find(n => n.id === nodeId);
+  const isConnecting = connectSource === nodeId;
+  if (!node) return null;
+
+  const pill = (label, onClick, accent) => (
+    <button
+      onClick={onClick} data-tap
+      style={{
+        flex: 1,
+        background: accent ? COLOR.accent : "#FFFFFF",
+        color: accent ? "#FFFFFF" : COLOR.text,
+        border: `1px solid ${accent ? COLOR.accent : COLOR.border}`,
+        borderRadius: 8, padding: "10px 4px",
+        fontSize: 12, fontWeight: 500,
+        cursor: "pointer", fontFamily: "Inter, sans-serif",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+        letterSpacing: "0.01em",
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{
+      position: "absolute", bottom: 12, left: 12, right: 12, zIndex: 50,
+      background: "rgba(240,244,244,0.96)", backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      border: `1px solid ${COLOR.border}`,
+      borderRadius: 14, padding: 12,
+      boxShadow: "0 8px 32px rgba(8,43,43,0.18)",
+      animation: "fc-slide-up 0.18s ease",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ flex: 1, color: COLOR.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {node.data.title}
+        </span>
+        <button onClick={onDismiss} style={{ background: "transparent", border: "none", color: COLOR.subtle, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: "0 4px" }} data-tap>×</button>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {pill("✏️ Rename", onRename, false)}
+        {pill("↻ Status", onCycleStatus, false)}
+        {pill(isConnecting ? "✕ Cancel" : "→ Connect", onConnect, isConnecting)}
+        {pill("🗑 Delete", onDelete, false)}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TOOL BUTTONS
 // ─────────────────────────────────────────────────────────────────────────────
-function ToolButton({ active, title, onClick, children }) {
+function ToolButton({ active, mobile, title, onClick, children }) {
+  const size = mobile ? 42 : 36;
   return (
     <button
       onClick={onClick} title={title} data-tap
       style={{
-        width: 36, height: 36, borderRadius: 8,
+        width: size, height: size, borderRadius: 8,
         background: active ? COLOR.accent : "transparent",
         color: active ? "#FFFFFF" : COLOR.muted,
         border: "none", cursor: "pointer",
