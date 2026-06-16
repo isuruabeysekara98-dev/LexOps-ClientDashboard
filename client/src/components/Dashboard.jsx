@@ -205,6 +205,19 @@ function OverviewTab({project,isInternal,t,mobile}) {
 const toNull=v=>v===""?null:v;
 
 const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
+
+async function autoCompletePhaseIfDone(projectId, phaseId) {
+  if (!phaseId) return;
+  const { data: phaseTasks } = await supabase
+    .from("tasks")
+    .select("status")
+    .eq("project_id", projectId)
+    .eq("phase_id", phaseId);
+  if (!phaseTasks || phaseTasks.length === 0) return;
+  if (phaseTasks.every(tk => tk.status === "done")) {
+    await supabase.from("phases").update({ status: "complete", progress: 100 }).eq("id", phaseId);
+  }
+}
 const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_deliverable:false,phase_id:null};
 
 function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMembers,phases}) {
@@ -296,6 +309,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     if(error){console.error("[TasksTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
     await loadTasks();
+    if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id);
     setSaving(false);
     onRefresh?.();
   }
@@ -305,6 +319,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     const {error}=await supabase.from("tasks").update({status:newStatus}).eq("id",task.id);
     if(error){console.error("[TasksTab] toggle error:",error.message);return;}
     await loadTasks();
+    if(newStatus==="done") await autoCompletePhaseIfDone(projectId, task.phase_id);
     onRefresh?.();
   }
 
@@ -1218,6 +1233,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
     const {error}=await supabase.from("tasks").update(payload).eq("id",editingTask.id);
     if(error){setFormError(error.message);setSaving(false);return;}
+    if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id||editingTask.phase_id);
     setEditingTask(null);
     setSaving(false);
     onRefresh?.();
