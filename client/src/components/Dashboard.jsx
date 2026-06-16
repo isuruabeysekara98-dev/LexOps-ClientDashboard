@@ -165,7 +165,7 @@ function OverviewTab({project,isInternal,t,mobile}) {
       ))}
     </div>
     <Card t={t}>
-      <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Project Phases</SectionLabel></div>
+      <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Project Milestones</SectionLabel></div>
       <Line t={t}/>
       {project.phases.map((ph,i)=>(
         <div key={i}>
@@ -267,7 +267,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
   async function addPhase(e){
     e.preventDefault();
-    if(!newPhaseForm.name.trim()){setFormError("Phase name is required.");return;}
+    if(!newPhaseForm.name.trim()){setFormError("Milestone name is required.");return;}
     setFormError("");
     setSaving(true);
     const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
@@ -423,8 +423,8 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
             {phases&&phases.length>0&&(
               <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-                <option value="">Phase…</option>
-                {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Phase {idx+1} — {ph.name}</option>)}
+                <option value="">Milestone…</option>
+                {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Milestone {idx+1} — {ph.name}</option>)}
               </select>
             )}
             {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={editForm.is_internal??true} onChange={e=>setEditForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
@@ -472,16 +472,16 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           </button>
         ))}
       </div>
-      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
+      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Milestone</button>
     </div>
 
     {formError&&<div style={{background:t.redSoft||"rgba(248,113,113,0.08)",border:`1px solid ${t.red}30`,borderRadius:8,padding:"8px 14px",color:t.red,fontSize:12,marginBottom:8}}>{formError}</div>}
 
-    {/* Add Phase form */}
+    {/* Add Milestone form */}
     {showAddPhase&&(
       <Card t={t}>
         <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
-          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Phase name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
+          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Milestone name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
           <div style={{display:"flex",gap:6}}>
             <button type="submit" disabled={saving||!newPhaseForm.name.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newPhaseForm.name.trim()?0.5:1}}>
               {saving?"…":"Create"}
@@ -516,7 +516,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             <Line t={t}/>
             {renderAddForm(ph.id)}
             {phaseTasks.length===0
-              ?<div style={{color:t.textSub,textAlign:"center",padding:"24px 0",fontSize:12}}>No tasks in this phase</div>
+              ?<div style={{color:t.textSub,textAlign:"center",padding:"24px 0",fontSize:12}}>No tasks in this milestone</div>
               :phaseTasks.map((task,i)=>renderTaskRow(task,i,phaseTasks))
             }
           </>}
@@ -1073,8 +1073,8 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     {/* ── Phase Details table ── */}
     <Card t={t}>
       <div style={{padding:"14px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <SectionLabel t={t}>Phase Details</SectionLabel>
-        <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add Phase</button>
+        <SectionLabel t={t}>Milestone Details</SectionLabel>
+        <button onClick={()=>{setShowAdd(s=>!s);setEditingId(null);}} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add Milestone</button>
       </div>
       <Line t={t}/>
 
@@ -1083,7 +1083,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
       {showAdd&&(
         <div>
           <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 20px",flexWrap:"wrap"}}>
-            {phInput(newForm.name,e=>setNewForm(f=>({...f,name:e.target.value})),"Phase name…",{flex:"2 1 160px"})}
+            {phInput(newForm.name,e=>setNewForm(f=>({...f,name:e.target.value})),"Milestone name…",{flex:"2 1 160px"})}
             <input type="date" value={newForm.start} onChange={e=>setNewForm(f=>({...f,start:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
             <input type="date" value={newForm.end} onChange={e=>setNewForm(f=>({...f,end:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
             {phInput(String(newForm.progress),e=>setNewForm(f=>({...f,progress:e.target.value})),"0-100",{flex:"0 0 60px",type:"number"})}
@@ -1098,7 +1098,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
       )}
 
       {phases.length===0&&!showAdd
-        ?<div style={{color:t.textSub,textAlign:"center",padding:"32px 0",fontSize:13}}>No phases yet.</div>
+        ?<div style={{color:t.textSub,textAlign:"center",padding:"32px 0",fontSize:13}}>No milestones yet.</div>
         :phases.map((ph,i)=>{
           const isEditing=editingId===ph.id;
           const isExpanded=expandedPhase===ph.id;
@@ -1108,7 +1108,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
             <div key={ph.id??i}>
               {isEditing?(
                 <form onSubmit={e=>saveEdit(e,ph.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 20px",flexWrap:"wrap"}}>
-                  {phInput(editForm.name,e=>setEditForm(f=>({...f,name:e.target.value})),"Phase name",{flex:"2 1 160px"})}
+                  {phInput(editForm.name,e=>setEditForm(f=>({...f,name:e.target.value})),"Milestone name",{flex:"2 1 160px"})}
                   <input type="date" value={editForm.start} onChange={e=>setEditForm(f=>({...f,start:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
                   <input type="date" value={editForm.end} onChange={e=>setEditForm(f=>({...f,end:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 130px"}}/>
                   {phInput(String(editForm.progress),e=>setEditForm(f=>({...f,progress:e.target.value})),"0-100",{flex:"0 0 60px",type:"number"})}
@@ -1151,7 +1151,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
                     </div>
                   )}
                   {isExpanded&&phaseTasks.length===0&&(
-                    <div style={{paddingLeft:36,paddingBottom:8,color:t.textDim,fontSize:12,padding:"6px 20px 8px 56px"}}>No tasks assigned to this phase</div>
+                    <div style={{paddingLeft:36,paddingBottom:8,color:t.textDim,fontSize:12,padding:"6px 20px 8px 56px"}}>No tasks assigned to this milestone</div>
                   )}
                 </>
               )}
@@ -1193,7 +1193,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
 
   async function addPhase(e){
     e.preventDefault();
-    if(!newPhaseForm.name.trim()){setFormError("Phase name is required.");return;}
+    if(!newPhaseForm.name.trim()){setFormError("Milestone name is required.");return;}
     setFormError("");
     setSaving(true);
     const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
@@ -1280,7 +1280,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Phase</label>
+              <label style={{color:t.textSub,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em"}}>Milestone</label>
               <select value={editForm.phase_id||""} onChange={e=>setEditForm(f=>({...f,phase_id:e.target.value||null}))} style={{width:"100%",background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer"}}>
                 <option value="">Unassigned</option>
                 {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
@@ -1299,12 +1299,12 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
       </div>
     )}
     <div style={{display:"flex",justifyContent:"flex-start",marginBottom:16}}>
-      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Phase</button>
+      <button onClick={openAddPhaseForm} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>+ Add Milestone</button>
     </div>
     {showAddPhase&&(
       <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"12px 18px",marginBottom:16}}>
         <form onSubmit={addPhase} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Phase name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
+          <input value={newPhaseForm.name} onChange={e=>setNewPhaseForm({name:e.target.value})} placeholder="Milestone name…" autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"1 1 180px"}}/>
           <div style={{display:"flex",gap:6}}>
             <button type="submit" disabled={saving||!newPhaseForm.name.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newPhaseForm.name.trim()?0.5:1}}>
               {saving?"…":"Create"}

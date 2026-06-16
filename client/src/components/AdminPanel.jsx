@@ -350,7 +350,7 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
             {field("Client Name",  <Input t={t} value={form.client_name} onChange={set("client_name")} placeholder="Acme Corp" />, true)}
             {field("Project Name", <Input t={t} value={form.name}         onChange={set("name")}         placeholder="CRM Implementation" />, true)}
-            {field("Phase",        <Input t={t} value={form.phase}       onChange={set("phase")}       placeholder="Implementation" />, true)}
+            {field("Milestone",    <Input t={t} value={form.phase}       onChange={set("phase")}       placeholder="Implementation" />, true)}
             {field("Due Date",     <Input t={t} type="date" value={form.due_date} onChange={set("due_date")} />, true)}
             {field("Manager",      <Input t={t} value={form.manager}     onChange={set("manager")}     placeholder="Jane Smith" />, true)}
             {field("Budget ($)",   <Input t={t} type="number" value={form.budget} onChange={set("budget")} placeholder="5000" />, true)}
