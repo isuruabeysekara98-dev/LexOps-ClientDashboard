@@ -290,4 +290,30 @@ router.post("/generate-project", requireAdmin, upload.single("pdf"), async (req:
   }
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/bulk-rename-phases
+// Renames every phase whose name starts with "Phase " → "Milestone "
+// ---------------------------------------------------------------------------
+router.post("/bulk-rename-phases", requireAdmin, async (req, res) => {
+  try {
+    const { data: phases, error: fetchErr } = await adminSupabase
+      .from("phases")
+      .select("id, name")
+      .ilike("name", "Phase %");
+
+    if (fetchErr) { res.status(500).json({ message: fetchErr.message }); return; }
+    if (!phases || phases.length === 0) { res.json({ updated: 0 }); return; }
+
+    let updated = 0;
+    for (const phase of phases) {
+      const newName = phase.name.replace(/^Phase /i, "Milestone ");
+      const { error } = await adminSupabase.from("phases").update({ name: newName }).eq("id", phase.id);
+      if (!error) updated++;
+    }
+    res.json({ updated, total: phases.length });
+  } catch (err: any) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 export default router;

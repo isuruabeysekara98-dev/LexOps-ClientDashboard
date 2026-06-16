@@ -2143,6 +2143,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [showWelcome,setShowWelcome]=useState(false);
   const [teamMembers,setTeamMembers]=useState([]);
+  const lastLoadRef=useRef(0);
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
@@ -2166,19 +2167,19 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
     })();
   },[isClient,selected?.id]);
 
-  const loadProjects=useCallback(async()=>{
-    setLoading(true);
+  const loadProjects=useCallback(async({silent=false}={})=>{
+    if(!silent) setLoading(true);
     let query;
     if(isClient){
       console.log("[Dashboard] Client allowedProjectIds:", JSON.stringify(allowedProjectIds));
-      if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);setLoading(false);return;}
+      if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
       query=supabase.from("projects").select("*").in("id",allowedProjectIds);
     } else {
       query=supabase.from("projects").select("*, clients(name)");
     }
     const {data:rows,error:queryErr}=await query.order("id");
     if(isClient) console.log("[Dashboard] Projects query:", {ids: allowedProjectIds, rows, error: queryErr?.message});
-    if(!rows||rows.length===0){setProjects([]);setLoading(false);return;}
+    if(!rows||rows.length===0){setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
     const full=await Promise.all(rows.map(async row=>{
       const related=await fetchProjectData(row.id);
       return normalizeProject(row,related);
@@ -2191,26 +2192,27 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
     if(isClient && userProfile && !userProfile.has_seen_welcome){
       setShowWelcome(true);
     }
+    lastLoadRef.current=Date.now();
     setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{ loadProjects(); },[loadProjects]);
 
-  // Resilience: re-fetch all data + verify session whenever the tab becomes visible.
-  // Supabase realtime drops silently while the tab is idle, so we always reload.
+  // Resilience: re-fetch data when tab becomes visible again after a long absence.
+  // Uses a 5-minute cooldown so quick tab switches don't trigger a reload.
+  // Focus listener removed — it fires on any window focus change which is too aggressive.
   useEffect(()=>{
     const handleVisibility=async()=>{
       if(document.visibilityState!=="visible") return;
       const {data:{session}}=await supabase.auth.getSession();
       if(!session){ if(onLogout) onLogout(); return; }
-      loadProjects();
+      if(Date.now()-lastLoadRef.current < 5*60*1000) return;
+      loadProjects({silent:true});
     };
     document.addEventListener("visibilitychange",handleVisibility);
-    window.addEventListener("focus",handleVisibility);
     return()=>{
       document.removeEventListener("visibilitychange",handleVisibility);
-      window.removeEventListener("focus",handleVisibility);
     };
   },[loadProjects,onLogout]);
 

@@ -1291,6 +1291,28 @@ function ProjectsTab({ t }) {
   const [aiError, setAiError] = useState("");
   const [aiSuccess, setAiSuccess] = useState(false);
   const [matchProject, setMatchProject] = useState(null);
+  const [syncingMilestones, setSyncingMilestones] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  async function syncMilestoneNames() {
+    setSyncingMilestones(true);
+    setSyncResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin/bulk-rename-phases", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || "Failed");
+      setSyncResult({ ok: true, msg: json.updated === 0 ? "Already up to date — no changes needed." : `Renamed ${json.updated} of ${json.total} milestone(s).` });
+      await loadProjects();
+    } catch (err) {
+      setSyncResult({ ok: false, msg: err.message });
+    } finally {
+      setSyncingMilestones(false);
+    }
+  }
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -1510,10 +1532,25 @@ function ProjectsTab({ t }) {
         />
       )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: syncResult ? 8 : 20 }}>
         <SectionLabel t={t}>All Projects ({projects.length})</SectionLabel>
-        <Btn t={t} onClick={() => setShowModal(true)}>+ New Project</Btn>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Btn t={t} variant="ghost" disabled={syncingMilestones} onClick={syncMilestoneNames} style={{ fontSize: 11 }}>
+            {syncingMilestones ? "Syncing…" : "Sync Milestone Names"}
+          </Btn>
+          <Btn t={t} onClick={() => setShowModal(true)}>+ New Project</Btn>
+        </div>
       </div>
+      {syncResult && (
+        <div style={{
+          marginBottom: 16, padding: "8px 14px", borderRadius: 8, fontSize: 12,
+          background: syncResult.ok ? "#f0fdf4" : "#fef2f2",
+          color: syncResult.ok ? "#16a34a" : "#dc2626",
+          border: `1px solid ${syncResult.ok ? "#bbf7d0" : "#fecaca"}`,
+        }}>
+          {syncResult.msg}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
