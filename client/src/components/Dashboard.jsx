@@ -387,8 +387,8 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           {inlineSelect(newForm.status,e=>setNewForm(f=>({...f,status:e.target.value})))}
           {formKey==="__global__"&&phases&&phases.length>0&&(
             <select value={newForm.phase_id||""} onChange={e=>setNewForm(f=>({...f,phase_id:e.target.value||null}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 8px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",cursor:"pointer",flex:"0 1 140px"}}>
-              <option value="">Phase…</option>
-              {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Phase {idx+1} — {ph.name}</option>)}
+              <option value="">Milestone…</option>
+              {sortedPhases.map((ph,idx)=><option key={ph.id} value={ph.id}>Milestone {idx+1} — {ph.name}</option>)}
             </select>
           )}
           {isInternal&&<label style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:t.textSub,cursor:"pointer",whiteSpace:"nowrap"}}><input type="checkbox" checked={newForm.is_internal} onChange={e=>setNewForm(f=>({...f,is_internal:e.target.checked}))}/> Internal</label>}
