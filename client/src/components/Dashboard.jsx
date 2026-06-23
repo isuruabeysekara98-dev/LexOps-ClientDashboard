@@ -142,7 +142,7 @@ function SidebarRow({p,active,onClick,t}) {
   </div>;
 }
 
-function OverviewTab({project,isInternal,t,mobile}) {
+function OverviewTab({project,isInternal,t,mobile,onSetup}) {
   const daysLeft=project.dueDate ? Math.ceil((new Date(project.dueDate)-new Date())/86400000) : 0;
   const done=project.tasks.filter(tk=>tk.status==="done").length;
   const stats=[
@@ -154,6 +154,13 @@ function OverviewTab({project,isInternal,t,mobile}) {
   const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
+    {isInternal && (
+      <div style={{display:"flex",justifyContent:"flex-end"}}>
+        <button onClick={onSetup} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:7}}>
+          <span style={{fontSize:14}}>⚙</span> Project Setup
+        </button>
+      </div>
+    )}
     <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
     <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":`repeat(${stats.length},1fr)`,gap:12}}>
       {stats.map((s,i)=>(
@@ -2013,6 +2020,665 @@ function BookingTab({project,t}) {
 }
 
 // ---------------------------------------------------------------------------
+// Project Setup Drawer
+// ---------------------------------------------------------------------------
+function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
+  const [section, setSection] = useState("details");
+
+  // ── Core details form ──
+  const [det, setDet] = useState({
+    name: project.name || project.project || "",
+    client_name: project.client_name || project.client || "",
+    manager: project.manager || "",
+    calendly_url: project.calendly_url || "",
+    due_date: project.due_date || project.dueDate || "",
+    status: project.status || "active",
+    progress: String(project.progress ?? 0),
+    budget: String(project.budget ?? 0),
+    total_engagement_value: String(project.total_engagement_value ?? 0),
+    summary: project.summary || "",
+    client_summary: project.client_summary || "",
+  });
+  const [detSaving, setDetSaving] = useState(false);
+  const [detOk, setDetOk] = useState(false);
+
+  // ── Linked proposal (for pre-fill) ──
+  const [proposal, setProposal] = useState(null);
+
+  // ── Phases ──
+  const [phases, setPhases] = useState(project.phases || []);
+  const [showAddPhase, setShowAddPhase] = useState(false);
+  const [newPhase, setNewPhase] = useState({ name: "", status: "pending", progress: "0", start_date: "", end_date: "" });
+  const [phSaving, setPhSaving] = useState(false);
+  const [importingPh, setImportingPh] = useState(false);
+
+  // ── Tasks / Deliverables ──
+  const [tasks, setTasks] = useState(project.tasks || []);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTask, setNewTask] = useState({ title: "", due_date: "", is_deliverable: true, is_internal: false, status: "todo" });
+
+  // ── Documents ──
+  const [docs, setDocs] = useState(project.documents || []);
+  const [docUploading, setDocUploading] = useState(false);
+
+  // ── Invoices ──
+  const [invoices, setInvoices] = useState(project.invoices || []);
+  const [showAddInv, setShowAddInv] = useState(false);
+  const [newInv, setNewInv] = useState({ invoice_number: "", description: "", amount: "", phase_name: "", due_date: "" });
+  const [invFile, setInvFile] = useState(null);
+  const [invSaving, setInvSaving] = useState(false);
+
+  // ── Load live data + linked proposal ──
+  useEffect(() => { loadAll(); }, [project.id]);
+
+  async function loadAll() {
+    const [phRes, tkRes, docRes, invRes, prRes] = await Promise.all([
+      supabase.from("phases").select("*").eq("project_id", project.id).order("created_at", { ascending: true }),
+      supabase.from("tasks").select("*").eq("project_id", project.id).order("id"),
+      supabase.from("documents").select("*").eq("project_id", project.id).order("uploaded_at", { ascending: false }),
+      supabase.from("invoices").select("*").eq("project_id", project.id).order("id"),
+      supabase.from("proposals").select("id, name, description, client_summary").eq("project_id", project.id).limit(1),
+    ]);
+    if (phRes.data) setPhases(phRes.data);
+    if (tkRes.data) setTasks(tkRes.data);
+    if (docRes.data) setDocs(docRes.data);
+    if (invRes.data) setInvoices(invRes.data);
+    if (prRes.data?.[0]) {
+      const pr = prRes.data[0];
+      // Also fetch workflow stages for this proposal
+      const { data: wfRows } = await supabase.from("workflows").select("id").eq("proposal_id", pr.id).limit(1);
+      let stages = [];
+      if (wfRows?.[0]) {
+        const { data: stRows } = await supabase.from("workflow_stages").select("*").eq("workflow_id", wfRows[0].id).order("order_index", { ascending: true });
+        stages = stRows || [];
+      }
+      setProposal({ ...pr, stages });
+    }
+  }
+
+  // ── Save core details ──
+  async function saveDetails(e) {
+    e.preventDefault();
+    setDetSaving(true);
+    await supabase.from("projects").update({
+      name: det.name,
+      client_name: det.client_name,
+      manager: det.manager || null,
+      calendly_url: det.calendly_url || null,
+      due_date: det.due_date || null,
+      status: det.status,
+      progress: Number(det.progress) || 0,
+      budget: Number(det.budget) || 0,
+      total_engagement_value: Number(det.total_engagement_value) || 0,
+      summary: det.summary || null,
+      client_summary: det.client_summary || null,
+    }).eq("id", project.id);
+    setDetSaving(false);
+    setDetOk(true);
+    setTimeout(() => setDetOk(false), 2500);
+    onRefresh?.();
+  }
+
+  // ── Import phases from proposal workflow stages ──
+  async function importPhases() {
+    if (!proposal?.stages?.length) return;
+    setImportingPh(true);
+    for (const st of proposal.stages) {
+      await supabase.from("phases").insert({
+        project_id: project.id,
+        name: st.title || st.name || `Stage ${st.order_index + 1}`,
+        status: "pending",
+        progress: 0,
+        sort_order: st.order_index ?? 0,
+      });
+    }
+    await loadAll();
+    setImportingPh(false);
+    onRefresh?.();
+  }
+
+  // ── Add phase ──
+  async function addPhase(e) {
+    e.preventDefault();
+    if (!newPhase.name.trim()) return;
+    setPhSaving(true);
+    await supabase.from("phases").insert({
+      project_id: project.id,
+      name: newPhase.name.trim(),
+      status: newPhase.status,
+      progress: Number(newPhase.progress) || 0,
+      start_date: newPhase.start_date || null,
+      end_date: newPhase.end_date || null,
+    });
+    setNewPhase({ name: "", status: "pending", progress: "0", start_date: "", end_date: "" });
+    setShowAddPhase(false);
+    await loadAll();
+    setPhSaving(false);
+    onRefresh?.();
+  }
+
+  async function deletePhase(id) {
+    await supabase.from("phases").delete().eq("id", id);
+    setPhases(ps => ps.filter(p => p.id !== id));
+    onRefresh?.();
+  }
+
+  // ── Add task ──
+  async function addTask(e) {
+    e.preventDefault();
+    if (!newTask.title.trim()) return;
+    await supabase.from("tasks").insert({
+      project_id: project.id,
+      title: newTask.title.trim(),
+      due_date: newTask.due_date || null,
+      is_deliverable: newTask.is_deliverable,
+      is_internal: newTask.is_internal,
+      status: "todo",
+    });
+    setNewTask({ title: "", due_date: "", is_deliverable: true, is_internal: false, status: "todo" });
+    setShowAddTask(false);
+    await loadAll();
+    onRefresh?.();
+  }
+
+  async function deleteTask(id) {
+    await supabase.from("tasks").delete().eq("id", id);
+    setTasks(ts => ts.filter(t => t.id !== id));
+    onRefresh?.();
+  }
+
+  // ── Upload document ──
+  async function uploadDoc(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setDocUploading(true);
+    const storagePath = `${project.id}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
+    if (!upErr) {
+      const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
+      await supabase.from("documents").insert({
+        project_id: project.id, name: file.name,
+        file_type: file.name.split(".").pop().toUpperCase(),
+        file_size: file.size, file_url: publicUrl,
+        storage_path: storagePath, uploaded_at: new Date().toISOString(),
+      });
+      await loadAll();
+      onRefresh?.();
+    }
+    setDocUploading(false);
+  }
+
+  // ── Add invoice ──
+  async function addInvoice(e) {
+    e.preventDefault();
+    if (!newInv.invoice_number.trim()) return;
+    setInvSaving(true);
+    let publicUrl = null, storagePath = null;
+    if (invFile) {
+      storagePath = `${project.id}/invoices/${Date.now()}_${invFile.name}`;
+      const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, invFile, { upsert: true });
+      if (!upErr) publicUrl = supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
+    }
+    await supabase.from("invoices").insert({
+      project_id: project.id,
+      invoice_number: newInv.invoice_number.trim(),
+      description: newInv.description || null,
+      amount: Number(newInv.amount) || 0,
+      phase_name: newInv.phase_name || null,
+      due_date: newInv.due_date || null,
+      status: "upcoming",
+      file_url: publicUrl,
+      storage_path: storagePath,
+    });
+    setNewInv({ invoice_number: "", description: "", amount: "", phase_name: "", due_date: "" });
+    setInvFile(null);
+    await loadAll();
+    setInvSaving(false);
+    onRefresh?.();
+  }
+
+  async function deleteInvoice(id) {
+    await supabase.from("invoices").delete().eq("id", id);
+    setInvoices(ivs => ivs.filter(i => i.id !== id));
+    onRefresh?.();
+  }
+
+  // ── Reusable style helpers ──
+  const inp = (val, onChange, placeholder, type = "text", extra = {}) => (
+    <input type={type} value={val} onChange={onChange} placeholder={placeholder}
+      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box", ...extra }} />
+  );
+  const fld = (label, child, required = false) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}{required && <span style={{ color: t.accent }}> *</span>}</div>
+      {child}
+    </div>
+  );
+
+  const SECTIONS = [
+    { key: "details",    label: "Project Details" },
+    { key: "milestones", label: "Milestones" },
+    { key: "actions",    label: "Actions" },
+    { key: "documents",  label: "Documents" },
+    { key: "invoices",   label: "Invoices" },
+  ];
+
+  const deliverables = tasks.filter(tk => tk.is_deliverable);
+  const actions      = tasks.filter(tk => !tk.is_deliverable);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 350, display: "flex", alignItems: "stretch" }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ flex: 1, background: "rgba(8,43,43,0.45)", backdropFilter: "blur(2px)" }} />
+
+      {/* Drawer panel */}
+      <div style={{ width: mobile ? "100%" : 840, maxWidth: "100%", background: t.bg, display: "flex", flexDirection: "column", boxShadow: "-8px 0 48px rgba(0,0,0,0.22)", overflowY: "hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding: "18px 26px", borderBottom: `1px solid ${t.border}`, background: t.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: t.text, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.01em" }}>Project Setup</div>
+            <div style={{ fontSize: 12, color: t.textSub, marginTop: 2 }}>{det.client_name || project.client} · {det.name || project.project}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {proposal && (
+              <div style={{ fontSize: 11, color: t.accentLight, background: t.accentSoft || "#E5EDED", border: `1px solid ${t.accent}30`, borderRadius: 6, padding: "3px 10px", fontWeight: 600 }}>
+                Linked: {proposal.name}
+              </div>
+            )}
+            <button onClick={onClose} style={{ background: "transparent", border: "none", color: t.textSub, fontSize: 22, cursor: "pointer", lineHeight: 1, padding: "2px 6px" }}>×</button>
+          </div>
+        </div>
+
+        {/* Section tabs */}
+        <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, background: t.surface, flexShrink: 0, overflowX: "auto" }}>
+          {SECTIONS.map(s => (
+            <button key={s.key} onClick={() => setSection(s.key)} style={{
+              background: "transparent", border: "none",
+              borderBottom: section === s.key ? `2px solid ${t.accent}` : "2px solid transparent",
+              color: section === s.key ? t.text : t.textSub,
+              padding: "11px 20px", fontSize: 13, fontWeight: section === s.key ? 600 : 400,
+              cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", transition: "color 0.12s",
+            }}>{s.label}</button>
+          ))}
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: 28 }}>
+
+          {/* ═══ PROJECT DETAILS ═══ */}
+          {section === "details" && (
+            <form onSubmit={saveDetails} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 16 }}>
+                {fld("Project Name", inp(det.name, e => setDet(d => ({ ...d, name: e.target.value })), "e.g. Estates Automation"), true)}
+                {fld("Client Name", inp(det.client_name, e => setDet(d => ({ ...d, client_name: e.target.value })), "e.g. Acme Corp"), true)}
+                {fld("Project Manager", inp(det.manager, e => setDet(d => ({ ...d, manager: e.target.value })), "e.g. Jane Smith"))}
+                {fld("Calendly Booking URL", inp(det.calendly_url, e => setDet(d => ({ ...d, calendly_url: e.target.value })), "https://calendly.com/..."))}
+                {fld("Due Date", inp(det.due_date, e => setDet(d => ({ ...d, due_date: e.target.value })), "", "date"))}
+                {fld("Status",
+                  <select value={det.status} onChange={e => setDet(d => ({ ...d, status: e.target.value }))}
+                    style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%" }}>
+                    {[["active","Active"],["on-hold","On Hold"],["paused","Paused"],["complete","Complete"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                )}
+                {fld("Progress (%)", inp(det.progress, e => setDet(d => ({ ...d, progress: e.target.value })), "0", "number"))}
+                {fld("Budget (£)", inp(det.budget, e => setDet(d => ({ ...d, budget: e.target.value })), "0", "number"))}
+                {fld("Total Engagement Value (£)", inp(det.total_engagement_value, e => setDet(d => ({ ...d, total_engagement_value: e.target.value })), "0", "number"))}
+              </div>
+
+              {fld("Internal Summary",
+                <textarea value={det.summary} onChange={e => setDet(d => ({ ...d, summary: e.target.value }))}
+                  placeholder="Brief internal description of this project…" rows={3}
+                  style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", width: "100%" }} />
+              )}
+
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                  <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", flex: 1 }}>Client-Facing Overview</div>
+                  {proposal?.description && (
+                    <button type="button" onClick={() => setDet(d => ({ ...d, client_summary: proposal.description }))}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 12px", fontSize: 11, color: t.accentLight, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                      ↓ Pull from proposal
+                    </button>
+                  )}
+                  {proposal?.client_summary && !proposal?.description && (
+                    <button type="button" onClick={() => setDet(d => ({ ...d, client_summary: proposal.client_summary }))}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 12px", fontSize: 11, color: t.accentLight, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                      ↓ Pull from proposal
+                    </button>
+                  )}
+                </div>
+                <textarea value={det.client_summary} onChange={e => setDet(d => ({ ...d, client_summary: e.target.value }))}
+                  placeholder="What the client sees on their Overview page. Describe the project scope, objectives, and what success looks like…"
+                  rows={6}
+                  style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "10px 14px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", width: "100%", lineHeight: 1.7 }} />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 4 }}>
+                <button type="submit" disabled={detSaving}
+                  style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: detSaving ? 0.65 : 1 }}>
+                  {detSaving ? "Saving…" : "Save Details"}
+                </button>
+                {detOk && <span style={{ color: t.green, fontSize: 12, fontWeight: 600 }}>✓ Saved successfully</span>}
+              </div>
+            </form>
+          )}
+
+          {/* ═══ MILESTONES ═══ */}
+          {section === "milestones" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, color: t.textSub, fontSize: 12 }}>
+                  {phases.length} milestone{phases.length !== 1 ? "s" : ""}
+                </div>
+                {proposal?.stages?.length > 0 && (
+                  <button onClick={importPhases} disabled={importingPh}
+                    style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, padding: "6px 14px", fontSize: 12, color: t.accentLight, cursor: importingPh ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: 600, opacity: importingPh ? 0.6 : 1 }}>
+                    {importingPh ? "Importing…" : `↓ Import ${proposal.stages.length} stages from proposal`}
+                  </button>
+                )}
+                <button onClick={() => setShowAddPhase(s => !s)}
+                  style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "6px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  + Add Milestone
+                </button>
+              </div>
+
+              {showAddPhase && (
+                <form onSubmit={addPhase} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "18px 20px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ flex: "2 1 180px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Name *</div>
+                    <input autoFocus value={newPhase.name} onChange={e => setNewPhase(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Discovery & Scoping" required
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "0 1 130px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Status</div>
+                    <select value={newPhase.status} onChange={e => setNewPhase(f => ({ ...f, status: e.target.value }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%" }}>
+                      {[["pending","Pending"],["active","Active"],["complete","Complete"]].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: "0 1 110px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Progress %</div>
+                    <input type="number" min="0" max="100" value={newPhase.progress} onChange={e => setNewPhase(f => ({ ...f, progress: e.target.value }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "0 1 140px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Start Date</div>
+                    <input type="date" value={newPhase.start_date} onChange={e => setNewPhase(f => ({ ...f, start_date: e.target.value }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "0 1 140px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>End Date</div>
+                    <input type="date" value={newPhase.end_date} onChange={e => setNewPhase(f => ({ ...f, end_date: e.target.value }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button type="submit" disabled={phSaving || !newPhase.name.trim()}
+                      style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: !newPhase.name.trim() ? 0.5 : 1 }}>
+                      {phSaving ? "…" : "Add"}
+                    </button>
+                    <button type="button" onClick={() => setShowAddPhase(false)}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {phases.length === 0
+                ? (
+                  <div style={{ textAlign: "center", padding: "40px 24px", color: t.textSub, fontSize: 13 }}>
+                    <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>◆</div>
+                    No milestones yet.{proposal?.stages?.length > 0 ? " Use the import button above to pull stages from the linked proposal, or add them manually." : " Add milestones above to define the project phases."}
+                  </div>
+                )
+                : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {phases.map((ph, i) => (
+                      <div key={ph.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: ph.status === "complete" ? t.green : ph.status === "active" ? t.accent : t.border }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: t.text, fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{ph.name}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ flex: 1, height: 3, background: t.border, borderRadius: 99, overflow: "hidden", maxWidth: 160 }}>
+                              <div style={{ height: "100%", width: `${ph.progress || 0}%`, background: ph.status === "complete" ? t.green : t.accent, borderRadius: 99 }} />
+                            </div>
+                            <span style={{ color: t.textSub, fontSize: 11 }}>{ph.progress || 0}%</span>
+                            {ph.start_date && <span style={{ color: t.textSub, fontSize: 11 }}>{ph.start_date.slice(5).replace("-","/")} → {ph.end_date ? ph.end_date.slice(5).replace("-","/") : "—"}</span>}
+                          </div>
+                        </div>
+                        <Pill t={t} status={ph.status === "complete" ? "complete" : ph.status === "active" ? "active" : "pending"} label={ph.status === "complete" ? "Done" : ph.status === "active" ? "Active" : "Pending"} />
+                        <button onClick={() => deletePhase(ph.id)}
+                          style={{ background: "transparent", border: "none", color: t.textSub, cursor: "pointer", fontSize: 16, padding: "2px 4px", opacity: 0.45, lineHeight: 1, flexShrink: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+          {/* ═══ ACTIONS ═══ */}
+          {section === "actions" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, color: t.textSub, fontSize: 12 }}>{tasks.length} item{tasks.length !== 1 ? "s" : ""} — {deliverables.length} deliverable{deliverables.length !== 1 ? "s" : ""}, {actions.length} action{actions.length !== 1 ? "s" : ""}</div>
+                <button onClick={() => setShowAddTask(s => !s)}
+                  style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "6px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  + Add Action
+                </button>
+              </div>
+
+              {showAddTask && (
+                <form onSubmit={addTask} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "18px 20px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ flex: "2 1 200px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Title *</div>
+                    <input autoFocus value={newTask.title} onChange={e => setNewTask(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Review scope document" required
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "0 1 150px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Due Date</div>
+                    <input type="date" value={newTask.due_date} onChange={e => setNewTask(f => ({ ...f, due_date: e.target.value }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "0 1 160px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Type</div>
+                    <select value={String(newTask.is_deliverable)} onChange={e => setNewTask(f => ({ ...f, is_deliverable: e.target.value === "true" }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%" }}>
+                      <option value="false">Action / Task</option>
+                      <option value="true">Deliverable</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: "0 1 150px" }}>
+                    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Visibility</div>
+                    <select value={String(newTask.is_internal)} onChange={e => setNewTask(f => ({ ...f, is_internal: e.target.value === "true" }))}
+                      style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%" }}>
+                      <option value="false">Client visible</option>
+                      <option value="true">Internal only</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button type="submit" disabled={!newTask.title.trim()}
+                      style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: !newTask.title.trim() ? 0.5 : 1 }}>
+                      Add
+                    </button>
+                    <button type="button" onClick={() => setShowAddTask(false)}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {tasks.length === 0
+                ? (
+                  <div style={{ textAlign: "center", padding: "40px 24px", color: t.textSub, fontSize: 13 }}>
+                    <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>✅</div>
+                    No actions yet. Add tasks and deliverables to define the project work.
+                  </div>
+                )
+                : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {tasks.map(tk => (
+                      <div key={tk.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ fontSize: 15, flexShrink: 0 }}>{tk.is_deliverable ? "📦" : "✅"}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: t.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
+                          <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>
+                            {tk.is_deliverable ? "Deliverable" : "Action"} · {tk.is_internal ? "Internal" : "Client visible"} · {tk.status}
+                            {tk.due_date ? ` · Due ${tk.due_date}` : ""}
+                          </div>
+                        </div>
+                        <button onClick={() => deleteTask(tk.id)}
+                          style={{ background: "transparent", border: "none", color: t.textSub, cursor: "pointer", fontSize: 16, padding: "2px 4px", opacity: 0.4, lineHeight: 1, flexShrink: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+          {/* ═══ DOCUMENTS ═══ */}
+          {section === "documents" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ background: t.surface, border: `1.5px dashed ${t.border}`, borderRadius: 12, padding: "28px 24px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.45 }}>↑</div>
+                <div style={{ color: t.text, fontSize: 14, fontWeight: 500, marginBottom: 4 }}>Upload Project Documents</div>
+                <div style={{ color: t.textSub, fontSize: 12, marginBottom: 18 }}>PDFs, Word docs, spreadsheets — any format</div>
+                <input type="file" id="setup-doc-inp" style={{ display: "none" }} onChange={uploadDoc} />
+                <label htmlFor="setup-doc-inp" style={{ background: t.accent, color: "#fff", borderRadius: 8, padding: "10px 26px", fontSize: 13, fontWeight: 600, cursor: docUploading ? "not-allowed" : "pointer", opacity: docUploading ? 0.65 : 1, display: "inline-block" }}>
+                  {docUploading ? "Uploading…" : "Choose File"}
+                </label>
+              </div>
+
+              {docs.length === 0
+                ? <div style={{ textAlign: "center", padding: "16px 0", color: t.textSub, fontSize: 13 }}>No documents uploaded yet.</div>
+                : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {docs.map(doc => (
+                      <div key={doc.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 6, background: t.surface, border: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: t.accentLight, letterSpacing: "0.03em", flexShrink: 0 }}>
+                          {(doc.file_type || doc.name?.split(".").pop() || "FILE").toUpperCase().slice(0, 4)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: t.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                          <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{fmtBytes(doc.file_size)} · {fmtDate(doc.uploaded_at)}</div>
+                        </div>
+                        <a href={doc.file_url} target="_blank" rel="noreferrer"
+                          style={{ color: t.accentLight, fontSize: 12, textDecoration: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 12px", flexShrink: 0 }}>
+                          Download
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+          {/* ═══ INVOICES ═══ */}
+          {section === "invoices" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setShowAddInv(s => !s)}
+                  style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "6px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  + Add Invoice
+                </button>
+              </div>
+
+              {showAddInv && (
+                <form onSubmit={addInvoice} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr 1fr", gap: 12 }}>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Invoice # *</div>
+                      <input autoFocus value={newInv.invoice_number} onChange={e => setNewInv(f => ({ ...f, invoice_number: e.target.value }))} placeholder="INV-001" required
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Amount (£)</div>
+                      <input type="number" min="0" step="0.01" value={newInv.amount} onChange={e => setNewInv(f => ({ ...f, amount: e.target.value }))} placeholder="0.00"
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Due Date</div>
+                      <input type="date" value={newInv.due_date} onChange={e => setNewInv(f => ({ ...f, due_date: e.target.value }))}
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Description</div>
+                      <input value={newInv.description} onChange={e => setNewInv(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Phase 1 — Discovery"
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Phase</div>
+                      <select value={newInv.phase_name} onChange={e => setNewInv(f => ({ ...f, phase_name: e.target.value }))}
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
+                        <option value="">— None —</option>
+                        {phases.map(ph => <option key={ph.id} value={ph.name}>{ph.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>PDF (optional)</div>
+                      <input type="file" accept=".pdf" onChange={e => setInvFile(e.target.files?.[0] || null)}
+                        style={{ fontSize: 12, color: t.textSub, fontFamily: "inherit" }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => setShowAddInv(false)}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 16px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={invSaving || !newInv.invoice_number.trim()}
+                      style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: !newInv.invoice_number.trim() ? 0.5 : 1 }}>
+                      {invSaving ? "Saving…" : "Add Invoice"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {invoices.length === 0
+                ? <div style={{ textAlign: "center", padding: "24px 0", color: t.textSub, fontSize: 13 }}>No invoices yet. Add the first invoice above.</div>
+                : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {invoices.map(inv => (
+                      <div key={inv.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "13px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: t.surface, border: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <span style={{ fontSize: 14 }}>£</span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>{inv.invoice_number}</div>
+                          <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>
+                            {inv.amount ? `£${Number(inv.amount).toLocaleString()}` : "—"}
+                            {inv.description ? ` · ${inv.description}` : ""}
+                            {inv.due_date ? ` · Due ${inv.due_date}` : ""}
+                          </div>
+                        </div>
+                        <Pill t={t} status={inv.status === "paid" ? "paid" : "upcoming"} label={inv.status === "paid" ? "Paid" : inv.status === "pending" ? "Pending" : "Upcoming"} />
+                        {inv.file_url && (
+                          <a href={inv.file_url} target="_blank" rel="noreferrer"
+                            style={{ color: t.accentLight, fontSize: 11, textDecoration: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 10px", flexShrink: 0 }}>
+                            PDF
+                          </a>
+                        )}
+                        <button onClick={() => deleteInvoice(inv.id)}
+                          style={{ background: "transparent", border: "none", color: t.textSub, cursor: "pointer", fontSize: 16, padding: "2px 4px", opacity: 0.4, lineHeight: 1, flexShrink: 0 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Welcome Screen (first login only for clients)
 // ---------------------------------------------------------------------------
 function WelcomeScreen({ userProfile, project, t, onDismiss }) {
@@ -2722,6 +3388,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const [tab,setTab]=useState("overview");
   const [adminOpen,setAdminOpen]=useState(false);
   const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [setupOpen,setSetupOpen]=useState(false);
   const [showWelcome,setShowWelcome]=useState(false);
   const [teamMembers,setTeamMembers]=useState([]);
   const lastLoadRef=useRef(0);
@@ -2846,6 +3513,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'Inter', sans-serif",color:t.text,display:"flex",flexDirection:"column",letterSpacing:"0.01em"}}>
       {showWelcome&&<WelcomeScreen userProfile={userProfile} project={selected} t={t} onDismiss={dismissWelcome}/>}
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
+      {setupOpen&&selected&&<ProjectSetupDrawer project={selected} onClose={()=>setSetupOpen(false)} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
       {/* Mobile sidebar overlay */}
       {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}}/>}
       {/* Nav bar */}
@@ -2963,7 +3631,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
               </div>
               {tab==="overview"    && (isClientView
                 ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
-                : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile}/>
+                : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
               )}
               {tab==="plan"        &&!isClientView&&<PlanTab projectId={selected.id} initialPhases={selected.phases} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
               {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} t={t} mobile={mobile}/>}
