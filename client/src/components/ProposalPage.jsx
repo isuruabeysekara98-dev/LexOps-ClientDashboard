@@ -21,6 +21,23 @@ const inp = {
   outline: "none", boxSizing: "border-box", fontFamily: "inherit",
 };
 
+// Dashed placeholder shown where content hasn't been filled in yet
+function FieldTodo({ label = "Field to be completed", compact = false }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 7,
+      padding: compact ? "7px 10px" : "10px 13px",
+      border: "1.5px dashed rgba(155,155,143,0.38)",
+      borderRadius: 8, color: t.textMeta,
+      fontSize: compact ? 11 : 12, fontStyle: "italic",
+      background: "rgba(155,155,143,0.035)",
+    }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {label}
+    </div>
+  );
+}
+
 // ─── Keyframe CSS injected once ───────────────────────────────────────────────
 const GLOBAL_CSS = `
   @keyframes spin { to { transform: rotate(360deg) } }
@@ -177,7 +194,9 @@ function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
               </div>
               {/* Label */}
               <div style={{ textAlign: "center", marginTop: 13 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4, lineHeight: 1.3 }}>{stage.title}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: stage.title ? t.text : t.textMeta, marginBottom: 4, lineHeight: 1.3, fontStyle: stage.title ? "normal" : "italic" }}>
+                  {stage.title || "Stage title to be completed"}
+                </div>
                 {stage.description && (
                   <div style={{ fontSize: 10, color: t.textSub, lineHeight: 1.55, maxWidth: 120 }}>
                     {stage.description.length > 72 ? stage.description.slice(0, 72) + "…" : stage.description}
@@ -211,69 +230,73 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
               <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${t.border}`, background: t.surface, cursor: "pointer", color: t.textSub, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
           </div>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: t.text, margin: 0, lineHeight: 1.2 }}>{stage.title}</h2>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: t.text, margin: 0, lineHeight: 1.2 }}>
+            {stage.title || <span style={{ color: t.textMeta, fontStyle: "italic", fontWeight: 400 }}>Stage title to be completed</span>}
+          </h2>
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 48px" }}>
           {/* Description + stats */}
-          {(stage.description || stats.length > 0) && (
-            <div style={{ background: "rgba(11,79,79,0.05)", border: `1px solid rgba(11,79,79,0.12)`, borderRadius: 12, padding: "18px 20px", marginBottom: 24 }}>
-              {stage.description && (
-                <p style={{ fontSize: 14, color: t.textSub, lineHeight: 1.75, margin: stats.length > 0 ? "0 0 18px" : 0 }}>{stage.description}</p>
-              )}
-              {stats.length > 0 && (
-                <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-                  {stats.map((stat, i) => (
-                    <div key={i}>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: t.accent, letterSpacing: "-0.03em" }}>{stat.value}</div>
-                      <div style={{ fontSize: 11, color: t.textSub, marginTop: 2 }}>{stat.label}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          <div style={{ background: "rgba(11,79,79,0.05)", border: `1px solid rgba(11,79,79,0.12)`, borderRadius: 12, padding: "18px 20px", marginBottom: 24 }}>
+            {stage.description ? (
+              <p style={{ fontSize: 14, color: t.textSub, lineHeight: 1.75, margin: stats.length > 0 ? "0 0 18px" : 0 }}>{stage.description}</p>
+            ) : (
+              <div style={{ marginBottom: stats.length > 0 ? 14 : 0 }}><FieldTodo label="Stage description to be completed" /></div>
+            )}
+            {stats.length > 0 ? (
+              <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                {stats.map((stat, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: t.accent, letterSpacing: "-0.03em" }}>{stat.value}</div>
+                    <div style={{ fontSize: 11, color: t.textSub, marginTop: 2 }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            ) : !stage.description ? null : (
+              <FieldTodo label="Key stats to be added" compact />
+            )}
+          </div>
 
           {/* Inputs */}
-          {inputs.length > 0 && (
-            <div style={{ marginBottom: 26 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Inputs</h3>
+          <div style={{ marginBottom: 26 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Inputs</h3>
+            {inputs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {inputs.map((item, i) => (
                   <div key={i} style={{ background: "#FBF9F5", border: `1px solid ${t.border}`, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "📋"}</span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label || <FieldTodo compact />}</div>
                       {(item.description || item.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{item.description || item.detail}</div>}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <FieldTodo label="Inputs to be completed" />
+            )}
+          </div>
 
           {/* Outputs */}
-          {outputs.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: t.green, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Outputs LexOps delivers</h3>
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.green, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Outputs LexOps delivers</h3>
+            {outputs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {outputs.map((item, i) => (
                   <div key={i} style={{ background: "rgba(5,150,105,0.04)", border: `1px solid rgba(5,150,105,0.18)`, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
                     <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "✓"}</span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label || <FieldTodo compact />}</div>
                       {(item.description || item.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{item.description || item.detail}</div>}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {inputs.length === 0 && outputs.length === 0 && !stage.description && (
-            <div style={{ textAlign: "center", color: t.textMeta, fontSize: 13, paddingTop: 20 }}>No additional details for this stage.</div>
-          )}
+            ) : (
+              <FieldTodo label="Outputs to be completed" />
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -878,7 +901,9 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, o
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: t.textMeta, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 2 }}>Workflow {index + 1}</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: t.text, letterSpacing: "-0.01em" }}>{wf.name}</div>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", color: wf.name ? t.text : t.textMeta, fontStyle: wf.name ? "normal" : "italic" }}>
+            {wf.name || "Workflow name to be completed"}
+          </div>
           {stages.length > 0 && <div style={{ fontSize: 11, color: t.textMeta, marginTop: 2 }}>{stages.length} stage{stages.length !== 1 ? "s" : ""}</div>}
         </div>
         {wf.description && (
@@ -887,12 +912,18 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, o
       </div>
 
       {/* Timeline */}
-      {stages.length > 0 && (
-        <div style={{ padding: "18px 18px 0" }}>
-          <HorizontalTimeline stages={stages} selectedIndex={selectedStage} onSelect={i => setSelectedStage(i)} />
-          <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 8, marginBottom: 14 }}>Click a step to see inputs, outputs &amp; details</div>
-        </div>
-      )}
+      <div style={{ padding: "18px 18px 0" }}>
+        {stages.length > 0 ? (
+          <>
+            <HorizontalTimeline stages={stages} selectedIndex={selectedStage} onSelect={i => setSelectedStage(i)} />
+            <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 8, marginBottom: 14 }}>Click a step to see inputs, outputs &amp; details</div>
+          </>
+        ) : (
+          <div style={{ padding: "18px 4px 20px" }}>
+            <FieldTodo label="Workflow stages to be completed" />
+          </div>
+        )}
+      </div>
 
       {/* Try matter wizard or simple tabs */}
       {!isFrozen && (
@@ -943,40 +974,34 @@ function ClientReviewFlow({ proposal, token, onRefresh }) {
 
         {/* Hero */}
         <div style={{ marginBottom: 36, animation: "fadeUp 0.35s ease-out" }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(24px,4vw,34px)", fontWeight: 700, color: t.text, margin: "0 0 10px", letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-            {proposal.name}
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(24px,4vw,34px)", fontWeight: 700, margin: "0 0 10px", letterSpacing: "-0.02em", lineHeight: 1.2, color: proposal.name ? t.text : t.textMeta, fontStyle: proposal.name ? "normal" : "italic" }}>
+            {proposal.name || "Proposal title to be completed"}
           </h1>
           {proposal.description && (
             <p style={{ color: t.textSub, fontSize: 14, lineHeight: 1.75, margin: "0 0 22px", maxWidth: 620 }}>{proposal.description}</p>
           )}
 
-          {/* Pain points + Objectives cards */}
-          {(painPoints.length > 0 || objectives.length > 0) && (
-            <div style={{ display: "grid", gridTemplateColumns: painPoints.length && objectives.length ? "1fr 1fr" : "1fr", gap: 14 }}>
-              {painPoints.length > 0 && (
-                <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Challenges we're solving</div>
-                  {painPoints.map((pp, i) => (
-                    <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
-                      <span style={{ color: t.accent, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>•</span>
-                      {pp}
-                    </div>
-                  ))}
+          {/* Pain points + Objectives cards — always shown */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Challenges we're solving</div>
+              {painPoints.length > 0 ? painPoints.map((pp, i) => (
+                <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
+                  <span style={{ color: t.accent, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>•</span>
+                  {pp}
                 </div>
-              )}
-              {objectives.length > 0 && (
-                <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Objectives</div>
-                  {objectives.map((obj, i) => (
-                    <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
-                      <span style={{ color: t.green, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>→</span>
-                      {obj}
-                    </div>
-                  ))}
-                </div>
-              )}
+              )) : <FieldTodo label="Pain points to be completed" />}
             </div>
-          )}
+            <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Objectives</div>
+              {objectives.length > 0 ? objectives.map((obj, i) => (
+                <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
+                  <span style={{ color: t.green, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>→</span>
+                  {obj}
+                </div>
+              )) : <FieldTodo label="Objectives to be completed" />}
+            </div>
+          </div>
         </div>
 
         {/* Submitted banner */}
