@@ -101,7 +101,7 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
   if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
   if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
   if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
-  if (page.name === "dashboard") return <Dashboard onLogout={onLogout} userProfile={userProfile} />;
+  if (page.name === "dashboard") return <Dashboard onLogout={onLogout} userProfile={userProfile} navigate={navigate} />;
   return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
 }
 

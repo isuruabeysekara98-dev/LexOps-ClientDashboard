@@ -262,7 +262,22 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
       }}>
         <Logo />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {hovBtn !== "logout" && onLogout && (
+          <button
+            onClick={() => navigate("/active-projects")}
+            onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
+          >
+            ⚡ Active Projects
+          </button>
+          <button
+            onClick={() => navigate("/admin/proposals")}
+            onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
+          >
+            📋 Proposals
+          </button>
+          <div style={{ width: 1, height: 18, background: t.border, margin: "0 6px" }} />
+          {onLogout && (
             <button
               onClick={onLogout}
               onMouseEnter={() => setHovBtn("logout")} onMouseLeave={() => setHovBtn(null)}

@@ -2128,7 +2128,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
   );
 }
 
-export default function LexOpsDashboard({ onLogout, userProfile }) {
+export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
@@ -2278,7 +2278,7 @@ export default function LexOpsDashboard({ onLogout, userProfile }) {
           {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:mobile?6:10,flexWrap:mobile?"wrap":"nowrap"}}>
-          {isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{mobile?"⚙":"Admin"}</button>}
+          {isAdmin&&navigate&&<button onClick={()=>navigate("/admin/proposals")} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",color:t.textSub,transition:"all 0.15s",fontFamily:"inherit"}}>{mobile?"📋":"📋 Proposals"}</button>}{isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{mobile?"⚙":"Admin"}</button>}
           {!isClient&&<div style={{display:"flex",background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2}}>
             {[["internal",mobile?"Int":"Internal"],["client",mobile?"Client":"Client View"]].map(([k,l])=>(
               <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>

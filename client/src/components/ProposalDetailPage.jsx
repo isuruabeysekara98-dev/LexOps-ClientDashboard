@@ -182,6 +182,20 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
         <Logo />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button
+            onClick={() => navigate("/active-projects")}
+            onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
+          >
+            ⚡ Active Projects
+          </button>
+          <button
+            onClick={() => navigate("/admin/proposals")}
+            onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
+          >
+            📋 Proposals
+          </button>
+          <button
             onClick={() => navigate("/admin/proposals/new")}
             onMouseEnter={() => setHovBtn("new")} onMouseLeave={() => setHovBtn(null)}
             style={{ ...btnBase, background: hovBtn === "new" ? t.accentHover : t.accent, color: "#fff", fontWeight: 600 }}

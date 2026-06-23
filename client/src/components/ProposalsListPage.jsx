@@ -172,6 +172,14 @@ export default function ProposalsListPage({ navigate, onLogout }) {
         <Logo />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button
+            onClick={() => navigate("/active-projects")}
+            onMouseEnter={() => setHovBtn("projects")}
+            onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
+          >
+            ⚡ Active Projects
+          </button>
+          <button
             onClick={() => navigate("/admin/proposals")}
             onMouseEnter={() => setHovBtn("proposals")}
             onMouseLeave={() => setHovBtn(null)}
