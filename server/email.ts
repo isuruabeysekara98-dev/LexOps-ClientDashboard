@@ -44,15 +44,19 @@ const heading = (text: string) =>
 const subText = (text: string) =>
   `<p style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">${text}</p>`;
 
-async function send(to: string, subject: string, html: string) {
+async function send(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
   if (!resend) {
-    console.warn(`[email] RESEND_API_KEY not set — skipping "${subject}" to ${to}`);
-    return;
+    const msg = `RESEND_API_KEY not set — cannot send "${subject}" to ${to}`;
+    console.warn(`[email] ${msg}`);
+    return { ok: false, error: msg };
   }
   try {
-    await resend.emails.send({ from: FROM, replyTo: REPLY_TO, to, subject, html });
+    const resp = await resend.emails.send({ from: FROM, replyTo: REPLY_TO, to, subject, html });
+    console.log(`[email] Sent "${subject}" to ${to}`, JSON.stringify(resp));
+    return { ok: true };
   } catch (err: any) {
     console.error(`[email] Failed to send "${subject}" to ${to}:`, err.message);
+    return { ok: false, error: err.message };
   }
 }
 
@@ -283,38 +287,18 @@ export async function sendWelcomeEmail(email: string, clientName: string, projec
 }
 
 // ---------------------------------------------------------------------------
-// r-2. v2 Proposal Invite (client invite with login credentials)
+// r-2. v2 Proposal Invite — simple link, no credentials
 // ---------------------------------------------------------------------------
 export async function sendV2ProposalInvite(
   email: string,
   proposalName: string,
-  loginUrl: string,
-  loginEmail: string,
-  tempPassword: string | null,
-  isExistingUser: boolean = false
-) {
-  const credBlock = tempPassword
-    ? `<div style="margin:20px 0;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px 20px">
-        <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 10px">Your login details</p>
-        <p style="color:#374151;font-size:14px;margin:0 0 6px"><strong>Email:</strong> ${loginEmail}</p>
-        <p style="color:#374151;font-size:14px;margin:0"><strong>Temporary password:</strong> ${tempPassword}</p>
-       </div>`
-    : "";
-
-  const intro = isExistingUser
-    ? bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Log in with your existing account to review it, try the workflow demos, and share your feedback.`)
-    : bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Use the credentials below to log in, review the proposal, and share your feedback.`);
-
-  const hint = isExistingUser
-    ? subText("Log in with your existing LexOps password.")
-    : subText("Use the temporary password above to log in. You can update your password from your account settings at any time.");
-
-  await send(email, `LexOps: Your proposal for ${proposalName} is ready`, emailWrapper(
+  proposalUrl: string
+): Promise<{ ok: boolean; error?: string }> {
+  return send(email, `LexOps: Your proposal for ${proposalName} is ready`, emailWrapper(
     heading(`Your proposal is ready`) +
-    intro +
-    credBlock +
-    ctaButton("Log in and review proposal", loginUrl) +
-    hint
+    bodyText(`LexOps has prepared a proposal for you: <strong>${proposalName}</strong>. Click below to review it, see the workflow demos, and share your feedback.`) +
+    ctaButton("Review your proposal", proposalUrl) +
+    subText("This link gives you direct access — no account required.")
   ));
 }
 

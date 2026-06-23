@@ -806,7 +806,7 @@ router.get("/:id", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/proposals/v2/:id/send — provision client account + send invite
+// POST /api/proposals/v2/:id/send — send proposal link to client
 // ---------------------------------------------------------------------------
 router.post("/:id/send", requireAdmin, async (req, res) => {
   const { id } = req.params;
@@ -816,46 +816,20 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
   const email = proposal.client_email?.trim();
   if (!email) { res.status(400).json({ message: "Client email is required before sending" }); return; }
 
-  let clientUserId: string | null = proposal.client_user_id || null;
-  let tempPassword: string | null = null;
+  const proposalUrl = `${SITE_URL}/proposal/${proposal.token}`;
+  const result = await sendV2ProposalInvite(email, proposal.name || "Proposal", proposalUrl);
 
-  if (!clientUserId) {
-    const { data: existing } = await adminSupabase.from("profiles").select("id").eq("email", email).maybeSingle();
-    if (existing) {
-      clientUserId = existing.id;
-    } else {
-      tempPassword = generatePassword();
-      const { data: created, error: createErr } = await adminSupabase.auth.admin.createUser({
-        email,
-        password: tempPassword,
-        email_confirm: true,
-      });
-      if (createErr) { res.status(500).json({ message: `Could not create client account: ${createErr.message}` }); return; }
-      clientUserId = created.user?.id || null;
-      if (clientUserId) {
-        await adminSupabase.from("profiles").upsert({ id: clientUserId, email, full_name: null, role: "client" });
-      }
-    }
+  if (!result.ok) {
+    res.status(500).json({ message: result.error || "Failed to send email" });
+    return;
   }
 
   await adminSupabase.from("proposals").update({
     status: "sent",
-    client_user_id: clientUserId,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
-  const nextPath = encodeURIComponent(`/proposal/${proposal.token}`);
-  const loginUrl = `${SITE_URL}/login?next=${nextPath}`;
-  await sendV2ProposalInvite(email, proposal.name || "your proposal", loginUrl, email, tempPassword, !tempPassword);
-
-  await adminSupabase.from("emails_log").insert({
-    proposal_id: id,
-    type: "proposal_invite",
-    to_email: email,
-    status: "sent",
-  }).catch(() => {});
-
-  res.json({ success: true, client_user_id: clientUserId });
+  res.json({ success: true });
 });
 
 // ---------------------------------------------------------------------------
