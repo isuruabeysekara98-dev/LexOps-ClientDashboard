@@ -1835,90 +1835,413 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
 }
 
 // ---------------------------------------------------------------------------
-// Client Overview Tab
+// Client Overview — Status Banner
 // ---------------------------------------------------------------------------
-function ClientOverviewTab({ project, t, mobile }) {
+function ClientStatusBanner({ project, phases, t }) {
+  const activePhase = phases.find(p => p.status === "active") || phases.find(p => p.status !== "complete") || phases[phases.length - 1];
   const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable);
-  const statusIcon = (s) => s === "done" ? "✅" : s === "in-progress" ? "🔄" : "⏳";
-  const statusLabel = (s) => s === "done" ? "Complete" : s === "in-progress" ? "In progress" : "Upcoming";
+  const doneDel = deliverables.filter(d => d.status === "done").length;
+  const daysLeft = project.dueDate ? Math.max(0, Math.ceil((new Date(project.dueDate) - new Date()) / 86400000)) : null;
+  const pendingActions = (project.tasks || []).filter(tk => !tk.is_internal && tk.status !== "done" && tk.assignee).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Client Summary Card */}
-      {project.client_summary && (
-        <CardPad t={t} style={{ borderLeft: `3px solid ${t.accent}` }}>
-          <SectionLabel t={t}>About Your Project</SectionLabel>
-          <p style={{ color: t.text, fontSize: 14, lineHeight: 1.8, margin: 0 }}>
-            {project.client_summary}
-          </p>
-        </CardPad>
-      )}
-
-      {/* Stats - simplified for clients */}
-      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(3,1fr)", gap: 12 }}>
+    <div style={{
+      background: `linear-gradient(135deg, ${t.accent} 0%, ${t.accentLight} 100%)`,
+      borderRadius: 14, padding: "22px 28px", display: "flex", alignItems: "center",
+      justifyContent: "space-between", gap: 20, boxShadow: "0 4px 24px rgba(26,102,102,0.22)",
+      position: "relative", overflow: "hidden", flexWrap: "wrap", rowGap: 16,
+    }}>
+      <div style={{ position: "absolute", right: -40, top: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none" }} />
+      <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 5 }}>Currently Active</div>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 19, color: "#fff", fontWeight: 600, marginBottom: 6, lineHeight: 1.2 }}>
+          {activePhase ? activePhase.name : project.phase || "In Progress"}
+        </div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
+          {pendingActions > 0
+            ? <><strong style={{ color: "#fff" }}>{pendingActions} action{pendingActions !== 1 ? "s" : ""} need your input</strong> to keep this engagement on track.</>
+            : <><strong style={{ color: "#fff" }}>All caught up!</strong> LexOps is progressing the next deliverable.</>}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 20, alignItems: "center", position: "relative", flexShrink: 0 }}>
         {[
-          { label: "Progress", value: `${project.progress}%`, sub: project.phase, color: t.accentLight },
-          { label: "Deliverables", value: `${deliverables.filter(d => d.status === "done").length} / ${deliverables.length}`, sub: "completed", color: t.green },
-          { label: "Due Date", value: project.dueDate ? project.dueDate.slice(5).replace("-", " / ") : "—", sub: project.dueDate ? `${Math.max(0, Math.ceil((new Date(project.dueDate) - new Date()) / 86400000))} days remaining` : "", color: t.text },
+          { val: `${project.progress ?? 0}%`, label: "Overall Progress" },
+          { val: `${doneDel}/${deliverables.length || 0}`, label: "Deliverables Done" },
+          { val: daysLeft !== null ? String(daysLeft) : "—", label: "Days Remaining" },
         ].map((s, i) => (
-          <div key={i} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
-            <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 10 }}>{s.label}</div>
-            <div style={{ color: s.color, fontSize: 24, fontWeight: 300, letterSpacing: "-0.04em", marginBottom: 3 }}>{s.value}</div>
-            <div style={{ color: t.textSub, fontSize: 11 }}>{s.sub}</div>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            {i > 0 && <div style={{ width: 1, background: "rgba(255,255,255,0.2)", alignSelf: "stretch" }} />}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{s.val}</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 5, whiteSpace: "nowrap" }}>{s.label}</div>
+            </div>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      {/* Deliverables Checklist */}
-      {deliverables.length > 0 && (
-        <Card t={t}>
-          <div style={{ padding: "18px 24px 14px" }}><SectionLabel t={t}>Your Deliverables</SectionLabel></div>
-          <Line t={t} />
-          {deliverables.map((d, i) => (
-            <div key={d.id}>
-              <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", gap: 14 }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{statusIcon(d.status)}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: d.status === "done" ? t.textSub : t.text, fontSize: 14, fontWeight: 500, textDecoration: d.status === "done" ? "line-through" : "none" }}>
-                    {d.title}
-                  </div>
-                  <div style={{ color: t.textSub, fontSize: 12, marginTop: 2 }}>{statusLabel(d.status)}</div>
+// ---------------------------------------------------------------------------
+// Client Overview — Horizontal Phase Timeline
+// ---------------------------------------------------------------------------
+function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
+  const [popup, setPopup] = useState(null);
+  return (
+    <div>
+      <style>{`
+        @keyframes clientRingPulse {
+          0%,100% { box-shadow: 0 0 0 4px ${t.accent}22; }
+          50%      { box-shadow: 0 0 0 10px ${t.accent}0a; }
+        }
+      `}</style>
+      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Engagement Phases — hover for detail</div>
+      <div style={{
+        background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12,
+        padding: mobile ? "20px 16px" : "24px 28px", boxShadow: t.shadow,
+        display: "flex", alignItems: "flex-start", overflowX: "auto",
+        scrollbarWidth: "none",
+      }}>
+        {phases.map((ph, i) => {
+          const isDone = ph.status === "complete";
+          const isActive = ph.status === "active";
+          const isFuture = !isDone && !isActive;
+          return (
+            <div key={ph.id || i} style={{ display: "flex", alignItems: "flex-start", flex: 1 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: mobile ? 72 : 84, cursor: "pointer", position: "relative" }}
+                onMouseEnter={() => setPopup(i)} onMouseLeave={() => setPopup(null)}
+                onClick={() => onPhaseClick && onPhaseClick(ph, i)}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 13, fontWeight: 700, marginBottom: 10, transition: "box-shadow 0.3s",
+                  ...(isDone ? { background: t.accent, color: "#fff", boxShadow: `0 0 0 8px ${t.accent}18` } : {}),
+                  ...(isActive ? { background: "#fff", color: t.accent, border: `2px solid ${t.accent}`, animation: "clientRingPulse 2.2s infinite" } : {}),
+                  ...(isFuture ? { background: t.surface, color: t.border, border: `2px solid ${t.border}` } : {}),
+                }}>
+                  {isDone ? "✓" : <span style={{ fontSize: 12 }}>{i + 1}</span>}
                 </div>
+                <div style={{ fontSize: 11, fontWeight: 600, textAlign: "center", marginBottom: 3, color: isDone ? t.accentLight : isActive ? t.accent : t.border }}>
+                  {ph.name}
+                </div>
+                <div style={{ fontSize: 11, color: isActive ? t.accent : t.textSub, fontWeight: isActive ? 600 : 400 }}>
+                  {isDone ? "100%" : isActive ? `${ph.progress || 0}%` : "—"}
+                </div>
+                {popup === i && (
+                  <div style={{
+                    position: "absolute", bottom: "calc(100% + 12px)", left: "50%", transform: "translateX(-50%)",
+                    background: t.text, color: "#fff", borderRadius: 10, padding: "13px 15px", width: 195, zIndex: 50,
+                    boxShadow: "0 8px 28px rgba(0,0,0,0.22)", pointerEvents: "none", lineHeight: 1.5,
+                  }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 5 }}>Phase {i + 1} — {ph.name}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
+                      {isDone ? "Completed. No further actions required for this phase."
+                        : isActive ? `In progress — ${ph.progress || 0}% complete.`
+                          : "Upcoming — unlocks when the previous phase is complete."}
+                    </div>
+                    {!isFuture && (
+                      <div style={{ fontSize: 11, color: t.accent, marginTop: 7, fontWeight: 600 }}>
+                        View actions →
+                      </div>
+                    )}
+                    <div style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "7px solid transparent", borderRight: "7px solid transparent", borderTop: `7px solid ${t.text}` }} />
+                  </div>
+                )}
               </div>
-              {i < deliverables.length - 1 && <Line t={t} />}
+              {i < phases.length - 1 && (
+                <div style={{
+                  flex: 1, height: 2, alignSelf: "flex-start", marginTop: 19, minWidth: 12,
+                  background: isDone ? t.accent : isActive ? `linear-gradient(90deg, ${t.accent}, ${t.accentLight}50)` : t.surface,
+                  transition: "background 0.5s",
+                }} />
+              )}
             </div>
-          ))}
-        </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Overview — Proposal Workflow Snake
+// ---------------------------------------------------------------------------
+function WorkflowSnake({ workflow, t, mobile }) {
+  const { stages, workflow: wf } = workflow;
+  const [openStage, setOpenStage] = useState(null);
+  const NODES_PER_ROW = mobile ? 2 : 3;
+
+  const rows = [];
+  for (let i = 0; i < stages.length; i += NODES_PER_ROW) rows.push(stages.slice(i, i + NODES_PER_ROW));
+
+  function extractEmoji(name = "") {
+    const m = name.match(/^([\u{1F300}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]+)/u);
+    return m ? m[1].trim() : "";
+  }
+  function stripEmoji(name = "") {
+    return name.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]+\s*/u, "").trim();
+  }
+
+  function nodeStatus(idx) {
+    const halfway = Math.floor(stages.length / 2);
+    if (idx < halfway) return "done";
+    if (idx === halfway) return "active";
+    return "future";
+  }
+
+  const dotColors = {
+    done: { bg: `${t.accent}1a`, border: `${t.accent}70` },
+    active: { bg: t.accent, border: t.accent, shadow: `0 0 0 5px ${t.accent}22` },
+    future: { bg: t.surface, border: t.border },
+  };
+
+  const connColor = (rowIdx, nodeIdx, status) =>
+    status === "done" ? `${t.accent}70` : status === "active" ? `${t.accent}40` : t.surface;
+
+  return (
+    <>
+      <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 22px", boxShadow: t.shadow }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>Reimagined Workflow</div>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>{wf?.title || "Proposed Workflow"}</div>
+          <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.6 }}>Click any stage to see details, inputs, and outputs.</div>
+        </div>
+
+        {rows.map((row, rowIdx) => {
+          const isRtl = rowIdx % 2 === 1;
+          return (
+            <div key={rowIdx}>
+              {rowIdx > 0 && (
+                <div style={{ display: "flex", height: 30, position: "relative", justifyContent: isRtl ? "flex-start" : "flex-end" }}>
+                  <div style={{ position: "absolute", [isRtl ? "left" : "right"]: 16, top: 0, bottom: 0, width: 2, background: t.border }} />
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "flex-start", flexDirection: isRtl ? "row-reverse" : "row" }}>
+                {row.map((stage, nodeIdx) => {
+                  const globalIdx = rowIdx * NODES_PER_ROW + nodeIdx;
+                  const status = nodeStatus(globalIdx);
+                  const dc = dotColors[status];
+                  const emoji = extractEmoji(stage.title || stage.name || "");
+                  const label = stripEmoji(stage.title || stage.name || "");
+                  return (
+                    <div key={stage.id || `${rowIdx}-${nodeIdx}`} style={{ display: "flex", alignItems: "flex-start", flex: 1 }}>
+                      <div
+                        onClick={() => setOpenStage(stage)}
+                        style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 4px", cursor: "pointer" }}>
+                        <div style={{
+                          width: 38, height: 38, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 16, marginBottom: 7, border: `2px solid ${dc.border}`,
+                          background: dc.bg, boxShadow: dc.shadow || "none",
+                          transition: "transform 0.2s", position: "relative",
+                        }}>
+                          <span>{emoji || "●"}</span>
+                          {status === "active" && (
+                            <div style={{ position: "absolute", bottom: -4, right: -4, width: 14, height: 14, borderRadius: "50%", background: t.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, color: "#fff", border: "1.5px solid #fff" }}>▶</div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: status === "active" ? t.accent : status === "done" ? t.accentLight : t.textSub, textAlign: "center", maxWidth: 82, lineHeight: 1.35, marginBottom: 2 }}>{label}</div>
+                        {stage.subtitle && <div style={{ fontSize: 9, color: t.textSub, textAlign: "center", maxWidth: 82, lineHeight: 1.3 }}>{stage.subtitle}</div>}
+                      </div>
+                      {nodeIdx < row.length - 1 && (
+                        <div style={{ height: 2, flex: "0 0 12px", background: connColor(rowIdx, nodeIdx, status), marginTop: 18 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {openStage && (
+        <>
+          <div onClick={() => setOpenStage(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.28)", zIndex: 900 }} />
+          <div style={{
+            position: "fixed", right: 0, top: 0, bottom: 0, width: mobile ? "100vw" : 420,
+            background: "#fff", zIndex: 901, display: "flex", flexDirection: "column", overflowY: "auto",
+            boxShadow: "-4px 0 40px rgba(0,0,0,0.14)",
+          }}>
+            <div style={{ padding: "22px 24px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: t.text, flex: 1, lineHeight: 1.3, paddingRight: 12 }}>
+                {openStage.title || openStage.name}
+              </div>
+              <button onClick={() => setOpenStage(null)} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: t.surface, color: t.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+            </div>
+            <div style={{ padding: "18px 24px", flex: 1 }}>
+              {openStage.description && (
+                <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.75, margin: "0 0 20px" }}>{openStage.description}</p>
+              )}
+              {(openStage.inputs?.length > 0 || openStage.outputs?.length > 0) && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+                  {openStage.inputs?.length > 0 && (
+                    <div style={{ background: t.amberSoft, border: `1px solid ${t.amber}30`, borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: t.amber, marginBottom: 7 }}>Inputs</div>
+                      {openStage.inputs.map((inp, i) => (
+                        <div key={i} style={{ fontSize: 12, color: t.text, lineHeight: 1.55, marginBottom: 3 }}>· {typeof inp === "string" ? inp : inp.label || inp.name || JSON.stringify(inp)}</div>
+                      ))}
+                    </div>
+                  )}
+                  {openStage.outputs?.length > 0 && (
+                    <div style={{ background: t.greenSoft, border: `1px solid ${t.green}30`, borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: t.green, marginBottom: 7 }}>Outputs</div>
+                      {openStage.outputs.map((out, i) => (
+                        <div key={i} style={{ fontSize: 12, color: t.text, lineHeight: 1.55, marginBottom: 3 }}>· {typeof out === "string" ? out : out.label || out.name || JSON.stringify(out)}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {openStage.case_example && (
+                <div style={{ background: `${t.accent}08`, border: `1px solid ${t.accent}20`, borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: t.accentLight, marginBottom: 6 }}>In Your Case</div>
+                  <div style={{ fontSize: 12, color: t.text, lineHeight: 1.65 }}>{openStage.case_example}</div>
+                </div>
+              )}
+              {openStage.stats && (
+                <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {Object.entries(openStage.stats).map(([k, v]) => (
+                    <div key={k} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: "8px 12px" }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: t.accent }}>{v}</div>
+                      <div style={{ fontSize: 10, color: t.textSub, marginTop: 2 }}>{k}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Overview — Inline Documents Grid
+// ---------------------------------------------------------------------------
+function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
+  const [docs, setDocs] = useState(initialDocuments || []);
+  useEffect(() => {
+    supabase.from("documents").select("*").eq("project_id", projectId)
+      .order("uploaded_at", { ascending: false }).limit(6)
+      .then(({ data }) => { if (data) setDocs(data); });
+  }, [projectId]);
+
+  if (docs.length === 0) return null;
+
+  const extColor = { PDF: "#ef4444", DOCX: "#3b82f6", XLSX: "#16a34a", PNG: "#8b5cf6", JPG: "#8b5cf6", CSV: "#f59e0b" };
+  const extIcon  = { PDF: "📄", DOCX: "📝", XLSX: "📊", PNG: "🖼️", JPG: "🖼️", CSV: "📊" };
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Your Documents</div>
+      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+        {docs.slice(0, 6).map(doc => {
+          const ext = (doc.file_type || "").toUpperCase();
+          return (
+            <a key={doc.id} href={doc.file_url || "#"} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+              <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, transition: "border-color 0.15s, box-shadow 0.15s", boxShadow: t.shadow }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: `${extColor[ext] || t.accent}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
+                  {extIcon[ext] || "📁"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                  <div style={{ fontSize: 10, color: t.textSub, marginTop: 2 }}>
+                    {ext}{doc.uploaded_at ? ` · ${new Date(doc.uploaded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: t.textSub, flexShrink: 0 }}>↓</span>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Overview — Deliverables Grid
+// ---------------------------------------------------------------------------
+function ClientDeliverablesGrid({ deliverables, t, mobile }) {
+  if (deliverables.length === 0) return null;
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Deliverables</div>
+      <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+        {deliverables.map(d => {
+          const isDone = d.status === "done";
+          const isActive = d.status === "in-progress";
+          return (
+            <div key={d.id} style={{
+              background: "#fff", border: `1px solid ${isDone ? t.green + "50" : t.border}`,
+              borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: t.shadow,
+            }}>
+              <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{isDone ? "✅" : isActive ? "🔄" : "⏳"}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: isDone ? t.textSub : t.text, textDecoration: isDone ? "line-through" : "none", marginBottom: 2 }}>{d.title}</div>
+                <div style={{ fontSize: 11, color: isDone ? t.green : isActive ? t.accent : t.textSub }}>{isDone ? "Complete" : isActive ? "In progress" : "Upcoming"}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Client Overview Tab — orchestrates everything
+// ---------------------------------------------------------------------------
+function ClientOverviewTab({ project, t, mobile }) {
+  const [proposalWorkflow, setProposalWorkflow] = useState(null);
+
+  useEffect(() => {
+    async function loadWorkflow() {
+      const { data: props } = await supabase
+        .from("proposals").select("id, title")
+        .eq("project_id", project.id).limit(1);
+      if (!props?.length) return;
+
+      const { data: wfs } = await supabase
+        .from("workflows").select("id, title, description")
+        .eq("proposal_id", props[0].id).limit(1);
+      if (!wfs?.length) return;
+
+      const { data: stages } = await supabase
+        .from("workflow_stages").select("*")
+        .eq("workflow_id", wfs[0].id)
+        .order("order_index", { ascending: true });
+
+      setProposalWorkflow({ proposal: props[0], workflow: wfs[0], stages: stages || [] });
+    }
+    loadWorkflow();
+  }, [project.id]);
+
+  const phases = project.phases || [];
+  const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <ClientStatusBanner project={project} phases={phases} t={t} />
+
+      {phases.length > 0 && (
+        <ClientPhaseTimeline phases={phases} t={t} mobile={mobile} />
       )}
 
-      {/* Phase Progress */}
-      <Card t={t}>
-        <div style={{ padding: "18px 24px 14px" }}><SectionLabel t={t}>Project Phases</SectionLabel></div>
-        <Line t={t} />
-        {project.phases.map((ph, i) => (
-          <div key={i}>
-            <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-                background: ph.status === "complete" ? t.green : ph.status === "active" ? t.accent : "transparent",
-                border: `1.5px solid ${ph.status === "complete" ? t.green : ph.status === "active" ? t.accent : t.border}`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {ph.status === "complete" && <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>✓</span>}
-                {ph.status === "active" && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "block" }} />}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                  <span style={{ color: ph.status === "pending" ? t.textSub : t.text, fontSize: 13, fontWeight: 500 }}>{ph.name}</span>
-                  <Pill t={t} status={ph.status === "complete" ? "complete" : ph.status === "active" ? "active" : "pending"} label={ph.status === "complete" ? "Done" : ph.status === "active" ? "Active" : "Pending"} />
-                </div>
-                <Thin value={ph.progress} t={t} />
-              </div>
-            </div>
-            {i < project.phases.length - 1 && <Line t={t} />}
-          </div>
-        ))}
-      </Card>
+      {proposalWorkflow && proposalWorkflow.stages.length > 0 && (
+        <WorkflowSnake workflow={proposalWorkflow} t={t} mobile={mobile} />
+      )}
+
+      {project.client_summary && (
+        <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", boxShadow: t.shadow }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>About Your Engagement</div>
+          <p style={{ color: t.text, fontSize: 13, lineHeight: 1.8, margin: 0 }}>{project.client_summary}</p>
+        </div>
+      )}
+
+      <ClientDeliverablesGrid deliverables={deliverables} t={t} mobile={mobile} />
+      <ClientDocsInline projectId={project.id} initialDocuments={project.documents} t={t} mobile={mobile} />
     </div>
   );
 }
