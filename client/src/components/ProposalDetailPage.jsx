@@ -387,6 +387,8 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const [copied, setCopied] = useState(false);
   const [hovBtn, setHovBtn] = useState(null);
   const [converted, setConverted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState(null);
 
   useEffect(() => { loadAll(); }, [id]);
 
@@ -442,6 +444,35 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
     navigator.clipboard.writeText(`${window.location.origin}/proposal/${proposal.token}`).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function sendInvite() {
+    if (!proposal?.client_email) {
+      setSendMsg({ ok: false, text: "Add a client email before sending." });
+      setTimeout(() => setSendMsg(null), 4000);
+      return;
+    }
+    setSending(true);
+    setSendMsg(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/proposals/v2/${id}/send`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSendMsg({ ok: false, text: j.message || "Failed to send." });
+      } else {
+        setSendMsg({ ok: true, text: "Invite sent ✓" });
+        setProposal(p => ({ ...p, status: p.status === "draft" ? "sent" : p.status }));
+      }
+    } catch {
+      setSendMsg({ ok: false, text: "Network error — try again." });
+    } finally {
+      setSending(false);
+      setTimeout(() => setSendMsg(null), 5000);
+    }
   }
 
   if (loading) return (
@@ -544,7 +575,17 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+            {sendMsg && (
+              <span style={{
+                fontSize: 12, fontWeight: 500, padding: "5px 12px", borderRadius: 7,
+                background: sendMsg.ok ? t.greenSoft : t.redSoft,
+                color: sendMsg.ok ? t.green : t.red,
+                border: `1px solid ${sendMsg.ok ? t.greenBorder : t.redBorder}`,
+              }}>
+                {sendMsg.text}
+              </span>
+            )}
             <button
               onClick={copyLink}
               onMouseEnter={() => setHovBtn("copy")} onMouseLeave={() => setHovBtn(null)}
@@ -565,6 +606,18 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "edit" ? "#F0EDE6" : t.card }}
             >
               Edit
+            </button>
+            <button
+              onClick={sendInvite}
+              disabled={sending}
+              onMouseEnter={() => setHovBtn("send")} onMouseLeave={() => setHovBtn(null)}
+              style={{
+                ...btnBase, fontWeight: 600,
+                background: sending ? t.border : (hovBtn === "send" ? t.accentHover : t.accent),
+                color: "#fff", opacity: sending ? 0.7 : 1, cursor: sending ? "default" : "pointer",
+              }}
+            >
+              {sending ? "Sending…" : "✉ Send invite"}
             </button>
           </div>
         </div>
