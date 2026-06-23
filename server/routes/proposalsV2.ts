@@ -410,14 +410,144 @@ router.post("/:id/submit-final", async (req, res) => {
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
+  // Fetch workflow completion summary for the email
+  let workflowSummaryRows = "";
+  if (wfIds.length > 0) {
+    const { data: wfRows } = await adminSupabase
+      .from("workflows")
+      .select("name, emoji")
+      .in("id", wfIds)
+      .order("order_index");
+    const { data: subRows } = await adminSupabase
+      .from("workflow_submissions")
+      .select("workflow_id, feedback_text, proceeded")
+      .in("workflow_id", wfIds);
+    const { data: runRows } = await adminSupabase
+      .from("workflow_runs")
+      .select("workflow_id")
+      .in("workflow_id", wfIds);
+
+    workflowSummaryRows = (wfRows || []).map((wf: any) => {
+      const sub = (subRows || []).find((s: any) => s.workflow_id === wf.id);
+      const runCount = (runRows || []).filter((r: any) => r.workflow_id === wf.id).length;
+      return `
+        <tr>
+          <td style="padding:10px 14px;border-bottom:1px solid #E5E3DC;font-size:14px;color:#1A1A18;">
+            ${wf.emoji || "🔷"} ${wf.name}
+          </td>
+          <td style="padding:10px 14px;border-bottom:1px solid #E5E3DC;font-size:13px;color:#6B6B5F;text-align:center;">${runCount}</td>
+          <td style="padding:10px 14px;border-bottom:1px solid #E5E3DC;font-size:13px;color:${sub?.proceeded ? "#059669" : "#D97706"};text-align:center;font-weight:600;">
+            ${sub?.proceeded ? "✓ Complete" : "Pending"}
+          </td>
+        </tr>
+        ${sub?.feedback_text ? `<tr><td colspan="3" style="padding:6px 14px 12px;border-bottom:1px solid #E5E3DC;font-size:12px;color:#6B6B5F;font-style:italic;">💬 "${sub.feedback_text}"</td></tr>` : ""}
+      `;
+    }).join("");
+  }
+
+  const baseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  const adminLink = `${baseUrl}/admin/proposals/${id}`;
+
+  const submitEmailHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F4F3EF;font-family:'Inter',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3EF;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E5E3DC;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#0B4F4F;padding:28px 36px;">
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.02em;font-family:Georgia,serif;">
+                  LexOps
+                </td>
+                <td style="padding-left:10px;">
+                  <span style="background:rgba(255,255,255,0.15);color:#FFFFFF;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px;padding:2px 8px;">
+                    Portal
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Badge -->
+        <tr>
+          <td style="padding:32px 36px 0;">
+            <span style="background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;border-radius:99px;padding:4px 14px;font-size:12px;font-weight:600;">
+              📬 Proposal submitted
+            </span>
+          </td>
+        </tr>
+
+        <!-- Title -->
+        <tr>
+          <td style="padding:16px 36px 8px;">
+            <h1 style="margin:0;font-size:22px;font-weight:700;color:#1A1A18;letter-spacing:-0.02em;font-family:Georgia,serif;line-height:1.3;">
+              ${proposal.name || "Proposal"}
+            </h1>
+            <p style="margin:8px 0 0;font-size:14px;color:#6B6B5F;">
+              <strong style="color:#1A1A18;">${proposal.client_name || proposal.client_email}</strong> has submitted their final review.
+              This proposal is now ready for your decision.
+            </p>
+          </td>
+        </tr>
+
+        ${workflowSummaryRows ? `
+        <!-- Workflow summary -->
+        <tr>
+          <td style="padding:24px 36px 0;">
+            <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9B9B8F;">
+              Workflow summary
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E5E3DC;border-radius:8px;overflow:hidden;">
+              <tr style="background:#F4F3EF;">
+                <th style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9B9B8F;text-align:left;">Workflow</th>
+                <th style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9B9B8F;text-align:center;">Runs</th>
+                <th style="padding:8px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9B9B8F;text-align:center;">Status</th>
+              </tr>
+              ${workflowSummaryRows}
+            </table>
+          </td>
+        </tr>
+        ` : ""}
+
+        <!-- CTA -->
+        <tr>
+          <td style="padding:28px 36px;">
+            <a href="${adminLink}" style="display:inline-block;background:#0B4F4F;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:600;padding:13px 28px;border-radius:8px;">
+              Review proposal &amp; decide →
+            </a>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 36px;border-top:1px solid #E5E3DC;">
+            <p style="margin:0;font-size:12px;color:#9B9B8F;">
+              LexOps · A Teams Squared Company · <a href="${adminLink}" style="color:#0B4F4F;text-decoration:none;">View in portal</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
       from: "LexOps Portal <isuru@lex-ops.io>",
       to: "isuru@lex-ops.io",
-      subject: `[Proposal submitted] ${proposal.name}`,
-      html: `<p><strong>${proposal.client_name || proposal.client_email}</strong> has submitted their final review for <strong>${proposal.name}</strong>.</p><p>Log in to the portal to review and mark as Won or Lost.</p>`,
+      subject: `📬 ${proposal.client_name || proposal.client_email} submitted "${proposal.name}"`,
+      html: submitEmailHtml,
     });
   } catch (e) {
     console.warn("[submit-final] email failed:", (e as any).message);
@@ -442,14 +572,124 @@ router.post("/:id/request-changes", async (req, res) => {
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
+  const baseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  const adminLink = `${baseUrl}/admin/proposals/${id}`;
+
+  const changeRequestHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F4F3EF;font-family:'Inter',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3EF;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E5E3DC;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#0B4F4F;padding:28px 36px;">
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.02em;font-family:Georgia,serif;">
+                  LexOps
+                </td>
+                <td style="padding-left:10px;">
+                  <span style="background:rgba(255,255,255,0.15);color:#FFFFFF;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;border-radius:4px;padding:2px 8px;">
+                    Portal
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Badge -->
+        <tr>
+          <td style="padding:32px 36px 0;">
+            <span style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;border-radius:99px;padding:4px 14px;font-size:12px;font-weight:600;">
+              ↩️ Changes requested
+            </span>
+          </td>
+        </tr>
+
+        <!-- Title -->
+        <tr>
+          <td style="padding:16px 36px 8px;">
+            <h1 style="margin:0;font-size:22px;font-weight:700;color:#1A1A18;letter-spacing:-0.02em;font-family:Georgia,serif;line-height:1.3;">
+              ${proposal.name || "Proposal"}
+            </h1>
+            <p style="margin:8px 0 0;font-size:14px;color:#6B6B5F;">
+              <strong style="color:#1A1A18;">${proposal.client_name || proposal.client_email}</strong> has reviewed the proposal and is requesting changes before they proceed.
+            </p>
+          </td>
+        </tr>
+
+        ${note ? `
+        <!-- Client note -->
+        <tr>
+          <td style="padding:20px 36px 0;">
+            <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9B9B8F;">
+              Client's note
+            </p>
+            <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:16px 18px;">
+              <p style="margin:0;font-size:14px;color:#5C4A1A;line-height:1.7;white-space:pre-wrap;">${note.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+            </div>
+          </td>
+        </tr>
+        ` : ""}
+
+        <!-- What to do -->
+        <tr>
+          <td style="padding:24px 36px 0;">
+            <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#9B9B8F;">
+              Next steps
+            </p>
+            <table cellpadding="0" cellspacing="0" style="width:100%;">
+              ${["Review the client's note above", "Edit the proposal — update workflows, stages, or context as needed", "Re-send the updated proposal to the client"].map((step, i) => `
+              <tr>
+                <td style="padding:6px 0;vertical-align:top;width:28px;">
+                  <span style="display:inline-block;width:20px;height:20px;background:#0B4F4F;color:#fff;border-radius:50%;font-size:11px;font-weight:700;text-align:center;line-height:20px;">${i + 1}</span>
+                </td>
+                <td style="padding:6px 0;font-size:14px;color:#1A1A18;line-height:1.5;">${step}</td>
+              </tr>`).join("")}
+            </table>
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td style="padding:28px 36px;">
+            <a href="${adminLink}" style="display:inline-block;background:#0B4F4F;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:600;padding:13px 28px;border-radius:8px;margin-right:12px;">
+              Open proposal →
+            </a>
+            <a href="${adminLink}/edit" style="display:inline-block;background:transparent;color:#0B4F4F;text-decoration:none;font-size:14px;font-weight:600;padding:13px 28px;border-radius:8px;border:1.5px solid #0B4F4F;">
+              Edit proposal
+            </a>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:20px 36px;border-top:1px solid #E5E3DC;">
+            <p style="margin:0;font-size:12px;color:#9B9B8F;">
+              LexOps · A Teams Squared Company · <a href="${adminLink}" style="color:#0B4F4F;text-decoration:none;">View in portal</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
     await resend.emails.send({
       from: "LexOps Portal <isuru@lex-ops.io>",
       to: "isuru@lex-ops.io",
-      subject: `[Change request] ${proposal.name}`,
-      html: `<p><strong>${proposal.client_name || proposal.client_email}</strong> has requested changes to <strong>${proposal.name}</strong>.</p>${note ? `<p><em>Note:</em> ${note}</p>` : ""}`,
+      subject: `↩️ ${proposal.client_name || proposal.client_email} requested changes — "${proposal.name}"`,
+      html: changeRequestHtml,
     });
   } catch (e) {
     console.warn("[request-changes] email failed:", (e as any).message);
