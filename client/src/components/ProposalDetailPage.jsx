@@ -619,6 +619,20 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             >
               {sending ? "Sending…" : "✉ Send invite"}
             </button>
+            <button
+              onClick={copyLink}
+              onMouseEnter={() => setHovBtn("copy")} onMouseLeave={() => setHovBtn(null)}
+              title="Copy proposal link to share manually"
+              style={{
+                ...btnBase,
+                border: `1px solid ${t.border}`,
+                color: copied ? t.accent : t.text,
+                background: copied ? "#EBF4F4" : (hovBtn === "copy" ? "#F0EDE6" : t.card),
+                fontWeight: copied ? 600 : 400,
+              }}
+            >
+              {copied ? "✓ Link copied" : "🔗 Copy link"}
+            </button>
           </div>
         </div>
 
