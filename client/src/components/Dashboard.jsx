@@ -2386,7 +2386,7 @@ function ClientDeliverablesGrid({ deliverables, t, mobile }) {
   if (deliverables.length === 0) return null;
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Deliverables</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Pending Deliverables</div>
       <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 8 }}>
         {deliverables.map(d => {
           const isDone = d.status === "done";
@@ -2438,7 +2438,7 @@ function ClientOverviewTab({ project, t, mobile }) {
   }, [project.id]);
 
   const phases = project.phases || [];
-  const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable);
+  const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable && tk.status !== "done");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
