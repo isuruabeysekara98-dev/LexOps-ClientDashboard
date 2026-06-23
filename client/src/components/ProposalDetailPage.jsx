@@ -411,7 +411,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
         .select("*, workflow_runs(*, workflows(name))")
         .eq("proposal_id", id)
         .order("created_at", { ascending: false })
-        .catch(() => ({ data: [] }));
+        .then(r => r, () => ({ data: [] }));
 
       const subList = subs || [];
       setSubmissions(subList);
