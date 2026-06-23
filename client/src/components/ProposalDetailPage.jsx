@@ -587,13 +587,6 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               </span>
             )}
             <button
-              onClick={copyLink}
-              onMouseEnter={() => setHovBtn("copy")} onMouseLeave={() => setHovBtn(null)}
-              style={{ ...btnBase, border: `1px solid ${t.border}`, color: copied ? t.accent : t.text, background: hovBtn === "copy" ? "#F0EDE6" : t.card }}
-            >
-              {copied ? "✓ Copied" : "Copy link"}
-            </button>
-            <button
               onClick={() => navigate(`/admin/proposals/${id}/preview`)}
               onMouseEnter={() => setHovBtn("preview")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "preview" ? "#F0EDE6" : t.card }}
@@ -650,6 +643,71 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                   <div style={{ fontSize: 13, color: t.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
                     {proposal.change_request_note}
                   </div>
+                </div>
+              )}
+
+              {/* Client details */}
+              {(proposal.client_name || proposal.client_contact_name || proposal.client_email) && (
+                <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
+                    Client details
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 24px" }}>
+                    {proposal.client_name && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 3 }}>Organisation</div>
+                        <div style={{ fontSize: 13, color: t.text }}>{proposal.client_name}</div>
+                      </div>
+                    )}
+                    {proposal.client_contact_name && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 3 }}>Contact</div>
+                        <div style={{ fontSize: 13, color: t.text }}>{proposal.client_contact_name}</div>
+                      </div>
+                    )}
+                    {proposal.client_email && (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 3 }}>Email</div>
+                        <div style={{ fontSize: 13, color: t.text }}>{proposal.client_email}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Pain points + Objectives */}
+              {((proposal.pain_points?.length > 0) || (proposal.objectives?.length > 0)) && (
+                <div style={{ display: "grid", gridTemplateColumns: proposal.pain_points?.length > 0 && proposal.objectives?.length > 0 ? "1fr 1fr" : "1fr", gap: 16, marginBottom: 20 }}>
+                  {proposal.pain_points?.length > 0 && (
+                    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 12 }}>
+                        Pain points
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {proposal.pain_points.map((pp, i) => (
+                          <div key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: t.text, lineHeight: 1.6 }}>
+                            <span style={{ color: t.accent, flexShrink: 0, fontWeight: 700 }}>•</span>
+                            {pp}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {proposal.objectives?.length > 0 && (
+                    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 12 }}>
+                        Objectives
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                        {proposal.objectives.map((obj, i) => (
+                          <div key={i} style={{ display: "flex", gap: 9, fontSize: 13, color: t.text, lineHeight: 1.6 }}>
+                            <span style={{ color: t.green, flexShrink: 0, fontWeight: 700 }}>→</span>
+                            {obj}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -737,108 +795,217 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, alignItems: "start" }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: t.textMeta, marginBottom: 12 }}>
-                Submissions ({submissions.length})
-              </div>
-              {submissions.length === 0 ? (
+          /* ── No-workflow proposal: show full content ── */
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 24, alignItems: "start" }}>
+            {/* Main content */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+              {/* Change request banner */}
+              {proposal.change_request_note && (
                 <div style={{
-                  background: t.card, border: `1px solid ${t.border}`, borderRadius: 10,
-                  padding: "24px 16px", textAlign: "center", color: t.textMeta, fontSize: 13,
+                  background: t.yellowSoft, border: `1.5px solid ${t.yellowBorder}`,
+                  borderRadius: 12, padding: "16px 20px",
                 }}>
-                  No submissions yet.
-                  <br /><br />
-                  Once the client completes the workflow, their submission will appear here.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {submissions.map(sub => {
-                    const isSelected = selectedSub?.id === sub.id;
-                    const data = sub.data || sub.response_data || {};
-                    return (
-                      <div
-                        key={sub.id}
-                        onClick={() => setSelectedSub(sub)}
-                        style={{
-                          background: t.card, border: `1.5px solid ${isSelected ? t.accent : t.border}`,
-                          borderRadius: 10, padding: "14px 16px", cursor: "pointer",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3 }}>
-                          {data.client_name || proposal.client_contact_name || "Submission"}
-                        </div>
-                        <div style={{ color: t.textSub, fontSize: 12, marginBottom: 4 }}>
-                          {data.matter_type || sub.workflow_runs?.workflows?.name || "—"}
-                        </div>
-                        <div style={{ color: t.textMeta, fontSize: 11 }}>{timeAgo(sub.created_at)}</div>
-                      </div>
-                    );
-                  })}
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.yellow, marginBottom: 6 }}>
+                    ↩ Client requested changes
+                  </div>
+                  <div style={{ fontSize: 13, color: t.text, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                    {proposal.change_request_note}
+                  </div>
                 </div>
               )}
 
-              <div style={{ marginTop: 20 }}>
-                <DecisionPanel
-                  proposal={proposal}
-                  onMarkWon={() => setStatus("won")}
-                  onMarkLost={() => setStatus("lost")}
-                  onConvert={convert}
-                  marking={marking}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Signer note */}
               {proposal.signer_note && (
                 <div style={{
                   background: "#FFFCF0", border: `1.5px solid #F5E4A0`,
-                  borderRadius: 12, padding: "20px 24px",
+                  borderRadius: 12, padding: "16px 20px",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 16 }}>💬</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701A" }}>
-                      Client note
-                    </span>
-                    <span style={{ marginLeft: "auto", fontSize: 11, color: "#B08B30" }}>Left when accepting</span>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701A", marginBottom: 6 }}>
+                    💬 Client note
                   </div>
-                  <p style={{ margin: 0, fontSize: 14, color: "#5C4A1A", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+                  <div style={{ fontSize: 13, color: "#5C4A1A", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
                     {proposal.signer_note}
-                  </p>
+                  </div>
                 </div>
               )}
 
-              {selectedSub ? (
-                <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "28px" }}>
-                  <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 24, fontFamily: "'Playfair Display', Georgia, serif" }}>
-                    Matter details
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
-                    {subData.client_name && <div style={{ marginBottom: 20 }}><div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 5 }}>Client name</div><div style={{ fontSize: 14, color: t.text, lineHeight: 1.6 }}>{subData.client_name}</div></div>}
-                    {subData.matter_type && <div style={{ marginBottom: 20 }}><div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 5 }}>Matter type</div><div style={{ fontSize: 14, color: t.text, lineHeight: 1.6 }}>{subData.matter_type}</div></div>}
-                  </div>
-                  {!subData.client_name && !subData.matter_type && (
-                    <pre style={{ background: "#F7F6F2", borderRadius: 8, padding: 14, fontSize: 12, overflowX: "auto", margin: 0 }}>
-                      {JSON.stringify(subData, null, 2)}
-                    </pre>
+              {/* Client details */}
+              <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 24px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 16 }}>
+                  Client details
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
+                  {proposal.client_name && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 4 }}>Organisation</div>
+                      <div style={{ fontSize: 14, color: t.text }}>{proposal.client_name}</div>
+                    </div>
+                  )}
+                  {proposal.client_contact_name && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 4 }}>Contact name</div>
+                      <div style={{ fontSize: 14, color: t.text }}>{proposal.client_contact_name}</div>
+                    </div>
+                  )}
+                  {proposal.client_email && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 4 }}>Email</div>
+                      <div style={{ fontSize: 14, color: t.text }}>{proposal.client_email}</div>
+                    </div>
+                  )}
+                  {proposal.client_company_name && proposal.client_company_name !== proposal.client_name && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: t.textMeta, marginBottom: 4 }}>Company</div>
+                      <div style={{ fontSize: 14, color: t.text }}>{proposal.client_company_name}</div>
+                    </div>
                   )}
                 </div>
-              ) : (
-                <div style={{
-                  background: t.card, border: `1px solid ${t.border}`, borderRadius: 12,
-                  padding: proposal.signer_note ? "28px" : "64px 28px", textAlign: "center",
-                }}>
-                  {!proposal.signer_note && <div style={{ fontSize: 28, marginBottom: 12 }}>📬</div>}
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: t.text }}>
-                    {proposal.signer_note ? "No workflow submissions yet" : "Awaiting client submission"}
+              </div>
+
+              {/* Pain points + Objectives */}
+              {((proposal.pain_points?.length > 0) || (proposal.objectives?.length > 0)) && (
+                <div style={{ display: "grid", gridTemplateColumns: proposal.pain_points?.length > 0 && proposal.objectives?.length > 0 ? "1fr 1fr" : "1fr", gap: 16 }}>
+                  {proposal.pain_points?.length > 0 && (
+                    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 24px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
+                        Pain points
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {proposal.pain_points.map((pp, i) => (
+                          <div key={i} style={{ display: "flex", gap: 10, fontSize: 13, color: t.text, lineHeight: 1.6 }}>
+                            <span style={{ color: t.accent, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>•</span>
+                            {pp}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {proposal.objectives?.length > 0 && (
+                    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 24px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
+                        Objectives
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {proposal.objectives.map((obj, i) => (
+                          <div key={i} style={{ display: "flex", gap: 10, fontSize: 13, color: t.text, lineHeight: 1.6 }}>
+                            <span style={{ color: t.green, flexShrink: 0, marginTop: 1, fontWeight: 700 }}>→</span>
+                            {obj}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Stages / content sections from persona */}
+              {(proposal.stages?.length > 0) && (
+                <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 24px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 16 }}>
+                    Proposal stages ({proposal.stages.length})
                   </div>
-                  <div style={{ color: t.textMeta, fontSize: 13, maxWidth: 340, margin: "0 auto", lineHeight: 1.6 }}>
-                    {proposal.signer_note
-                      ? "The client has accepted. Workflow submissions will appear here once they complete a form."
-                      : "Once you send this proposal and the client completes their workflow, their matter details will appear here."}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {proposal.stages.map((stage, i) => (
+                      <div key={i} style={{ display: "flex", gap: 14, padding: "12px 16px", background: "#FAFAF8", borderRadius: 8, border: `1px solid ${t.borderLight}` }}>
+                        <div style={{
+                          width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                          background: t.accentLight, border: `1px solid rgba(11,79,79,0.15)`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 11, fontWeight: 700, color: t.accent,
+                        }}>
+                          {i + 1}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: t.text, marginBottom: stage.description ? 4 : 0 }}>
+                            {stage.emoji ? `${stage.emoji} ` : ""}{stage.title || stage.name || `Stage ${i + 1}`}
+                          </div>
+                          {stage.description && (
+                            <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.6 }}>{stage.description}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
+
+              {/* Empty state when no content at all */}
+              {!proposal.change_request_note && !proposal.signer_note && !proposal.pain_points?.length && !proposal.objectives?.length && !proposal.stages?.length && (
+                <div style={{
+                  background: t.card, border: `1.5px dashed ${t.border}`,
+                  borderRadius: 12, padding: "40px 28px", textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 28, marginBottom: 12 }}>📋</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 6 }}>No proposal content yet</div>
+                  <div style={{ color: t.textMeta, fontSize: 13, lineHeight: 1.6 }}>
+                    Edit this proposal to add pain points, objectives, and stages.
+                  </div>
+                  <button
+                    onClick={() => navigate(`/admin/proposals/${id}/edit`)}
+                    style={{
+                      marginTop: 16, padding: "9px 20px", borderRadius: 8,
+                      background: t.accent, color: "#fff", border: "none",
+                      fontFamily: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer",
+                    }}
+                  >
+                    Edit proposal →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Overview card */}
+              <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
+                  Proposal overview
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: t.textSub }}>Status</span>
+                    <StatusPill status={proposal.status} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: t.textSub }}>Created</span>
+                    <span style={{ fontWeight: 500, color: t.text }}>{fmtDate(proposal.created_at)}</span>
+                  </div>
+                  {proposal.submitted_at && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span style={{ color: t.textSub }}>Submitted</span>
+                      <span style={{ fontWeight: 500, color: t.green }}>{fmtDate(proposal.submitted_at)}</span>
+                    </div>
+                  )}
+                  {proposal.updated_at && proposal.updated_at !== proposal.created_at && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span style={{ color: t.textSub }}>Last updated</span>
+                      <span style={{ fontWeight: 500, color: t.text }}>{fmtDate(proposal.updated_at)}</span>
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${t.borderLight}` }}>
+                  <button
+                    onClick={() => window.open(`/proposal/${proposal.token}`, "_blank")}
+                    style={{
+                      width: "100%", padding: "9px 0", borderRadius: 7,
+                      border: `1px solid ${t.border}`, background: "#FAFAFA",
+                      color: t.textSub, fontFamily: "inherit", fontSize: 12,
+                      cursor: "pointer", fontWeight: 500,
+                    }}
+                  >
+                    View as client ↗
+                  </button>
+                </div>
+              </div>
+
+              <DecisionPanel
+                proposal={proposal}
+                onMarkWon={() => setStatus("won")}
+                onMarkLost={() => setStatus("lost")}
+                onConvert={convert}
+                marking={marking}
+              />
             </div>
           </div>
         )}
