@@ -69,7 +69,7 @@ router.post("/send-link", async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 router.post("/accept", async (req: Request, res: Response) => {
   console.log('[proposal] /accept hit', req.body);
-  const { token, signer_name } = req.body;
+  const { token, signer_name, signer_note } = req.body;
 
   if (!token) {
     res.status(400).json({ message: "token is required" });
@@ -91,25 +91,52 @@ router.post("/accept", async (req: Request, res: Response) => {
   const email = proposal.client_email;
   const fullName = signer_name || proposal.client_name;
 
-  // Update proposal status to accepted (service role bypasses RLS)
+  // Update proposal status + persist the client note.
+  // signer_note is stored in proposals.signer_note — requires the column to exist
+  // (run: ALTER TABLE proposals ADD COLUMN IF NOT EXISTS signer_note text;).
+  // If the column is missing the update fails silently so acceptance still completes.
+  const notePayload: Record<string, any> = { status: "accepted", updated_at: new Date().toISOString() };
+  if (signer_note?.trim()) notePayload.signer_note = signer_note.trim();
+
   const { error: statusErr } = await adminSupabase
     .from("proposals")
-    .update({ status: "accepted" })
+    .update(notePayload)
     .eq("id", proposal.id);
-  if (statusErr) console.error("[accept] Proposal status update error:", statusErr.message);
-  else console.log("[accept] Proposal", proposal.id, "marked as accepted");
+  if (statusErr) {
+    console.error("[accept] Proposal status update error:", statusErr.message);
+    // If the column didn't exist, retry without it so acceptance still goes through
+    if (signer_note && statusErr.message?.toLowerCase().includes("column")) {
+      await adminSupabase.from("proposals")
+        .update({ status: "accepted", updated_at: new Date().toISOString() })
+        .eq("id", proposal.id);
+    }
+  } else {
+    console.log("[accept] Proposal", proposal.id, "marked as accepted");
+  }
 
   // Insert signature record (service role bypasses RLS)
   if (signer_name) {
+    const sigRow: Record<string, any> = {
+      proposal_id: proposal.id,
+      signer_name: signer_name,
+      signer_email: email,
+    };
+    if (signer_note?.trim()) sigRow.note = signer_note.trim();
+
     const { error: sigErr } = await adminSupabase
       .from("proposal_signatures")
-      .insert({
-        proposal_id: proposal.id,
-        signer_name: signer_name,
-        signer_email: email,
-      });
-    if (sigErr) console.error("[accept] Signature insert error:", sigErr.message);
-    else console.log("[accept] Signature recorded for", signer_name);
+      .insert(sigRow);
+    if (sigErr) {
+      console.error("[accept] Signature insert error:", sigErr.message);
+      // Retry without note column if it doesn't exist yet
+      if (signer_note && sigErr.message?.toLowerCase().includes("column")) {
+        await adminSupabase.from("proposal_signatures").insert({
+          proposal_id: proposal.id, signer_name, signer_email: email,
+        });
+      }
+    } else {
+      console.log("[accept] Signature recorded for", signer_name);
+    }
   }
 
   // Send the invite email via Supabase Auth

@@ -330,8 +330,36 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             )}
           </div>
 
-          {/* Right: Matter details */}
-          <div>
+          {/* Right: Client note + Matter details */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Client note — shown when the client left a message on acceptance */}
+            {proposal.signer_note && (
+              <div style={{
+                background: "#FFFCF0", border: `1.5px solid #F5E4A0`,
+                borderRadius: 12, padding: "20px 24px",
+              }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginBottom: 12,
+                }}>
+                  <span style={{ fontSize: 16 }}>💬</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701A" }}>
+                    Client note
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: "#B08B30" }}>
+                    Left when accepting
+                  </span>
+                </div>
+                <p style={{
+                  margin: 0, fontSize: 14, color: "#5C4A1A",
+                  lineHeight: 1.7, whiteSpace: "pre-wrap",
+                }}>
+                  {proposal.signer_note}
+                </p>
+              </div>
+            )}
+
             {selectedSub ? (
               <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "28px 28px" }}>
                 <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 24, fontFamily: "'Playfair Display', Georgia, serif" }}>
@@ -358,12 +386,16 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             ) : (
               <div style={{
                 background: t.card, border: `1px solid ${t.border}`, borderRadius: 12,
-                padding: "64px 28px", textAlign: "center",
+                padding: proposal.signer_note ? "28px" : "64px 28px", textAlign: "center",
               }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>📬</div>
-                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: t.text }}>Awaiting client submission</div>
+                {!proposal.signer_note && <div style={{ fontSize: 28, marginBottom: 12 }}>📬</div>}
+                <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: t.text }}>
+                  {proposal.signer_note ? "No workflow submissions yet" : "Awaiting client submission"}
+                </div>
                 <div style={{ color: t.textMeta, fontSize: 13, maxWidth: 340, margin: "0 auto", lineHeight: 1.6 }}>
-                  Once you send this proposal and the client completes their workflow, their matter details will appear here.
+                  {proposal.signer_note
+                    ? "The client has accepted. Workflow submissions will appear here once they complete a form."
+                    : "Once you send this proposal and the client completes their workflow, their matter details will appear here."}
                 </div>
               </div>
             )}

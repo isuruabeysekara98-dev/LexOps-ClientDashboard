@@ -20,6 +20,7 @@ const inp = {
 
 function AcceptanceForm({ proposal, token }) {
   const [signerName, setSignerName] = useState("");
+  const [signerNote, setSignerNote] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
@@ -45,7 +46,11 @@ function AcceptanceForm({ proposal, token }) {
       await fetch("/api/proposal/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, signer_name: signerName.trim() }),
+        body: JSON.stringify({
+          token,
+          signer_name: signerName.trim(),
+          signer_note: signerNote.trim() || undefined,
+        }),
       });
     } catch {}
     setAccepted(true);
@@ -185,6 +190,18 @@ function AcceptanceForm({ proposal, token }) {
             value={signerName} onChange={e => setSignerName(e.target.value)}
             placeholder="e.g. Jane Smith"
             style={inp}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>
+            Notes or change requests{" "}
+            <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: t.textMeta }}>— optional</span>
+          </label>
+          <textarea
+            value={signerNote} onChange={e => setSignerNote(e.target.value)}
+            placeholder="Any questions, adjustments, or comments you'd like LexOps to know before we get started…"
+            rows={4}
+            style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
           />
         </div>
         <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", color: t.textSub, fontSize: 13, lineHeight: 1.5 }}>
