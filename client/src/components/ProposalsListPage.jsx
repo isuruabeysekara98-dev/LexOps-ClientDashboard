@@ -169,7 +169,18 @@ export default function ProposalsListPage({ navigate, onLogout }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         position: "sticky", top: 0, zIndex: 20,
       }}>
-        <Logo />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button
+            onClick={() => navigate("/")}
+            onMouseEnter={() => setHovBtn("home")}
+            onMouseLeave={() => setHovBtn(null)}
+            style={{ ...btnBase, color: t.textSub, background: hovBtn === "home" ? "#F0EDE6" : "transparent", gap: 4 }}
+          >
+            ← Back
+          </button>
+          <div style={{ width: 1, height: 18, background: t.border }} />
+          <Logo />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <button
             onClick={() => navigate("/active-projects")}

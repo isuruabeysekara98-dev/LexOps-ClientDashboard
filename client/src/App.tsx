@@ -97,22 +97,29 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
   }
 
   const isDashboard = page.name === "dashboard";
+  const isLanding = page.name === "landing";
+  const isProposals = page.name === "proposals";
+  const isDynamic = !isDashboard && !isLanding && !isProposals;
 
   return (
     <>
-      {/* Dashboard is always mounted so its state (loaded projects, selected project) survives
-          navigations to/from the proposals section. Hidden via display:none when not active. */}
+      {/* These three pages stay mounted so navigating between them never triggers a reload */}
       <div style={{ display: isDashboard ? "contents" : "none" }}>
         <Dashboard onLogout={onLogout} userProfile={userProfile} navigate={navigate} />
       </div>
+      <div style={{ display: isLanding ? "contents" : "none" }}>
+        <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />
+      </div>
+      <div style={{ display: isProposals ? "contents" : "none" }}>
+        <ProposalsListPage navigate={navigate} onLogout={onLogout} />
+      </div>
 
-      {!isDashboard && (() => {
-        if (page.name === "proposals") return <ProposalsListPage navigate={navigate} onLogout={onLogout} />;
+      {isDynamic && (() => {
         if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} onLogout={onLogout} />;
         if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
         if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
         if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
-        return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
+        return null;
       })()}
     </>
   );
