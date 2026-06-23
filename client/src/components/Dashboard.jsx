@@ -2251,7 +2251,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       supabase.from("documents").select("*").eq("project_id", project.id).order("uploaded_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("project_id", project.id).order("id"),
       supabase.from("proposals").select("id, name, description, client_summary").eq("project_id", project.id).limit(1),
-      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").catch(() => ({ data: [] })),
+      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").then(r => r.error ? { data: [] } : r),
     ]);
     if (phRes.data) setPhases(phRes.data);
     if (tkRes.data) setTasks(tkRes.data);
@@ -3751,7 +3751,7 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
   const load = useCallback(async () => {
     const [{ data: d }, { data: tl }] = await Promise.all([
       supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").catch(() => ({ data: [] })),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
     ]);
     if (d) setDocs(d);
     if (tl) setTools(tl);
