@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LexOps Client Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:#1a4a47;--teal-mid:#2d6e69;--teal-light:#3d8f88;--teal-pale:#e8f2f1;--teal-ghost:#f2f8f7;
+  --amber:#d4881a;--amber-pale:#fef6e8;--red:#c0392b;--red-pale:#fdf0ee;
+  --green:#2d7a5a;--green-pale:#e8f5ef;
+  --grey-900:#1a1f1e;--grey-700:#3d4a48;--grey-500:#6b7c7a;--grey-300:#b8c4c2;--grey-100:#f0f4f3;--grey-50:#f7fafa;--white:#ffffff;
+  --serif:'Playfair Display',Georgia,serif;--sans:'DM Sans',system-ui,sans-serif;
+  --shadow-sm:0 1px 3px rgba(26,74,71,.08),0 1px 2px rgba(26,74,71,.06);
+  --shadow-md:0 4px 16px rgba(26,74,71,.10),0 2px 6px rgba(26,74,71,.06);
+  --shadow-lg:0 12px 40px rgba(26,74,71,.14),0 4px 12px rgba(26,74,71,.08);
+  --radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--grey-50);color:var(--grey-900);min-height:100vh;overflow-x:hidden;}
+
+/* TOPBAR */
+.topbar{position:fixed;top:0;left:0;right:0;z-index:100;height:60px;background:var(--white);border-bottom:1px solid var(--grey-100);display:flex;align-items:center;justify-content:space-between;padding:0 32px;box-shadow:var(--shadow-sm);}
+.topbar-left{display:flex;align-items:center;gap:20px;}
+.logo{font-family:var(--serif);font-size:18px;font-weight:700;color:var(--teal);letter-spacing:-.3px;}
+.logo span{font-weight:400;}
+.divider-v{width:1px;height:20px;background:var(--grey-300);}
+.portal-label{font-size:13px;color:var(--grey-500);font-weight:400;letter-spacing:.3px;}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.view-toggle{display:flex;gap:4px;background:var(--grey-100);padding:3px;border-radius:8px;}
+.view-btn{padding:5px 14px;border-radius:6px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:transparent;color:var(--grey-500);font-family:var(--sans);transition:all .15s;}
+.view-btn.active{background:var(--teal);color:var(--white);box-shadow:var(--shadow-sm);}
+.talk-btn{display:flex;align-items:center;gap:8px;background:var(--teal);color:var(--white);border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;font-family:var(--sans);cursor:pointer;transition:all .2s;box-shadow:var(--shadow-sm);}
+.talk-btn:hover{background:var(--teal-mid);transform:translateY(-1px);box-shadow:var(--shadow-md);}
+.avatar-sm{width:24px;height:24px;border-radius:50%;background:var(--teal-light);color:var(--white);font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+.updated-tag{font-size:11px;color:var(--grey-500);display:flex;align-items:center;gap:4px;}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* LAYOUT */
+.layout{display:flex;padding-top:60px;min-height:100vh;}
+
+/* MAIN */
+.main{flex:1;padding:32px 48px;max-width:100%;}
+
+/* HEADER */
+.project-header{margin-bottom:28px;}
+.client-name{font-size:12px;color:var(--grey-500);font-weight:500;letter-spacing:.5px;margin-bottom:4px;}
+.project-title{font-family:var(--serif);font-size:32px;font-weight:700;color:var(--grey-900);letter-spacing:-.5px;line-height:1.1;margin-bottom:6px;}
+.project-subtitle{font-size:14px;color:var(--grey-500);}
+.project-subtitle strong{color:var(--teal);}
+
+/* NAV */
+.nav-tabs{display:flex;gap:0;border-bottom:1.5px solid var(--grey-100);margin-bottom:32px;}
+.nav-tab{padding:12px 20px;font-size:13px;font-weight:500;color:var(--grey-500);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1.5px;transition:all .15s;white-space:nowrap;font-family:var(--sans);background:none;border-top:none;border-left:none;border-right:none;}
+.nav-tab:hover{color:var(--grey-900);}
+.nav-tab.active{color:var(--teal);border-bottom-color:var(--teal);font-weight:600;}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--amber);color:var(--white);font-size:10px;font-weight:700;margin-left:6px;}
+
+/* PANELS */
+.tab-panel{display:none;}
+.tab-panel.active{display:block;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* STATUS BANNER */
+.status-banner{background:linear-gradient(135deg,var(--teal) 0%,var(--teal-mid) 100%);border-radius:var(--radius);padding:24px 28px;display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
+.status-banner::before{content:'';position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.05);}
+.status-banner-left{position:relative;}
+.status-phase-label{font-size:11px;color:rgba(255,255,255,.6);font-weight:500;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.status-phase-name{font-family:var(--serif);font-size:22px;color:var(--white);font-weight:600;margin-bottom:8px;}
+.status-message{font-size:13px;color:rgba(255,255,255,.8);}
+.status-message strong{color:var(--white);}
+.status-banner-right{display:flex;gap:20px;position:relative;}
+.status-stat{text-align:center;}
+.status-stat-val{font-size:26px;font-weight:700;color:var(--white);font-family:var(--serif);line-height:1;}
+.status-stat-label{font-size:11px;color:rgba(255,255,255,.6);margin-top:4px;}
+.status-divider{width:1px;background:rgba(255,255,255,.15);}
+
+/* ── PHASE TIMELINE (scroll-triggered) ── */
+.phase-timeline-section{margin-bottom:32px;}
+.section-title{font-size:13px;font-weight:600;color:var(--grey-700);letter-spacing:.3px;margin-bottom:16px;}
+.phase-track{display:flex;align-items:flex-start;gap:0;background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);padding:28px 24px;box-shadow:var(--shadow-sm);position:relative;}
+.phase-node{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;cursor:pointer;}
+.phase-connector-line{flex:1;height:2px;margin-top:19px;align-self:flex-start;}
+.phase-connector-line.done{background:var(--teal);}
+.phase-connector-line.active{background:linear-gradient(90deg,var(--teal),var(--teal-light));}
+.phase-connector-line.future{background:var(--grey-100);}
+
+.phase-dot{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:all .3s;position:relative;z-index:1;margin-bottom:10px;}
+.phase-dot.done{background:var(--teal);color:var(--white);}
+.phase-dot.active-phase{background:var(--white);color:var(--teal);border:2px solid var(--teal);animation:ringPulse 2.2s infinite;}
+.phase-dot.future-phase{background:var(--grey-100);color:var(--grey-300);border:2px solid var(--grey-100);}
+
+/* scroll-activated glow */
+.phase-node.scroll-lit .phase-dot.done{box-shadow:0 0 0 8px rgba(26,74,71,.15);}
+.phase-node.scroll-lit .phase-dot.active-phase{box-shadow:0 0 0 12px rgba(26,74,71,.12);}
+.phase-node.scroll-lit .phase-label{color:var(--teal);font-weight:700;}
+
+@keyframes ringPulse{0%,100%{box-shadow:0 0 0 4px rgba(26,74,71,.1)}50%{box-shadow:0 0 0 10px rgba(26,74,71,.05)}}
+
+.phase-label{font-size:11px;font-weight:600;color:var(--grey-700);text-align:center;margin-bottom:4px;transition:color .3s;}
+.phase-label.future-label{color:var(--grey-300);}
+.phase-pct-label{font-size:11px;color:var(--grey-500);}
+.phase-pct-label.active-pct{color:var(--teal);font-weight:600;}
+
+/* Phase hover popup */
+.phase-popup{position:absolute;bottom:calc(100% + 14px);left:50%;transform:translateX(-50%);background:var(--grey-900);color:var(--white);border-radius:var(--radius-sm);padding:14px 16px;width:200px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;box-shadow:var(--shadow-lg);}
+.phase-popup::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:7px solid transparent;border-top-color:var(--grey-900);}
+.phase-node:hover .phase-popup{opacity:1;pointer-events:all;}
+.popup-title{font-weight:700;font-size:13px;margin-bottom:5px;}
+.popup-desc{font-size:11px;color:rgba(255,255,255,.7);line-height:1.5;margin-bottom:10px;}
+.popup-cta{font-size:11px;font-weight:600;color:var(--teal-light);cursor:pointer;text-decoration:underline;}
+
+/* ── SNAKE WORKFLOW TIMELINE ── */
+.workflow-section{background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);padding:24px;box-shadow:var(--shadow-sm);margin-bottom:28px;}
+.workflow-section-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.workflow-subtitle{font-size:12px;color:var(--grey-500);margin-bottom:28px;line-height:1.5;}
+
+.snake-container{position:relative;}
+
+/* Row = one horizontal sweep */
+.snake-row{display:flex;align-items:center;position:relative;margin-bottom:0;}
+.snake-row.rtl{flex-direction:row-reverse;}
+
+/* connector between rows */
+.snake-turn{display:flex;justify-content:flex-end;align-items:center;height:36px;position:relative;}
+.snake-turn.rtl{justify-content:flex-start;}
+.snake-turn-line{position:absolute;right:16px;top:0;bottom:0;width:2px;background:var(--grey-100);}
+.snake-turn.rtl .snake-turn-line{right:auto;left:16px;}
+
+.workflow-node{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;opacity:0;transform:translateY(14px);transition:opacity .45s ease,transform .45s ease;padding:0 4px;}
+.workflow-node.visible{opacity:1;transform:translateY(0);}
+
+.workflow-h-connector{height:2px;flex:0 0 14px;background:var(--grey-100);margin-top:17px;transition:background .5s;}
+.workflow-h-connector.lit{background:var(--teal-light);}
+
+.wf-dot{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;margin-bottom:6px;cursor:pointer;transition:all .2s;position:relative;border:2px solid transparent;}
+.wf-dot.done-wf{background:var(--teal-pale);border-color:var(--teal-light);}
+.wf-dot.active-wf{background:var(--teal);border-color:var(--teal);box-shadow:0 0 0 5px rgba(26,74,71,.1);}
+.wf-dot.future-wf{background:var(--grey-100);border-color:var(--grey-100);}
+.wf-dot:hover{transform:scale(1.12);box-shadow:var(--shadow-md);}
+
+.wf-label{font-size:10px;font-weight:700;color:var(--grey-800);text-align:center;max-width:80px;line-height:1.3;margin-bottom:2px;}
+.wf-sublabel{font-size:9px;color:var(--grey-500);text-align:center;max-width:80px;line-height:1.3;}
+.wf-play-badge{width:14px;height:14px;font-size:6px;}
+.wf-dot.active-wf + .wf-label{color:var(--teal);}
+
+.wf-play-badge{position:absolute;bottom:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--amber);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--white);box-shadow:0 1px 4px rgba(0,0,0,.2);}
+
+/* ── ACTIONS PAGE ── */
+.actions-progress-bar{background:var(--white);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;border:1px solid var(--grey-100);box-shadow:var(--shadow-sm);}
+.progress-label-row{display:flex;justify-content:space-between;margin-bottom:10px;}
+.progress-label{font-size:13px;font-weight:600;color:var(--grey-700);}
+.progress-fraction{font-size:13px;color:var(--grey-500);}
+.progress-bar-track{height:6px;background:var(--grey-100);border-radius:99px;overflow:hidden;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--teal-light));border-radius:99px;}
+.progress-phases-row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.phase-chip{padding:4px 12px;border-radius:99px;font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;border:1.5px solid transparent;}
+.phase-chip.chip-active{background:var(--teal);color:var(--white);}
+.phase-chip.chip-done{background:var(--green-pale);color:var(--green);border-color:rgba(45,122,90,.2);}
+.phase-chip.chip-upcoming{background:var(--grey-100);color:var(--grey-500);}
+
+.phase-section{margin-bottom:20px;}
+.phase-section-header{display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:12px 16px;background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);cursor:pointer;}
+.phase-section-dot{width:10px;height:10px;border-radius:50%;}
+.phase-section-dot.active-dot{background:var(--teal);}
+.phase-section-dot.done-dot{background:var(--green);}
+.phase-section-dot.upcoming-dot{background:var(--grey-300);}
+.phase-section-name{font-size:13px;font-weight:700;color:var(--grey-900);flex:1;}
+.phase-section-badge{font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500;}
+.badge-active{background:var(--amber-pale);color:var(--amber);}
+.badge-done{background:var(--green-pale);color:var(--green);}
+.badge-upcoming{background:var(--grey-100);color:var(--grey-500);}
+.chevron{font-size:12px;color:var(--grey-300);transition:transform .2s;}
+.phase-section.collapsed .chevron{transform:rotate(-90deg);}
+.phase-section.collapsed .action-items-list{display:none;}
+.action-items-list{display:flex;flex-direction:column;gap:8px;}
+.action-item{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:14px 18px;display:flex;align-items:flex-start;gap:14px;box-shadow:var(--shadow-sm);transition:all .2s;cursor:pointer;}
+.action-item:hover{border-color:var(--grey-300);transform:translateX(2px);}
+.action-item.completed{opacity:.5;}
+.action-item.completed .action-name{text-decoration:line-through;color:var(--grey-500);}
+.action-checkbox{width:20px;height:20px;border-radius:50%;flex-shrink:0;border:2px solid var(--grey-300);margin-top:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;background:transparent;}
+.action-checkbox:hover{border-color:var(--teal);}
+.action-checkbox.checked{background:var(--teal);border-color:var(--teal);}
+.action-checkbox.checked::after{content:'✓';color:var(--white);font-size:11px;font-weight:700;}
+.action-body{flex:1;}
+.action-name{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:3px;}
+.action-why{font-size:12px;color:var(--grey-500);line-height:1.4;margin-bottom:6px;}
+.action-footer{display:flex;align-items:center;gap:8px;}
+.action-due{font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;}
+.due-overdue{background:var(--red-pale);color:var(--red);}
+.due-soon{background:var(--amber-pale);color:var(--amber);}
+.due-normal{background:var(--grey-100);color:var(--grey-500);}
+.pending-verify{font-size:11px;color:var(--teal);font-style:italic;}
+
+/* ── RESOURCES ── */
+.resources-layout{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.resources-col-header{font-size:11px;font-weight:600;color:var(--grey-500);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid var(--grey-100);}
+.doc-filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.doc-filter{padding:4px 12px;border-radius:99px;font-size:11px;font-weight:500;background:var(--grey-100);color:var(--grey-500);cursor:pointer;border:1.5px solid transparent;transition:all .15s;font-family:var(--sans);}
+.doc-filter.active{background:var(--teal-pale);color:var(--teal);border-color:rgba(26,74,71,.2);}
+.doc-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow-sm);}
+.doc-card:hover{border-color:var(--grey-300);box-shadow:var(--shadow-md);}
+.doc-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.doc-icon.pdf{background:#fde8e8;}
+.doc-icon.sheet{background:#e8f5e8;}
+.doc-icon.doc{background:#e8eef8;}
+.doc-meta{flex:1;}
+.doc-name{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:2px;}
+.doc-detail{font-size:11px;color:var(--grey-500);}
+.doc-phase-tag{font-size:10px;padding:2px 8px;background:var(--teal-pale);color:var(--teal);border-radius:99px;font-weight:500;}
+.tool-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:16px 18px;margin-bottom:8px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow-sm);transition:all .15s;}
+.tool-card:hover{border-color:var(--grey-300);box-shadow:var(--shadow-md);}
+.tool-logo{width:40px;height:40px;border-radius:var(--radius-sm);background:var(--grey-100);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.tool-name{font-size:13px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
+.tool-purpose{font-size:12px;color:var(--grey-500);line-height:1.4;}
+.tool-launch{margin-left:auto;padding:6px 14px;border-radius:var(--radius-sm);background:var(--teal);color:var(--white);border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s;white-space:nowrap;}
+.tool-launch:hover{background:var(--teal-mid);}
+
+/* ── INVOICES ── */
+.invoice-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:28px;}
+.invoice-stat-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);padding:20px 24px;box-shadow:var(--shadow-sm);}
+.inv-stat-label{font-size:11px;font-weight:600;color:var(--grey-500);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;}
+.inv-stat-val{font-family:var(--serif);font-size:28px;font-weight:700;color:var(--grey-900);margin-bottom:10px;}
+.inv-stat-val.teal{color:var(--teal);}
+.inv-progress-wrap{height:4px;background:var(--grey-100);border-radius:99px;overflow:hidden;}
+.inv-progress-fill{height:100%;background:var(--teal);border-radius:99px;}
+.timeline-list{position:relative;padding-left:24px;}
+.timeline-list::before{content:'';position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:var(--grey-100);}
+.timeline-entry{position:relative;margin-bottom:16px;}
+.timeline-dot{position:absolute;left:-24px;top:6px;width:16px;height:16px;border-radius:50%;border:2px solid var(--white);}
+.timeline-dot.paid{background:var(--green);box-shadow:0 0 0 2px rgba(45,122,90,.2);}
+.timeline-dot.pending{background:var(--amber);box-shadow:0 0 0 2px rgba(212,136,26,.2);}
+.invoice-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:16px 18px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow-sm);transition:all .15s;cursor:pointer;}
+.invoice-card:hover{border-color:var(--grey-300);box-shadow:var(--shadow-md);}
+.inv-date-col{min-width:80px;}
+.inv-date{font-size:12px;font-weight:600;color:var(--grey-700);}
+.inv-sender{font-size:11px;color:var(--grey-500);margin-top:2px;}
+.inv-desc{flex:1;}
+.inv-desc-title{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:2px;}
+.inv-desc-phase{font-size:11px;color:var(--grey-500);}
+.inv-amount{font-size:16px;font-weight:700;color:var(--grey-900);font-family:var(--serif);}
+.inv-status-pill{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:600;}
+.inv-paid{background:var(--green-pale);color:var(--green);}
+.inv-pending{background:var(--amber-pale);color:var(--amber);}
+
+/* ── SUPPORT KANBAN ── */
+.kanban-board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;}
+.kanban-col{background:var(--grey-50);border-radius:var(--radius);border:1px solid var(--grey-100);padding:16px;min-height:400px;}
+.kanban-col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.kanban-col-title{font-size:12px;font-weight:700;color:var(--grey-700);letter-spacing:.5px;text-transform:uppercase;}
+.kanban-col-count{width:20px;height:20px;border-radius:50%;background:var(--grey-200);color:var(--grey-600);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.kanban-col-count.open-count{background:var(--amber-pale);color:var(--amber);}
+.kanban-col-count.prog-count{background:var(--teal-pale);color:var(--teal);}
+.kanban-col-count.res-count{background:var(--green-pale);color:var(--green);}
+
+.ticket-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:14px;margin-bottom:10px;box-shadow:var(--shadow-sm);cursor:pointer;transition:all .2s;position:relative;}
+.ticket-card:hover{box-shadow:var(--shadow-md);border-color:var(--grey-300);}
+.ticket-card.resolved-card{opacity:.65;}
+.ticket-priority-bar{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:4px 0 0 4px;}
+.priority-high{background:var(--red);}
+.priority-med{background:var(--amber);}
+.priority-low{background:var(--green);}
+.ticket-title{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:5px;padding-left:8px;}
+.ticket-desc{font-size:11px;color:var(--grey-500);line-height:1.4;margin-bottom:8px;padding-left:8px;}
+.ticket-footer{display:flex;align-items:center;justify-content:space-between;padding-left:8px;}
+.ticket-priority-pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;}
+.prio-high{background:var(--red-pale);color:var(--red);}
+.prio-med{background:var(--amber-pale);color:var(--amber);}
+.prio-low{background:var(--green-pale);color:var(--green);}
+.ticket-date{font-size:10px;color:var(--grey-300);}
+.ticket-resolve-btn{font-size:10px;font-weight:600;color:var(--teal);background:var(--teal-pale);border:none;border-radius:99px;padding:3px 10px;cursor:pointer;font-family:var(--sans);margin-top:8px;margin-left:8px;display:block;transition:all .15s;}
+.ticket-resolve-btn:hover{background:var(--teal);color:var(--white);}
+.ticket-submitted-tag{font-size:10px;color:var(--green);font-style:italic;margin-top:6px;margin-left:8px;}
+
+.new-ticket-btn{width:100%;padding:10px;border-radius:var(--radius-sm);background:transparent;border:1.5px dashed var(--grey-300);color:var(--grey-500);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--sans);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px;}
+.new-ticket-btn:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-pale);}
+
+/* NEW TICKET FORM */
+.ticket-form{background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);padding:24px;margin-bottom:24px;box-shadow:var(--shadow-sm);display:none;}
+.ticket-form.open{display:block;animation:fadeIn .2s ease;}
+.form-title{font-size:15px;font-weight:700;color:var(--grey-900);margin-bottom:16px;font-family:var(--serif);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.form-field{display:flex;flex-direction:column;gap:5px;}
+.form-field.full{grid-column:1/-1;}
+.form-label{font-size:11px;font-weight:600;color:var(--grey-700);letter-spacing:.3px;}
+.form-input,.form-textarea,.form-select{width:100%;padding:9px 12px;border-radius:var(--radius-sm);border:1.5px solid var(--grey-100);font-family:var(--sans);font-size:13px;color:var(--grey-900);background:var(--grey-50);transition:border .15s;outline:none;}
+.form-input:focus,.form-textarea:focus,.form-select:focus{border-color:var(--teal);background:var(--white);}
+.form-textarea{resize:vertical;min-height:80px;}
+.form-actions{display:flex;gap:10px;margin-top:16px;}
+.btn-submit{padding:10px 22px;background:var(--teal);color:var(--white);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.btn-submit:hover{background:var(--teal-mid);}
+.btn-cancel{padding:10px 18px;background:transparent;color:var(--grey-500);border:1.5px solid var(--grey-100);border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);}
+
+/* BOOK A CALL card */
+.book-call-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:16px;box-shadow:var(--shadow-sm);}
+.book-call-avatar{width:44px;height:44px;border-radius:50%;background:var(--teal);color:var(--white);font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.book-call-info{flex:1;}
+.book-call-name{font-size:14px;font-weight:700;color:var(--grey-900);margin-bottom:2px;}
+.book-call-detail{font-size:12px;color:var(--grey-500);}
+.book-call-btn{padding:9px 18px;background:var(--teal);color:var(--white);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap;}
+
+/* DRAWER */
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s;}
+.drawer-overlay.open{opacity:1;pointer-events:all;}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:440px;background:var(--white);z-index:201;transform:translateX(100%);transition:transform .3s ease;overflow-y:auto;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;}
+.drawer.open{transform:translateX(0);}
+.drawer-header{padding:24px 24px 16px;border-bottom:1px solid var(--grey-100);display:flex;align-items:flex-start;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1;}
+.drawer-title{font-family:var(--serif);font-size:18px;font-weight:700;color:var(--grey-900);}
+.drawer-close{width:28px;height:28px;border-radius:50%;border:none;background:var(--grey-100);color:var(--grey-700);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--sans);}
+.drawer-body{padding:20px 24px;flex:1;}
+.video-placeholder{width:100%;aspect-ratio:16/9;background:var(--grey-900);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;margin-bottom:16px;cursor:pointer;position:relative;overflow:hidden;}
+.video-placeholder::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--teal) 0%,#0d2e2b 100%);opacity:.7;}
+.play-btn{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-size:18px;position:relative;z-index:1;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+.drawer-section-label{font-size:11px;font-weight:700;color:var(--grey-500);letter-spacing:.8px;text-transform:uppercase;margin:16px 0 8px;}
+.io-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.io-box{border-radius:var(--radius-sm);padding:12px 14px;}
+.io-box.input-box{background:var(--amber-pale);border:1px solid rgba(212,136,26,.2);}
+.io-box.output-box{background:var(--green-pale);border:1px solid rgba(45,122,90,.2);}
+.io-box-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
+.io-box.input-box .io-box-label{color:var(--amber);}
+.io-box.output-box .io-box-label{color:var(--green);}
+.io-box-content{font-size:12px;color:var(--grey-700);line-height:1.5;}
+.case-box{background:var(--teal-ghost);border:1px solid var(--teal-pale);border-radius:var(--radius-sm);padding:14px;margin-top:12px;}
+.case-box-label{font-size:10px;font-weight:700;color:var(--teal);letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.case-box-text{font-size:12px;color:var(--grey-700);line-height:1.6;}
+.drawer-tag{padding:4px 10px;border-radius:99px;font-size:11px;font-weight:500;background:var(--teal-pale);color:var(--teal);display:inline-block;margin:2px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--grey-900);color:var(--white);padding:12px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;z-index:999;transition:transform .3s ease;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+
+/* CONFETTI */
+.confetti-container{position:fixed;inset:0;pointer-events:none;z-index:500;}
+.confetti-piece{position:absolute;width:8px;height:8px;border-radius:2px;animation:confettiFall 1.2s ease-out forwards;}
+@keyframes confettiFall{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+
+.empty-state{text-align:center;padding:40px 24px;color:var(--grey-500);background:var(--white);border-radius:var(--radius);border:1px solid var(--grey-100);}
+.empty-icon{font-size:28px;margin-bottom:10px;}
+.empty-title{font-size:14px;font-weight:600;color:var(--grey-700);margin-bottom:5px;}
+.empty-desc{font-size:12px;line-height:1.5;max-width:300px;margin:0 auto;}
+
+/* DELIVERABLES */
+.deliverables-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px;}
+.deliverable-card{background:var(--white);border-radius:var(--radius-sm);border:1px solid var(--grey-100);padding:14px 16px;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow-sm);transition:all .15s;}
+.deliverable-card:hover{border-color:var(--grey-300);box-shadow:var(--shadow-md);}
+.deliv-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.deliv-name{font-size:13px;font-weight:600;color:var(--grey-900);margin-bottom:3px;}
+.deliv-status{font-size:11px;color:var(--grey-500);}
+.deliv-status.upcoming{color:var(--amber);}
+.deliv-status.done{color:var(--green);}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">Lex<span>Ops</span></div>
+    <div class="divider-v"></div>
+    <div class="portal-label">Client Portal</div>
+  </div>
+  <div class="topbar-right">
+    <div class="updated-tag"><div class="live-dot"></div>Updated 2 Jun 2026, 14:32</div>
+    <div class="view-toggle">
+      <button class="view-btn">Admin</button>
+      <button class="view-btn">Internal</button>
+      <button class="view-btn active">Client View</button>
+    </div>
+    <button class="talk-btn" onclick="openDrawer('call')">
+      <div class="avatar-sm">J</div>Talk to Jai
+    </button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- MAIN -->
+  <div class="main">
+    <div class="project-header">
+      <div class="client-name">ESTATES LAW TEAM</div>
+      <div class="project-title">Estates Automation</div>
+      <div class="project-subtitle">Manager: <strong>Jai</strong> &nbsp;·&nbsp; Phase 2 of 4 in progress</div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('overview',this)">Overview</button>
+      <button class="nav-tab" onclick="switchTab('actions',this)">Your Actions <span class="tab-badge">4</span></button>
+      <button class="nav-tab" onclick="switchTab('resources',this)">Resources</button>
+      <button class="nav-tab" onclick="switchTab('invoices',this)">Invoices</button>
+      <button class="nav-tab" onclick="switchTab('support',this)">Support</button>
+    </div>
+
+    <!-- ══ OVERVIEW ══ -->
+    <div id="tab-overview" class="tab-panel active">
+
+      <!-- Status Banner -->
+      <div class="status-banner">
+        <div class="status-banner-left">
+          <div class="status-phase-label">Currently Active</div>
+          <div class="status-phase-name">Phase 2 — Build & Configure</div>
+          <div class="status-message"><strong>4 actions need your input</strong> to keep this engagement on track.</div>
+        </div>
+        <div class="status-banner-right">
+          <div class="status-stat"><div class="status-stat-val">38%</div><div class="status-stat-label">Overall Progress</div></div>
+          <div class="status-divider"></div>
+          <div class="status-stat"><div class="status-stat-val">3/8</div><div class="status-stat-label">Deliverables Done</div></div>
+          <div class="status-divider"></div>
+          <div class="status-stat"><div class="status-stat-val">14</div><div class="status-stat-label">Days Remaining</div></div>
+        </div>
+      </div>
+
+      <!-- PHASE TIMELINE -->
+      <div class="phase-timeline-section">
+        <div class="section-title">Engagement Phases — scroll to explore, hover for detail</div>
+        <div class="phase-track" id="phaseTrack">
+
+          <div class="phase-node" id="pn0">
+            <div class="phase-dot done">✓</div>
+            <div class="phase-label">Discovery</div>
+            <div class="phase-pct-label">100%</div>
+            <div class="phase-popup">
+              <div class="popup-title">Phase 1 — Discovery</div>
+              <div class="popup-desc">Mapped existing workflows, identified automation opportunities, agreed project scope. Fully complete.</div>
+              <div class="popup-cta" onclick="goToPhaseActions(1)">View completed actions →</div>
+            </div>
+          </div>
+          <div class="phase-connector-line done" style="margin-top:19px;height:2px;flex:1;align-self:flex-start;"></div>
+
+          <div class="phase-node" id="pn1">
+            <div class="phase-dot active-phase">2</div>
+            <div class="phase-label">Build</div>
+            <div class="phase-pct-label active-pct">38%</div>
+            <div class="phase-popup">
+              <div class="popup-title">Phase 2 — Build & Configure</div>
+              <div class="popup-desc">Building automation flows. 4 client actions outstanding — your input is needed to proceed.</div>
+              <div class="popup-cta" onclick="goToPhaseActions(2)">See your open actions →</div>
+            </div>
+          </div>
+          <div class="phase-connector-line active" style="margin-top:19px;height:2px;flex:1;align-self:flex-start;"></div>
+
+          <div class="phase-node" id="pn2">
+            <div class="phase-dot future-phase">3</div>
+            <div class="phase-label future-label">Testing</div>
+            <div class="phase-pct-label">—</div>
+            <div class="phase-popup">
+              <div class="popup-title">Phase 3 — Testing & QA</div>
+              <div class="popup-desc">End-to-end testing with your team. Unlocks once Phase 2 actions are complete.</div>
+              <div class="popup-cta" onclick="goToPhaseActions(3)">Preview upcoming actions →</div>
+            </div>
+          </div>
+          <div class="phase-connector-line future" style="margin-top:19px;height:2px;flex:1;align-self:flex-start;"></div>
+
+          <div class="phase-node" id="pn3">
+            <div class="phase-dot future-phase">4</div>
+            <div class="phase-label future-label">Go Live</div>
+            <div class="phase-pct-label">—</div>
+            <div class="phase-popup">
+              <div class="popup-title">Phase 4 — Handover & Go Live</div>
+              <div class="popup-desc">Training, documentation, and live deployment. Your team takes full ownership.</div>
+              <div class="popup-cta" onclick="goToPhaseActions(4)">Preview upcoming actions →</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SNAKE WORKFLOW TIMELINE -->
+      <div class="workflow-section">
+        <div class="workflow-section-header">
+          <div>
+            <div class="section-title">Reimagined Workflow</div>
+            <div class="workflow-subtitle">How client intake works after automation — click any stage to see the video, inputs, and outputs.<br><em style="color:var(--teal);font-style:normal;font-weight:500;">Illustrative case: Estates Law Team — new probate matter intake</em></div>
+          </div>
+        </div>
+
+        <div class="snake-container" id="snakeContainer">
+
+          <!-- ROW 1: left→right: stages 1,2,3 -->
+          <div class="snake-row" id="snakeRow0">
+            <div class="workflow-node" data-stage="0" onclick="openDrawer('wf0')">
+              <div class="wf-dot done-wf">📥<span class="wf-play-badge">▶</span></div>
+              <div class="wf-label">Client Enquiry Received</div>
+              <div class="wf-sublabel">Web form / phone</div>
+            </div>
+            <div class="workflow-h-connector" data-conn="0"></div>
+            <div class="workflow-node" data-stage="1" onclick="openDrawer('wf1')">
+              <div class="wf-dot done-wf">🔍<span class="wf-play-badge">▶</span></div>
+              <div class="wf-label">Unified Source Capture</div>
+              <div class="wf-sublabel">All channels → one record</div>
+            </div>
+            <div class="workflow-h-connector" data-conn="1"></div>
+            <div class="workflow-node" data-stage="2" onclick="openDrawer('wf2')">
+              <div class="wf-dot done-wf">🏷️<span class="wf-play-badge">▶</span></div>
+              <div class="wf-label">Auto-Classification</div>
+              <div class="wf-sublabel">Matter type identified</div>
+            </div>
+          </div>
+
+          <!-- TURN: right side -->
+          <div class="snake-turn" style="justify-content:flex-end;">
+            <div class="snake-turn-line" style="right:16px;"></div>
+          </div>
+
+          <!-- ROW 2: right→left: stages 4,5,6 -->
+          <div class="snake-row rtl" id="snakeRow1">
+            <div class="workflow-node" data-stage="3" onclick="openDrawer('wf3')">
+              <div class="wf-dot active-wf">📄<span class="wf-play-badge">▶</span></div>
+              <div class="wf-label">Matter Created in Smokeball</div>
+              <div class="wf-sublabel">Zero manual entry</div>
+            </div>
+            <div class="workflow-h-connector" data-conn="2"></div>
+            <div class="workflow-node" data-stage="4" onclick="openDrawer('wf4')">
+              <div class="wf-dot active-wf">📨<span class="wf-play-badge">▶</span></div>
+              <div class="wf-label">Auto Document Generation</div>
+              <div class="wf-sublabel">Letters, forms, admin docs</div>
+            </div>
+            <div class="workflow-h-connector" data-conn="3"></div>
+            <div class="workflow-node" data-stage="5" onclick="openDrawer('wf5')">
+              <div class="wf-dot future-wf">📬</div>
+              <div class="wf-label">Client Notification Sent</div>
+              <div class="wf-sublabel">Instant confirmation</div>
+            </div>
+          </div>
+
+          <!-- TURN: left side -->
+          <div class="snake-turn rtl" style="justify-content:flex-start;">
+            <div class="snake-turn-line" style="left:16px;right:auto;"></div>
+          </div>
+
+          <!-- ROW 3: left→right: stages 7,8 -->
+          <div class="snake-row" id="snakeRow2">
+            <div class="workflow-node" data-stage="6" onclick="openDrawer('wf6')">
+              <div class="wf-dot future-wf">👤</div>
+              <div class="wf-label">Fee Earner Assigned</div>
+              <div class="wf-sublabel">Rules-based routing</div>
+            </div>
+            <div class="workflow-h-connector" data-conn="4"></div>
+            <div class="workflow-node" data-stage="7" onclick="openDrawer('wf7')">
+              <div class="wf-dot future-wf">✅</div>
+              <div class="wf-label">Matter Live & Tracked</div>
+              <div class="wf-sublabel">Full audit trail</div>
+            </div>
+            <!-- fill the rest with empty space -->
+            <div style="flex:1"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- DELIVERABLES -->
+      <div class="section-title" style="margin-bottom:14px;">Your Deliverables</div>
+      <div class="deliverables-grid">
+        <div class="deliverable-card">
+          <div class="deliv-icon">✅</div>
+          <div><div class="deliv-name">Process mapping & audit</div><div class="deliv-status done">Completed — Phase 1</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">✅</div>
+          <div><div class="deliv-name">Guidde access accepted by team</div><div class="deliv-status done">Completed — Phase 1</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">✅</div>
+          <div><div class="deliv-name">Stakeholder alignment session</div><div class="deliv-status done">Completed — Phase 1</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">⏳</div>
+          <div><div class="deliv-name">Finalise phased build plan</div><div class="deliv-status upcoming">Awaiting your input</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">⏳</div>
+          <div><div class="deliv-name">Confirm agreed automation scope</div><div class="deliv-status upcoming">Awaiting your input</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">🔒</div>
+          <div><div class="deliv-name">Final QA and client review</div><div class="deliv-status">Upcoming — Phase 3</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">🔒</div>
+          <div><div class="deliv-name">Project handover and sign-off</div><div class="deliv-status">Upcoming — Phase 4</div></div>
+        </div>
+        <div class="deliverable-card">
+          <div class="deliv-icon">🔒</div>
+          <div><div class="deliv-name">Team training & documentation</div><div class="deliv-status">Upcoming — Phase 4</div></div>
+        </div>
+      </div>
+
+    </div><!-- end overview -->
+
+    <!-- ══ YOUR ACTIONS ══ -->
+    <div id="tab-actions" class="tab-panel">
+      <div class="actions-progress-bar">
+        <div class="progress-label-row">
+          <div class="progress-label">Overall Engagement Progress</div>
+          <div class="progress-fraction">3 of 8 deliverables complete</div>
+        </div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" style="width:38%"></div></div>
+        <div class="progress-phases-row">
+          <div class="phase-chip chip-done">✓ Phase 1: Discovery</div>
+          <div class="phase-chip chip-active">● Phase 2: Build</div>
+          <div class="phase-chip chip-upcoming">Phase 3: Testing</div>
+          <div class="phase-chip chip-upcoming">Phase 4: Go Live</div>
+        </div>
+      </div>
+
+      <div class="phase-section collapsed" id="phase1-section">
+        <div class="phase-section-header" onclick="togglePhase('phase1-section')">
+          <div class="phase-section-dot done-dot"></div>
+          <div class="phase-section-name">Phase 1 — Discovery & Scoping</div>
+          <div class="phase-section-badge badge-done">All complete</div>
+          <div class="chevron">▼</div>
+        </div>
+        <div class="action-items-list">
+          <div class="action-item completed">
+            <div class="action-checkbox checked"></div>
+            <div class="action-body">
+              <div class="action-name">Guidde access accepted by team</div>
+              <div class="action-why">Required to begin recording process walkthroughs for training materials.</div>
+              <div class="action-footer"><span class="action-due due-normal">Completed 7 Mar</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase-section" id="phase2-section">
+        <div class="phase-section-header" onclick="togglePhase('phase2-section')">
+          <div class="phase-section-dot active-dot"></div>
+          <div class="phase-section-name">Phase 2 — Build & Configure</div>
+          <div class="phase-section-badge badge-active" id="phase2-badge">4 actions needed</div>
+          <div class="chevron">▼</div>
+        </div>
+        <div class="action-items-list">
+          <div class="action-item" id="action-1">
+            <div class="action-checkbox" onclick="completeAction('action-1')"></div>
+            <div class="action-body">
+              <div class="action-name">Incorporate stakeholder feedback</div>
+              <div class="action-why">Your team's input on the draft workflows ensures the build reflects how your firm actually operates.</div>
+              <div class="action-footer"><span class="action-due due-overdue">Overdue — 24 Mar</span></div>
+            </div>
+          </div>
+          <div class="action-item" id="action-2">
+            <div class="action-checkbox" onclick="completeAction('action-2')"></div>
+            <div class="action-body">
+              <div class="action-name">Finalise priority areas and sequencing</div>
+              <div class="action-why">Locking the priority order lets us begin building the highest-value automation first.</div>
+              <div class="action-footer"><span class="action-due due-overdue">Overdue — 24 Mar</span></div>
+            </div>
+          </div>
+          <div class="action-item" id="action-3">
+            <div class="action-checkbox" onclick="completeAction('action-3')"></div>
+            <div class="action-body">
+              <div class="action-name">Confirm agreed automation scope</div>
+              <div class="action-why">Scope sign-off protects both parties and ensures the build doesn't expand beyond agreed boundaries.</div>
+              <div class="action-footer"><span class="action-due due-soon">Due 28 Mar</span></div>
+            </div>
+          </div>
+          <div class="action-item" id="action-4">
+            <div class="action-checkbox" onclick="completeAction('action-4')"></div>
+            <div class="action-body">
+              <div class="action-name">Finalise phased build plan</div>
+              <div class="action-why">Your sign-off unlocks Phase 3 — the testing sprint begins immediately after confirmation.</div>
+              <div class="action-footer"><span class="action-due due-normal">Due 31 Mar</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="phase-section collapsed" id="phase3-section">
+        <div class="phase-section-header" onclick="togglePhase('phase3-section')">
+          <div class="phase-section-dot upcoming-dot"></div>
+          <div class="phase-section-name">Phase 3 — Testing & QA</div>
+          <div class="phase-section-badge badge-upcoming">Upcoming</div>
+          <div class="chevron">▼</div>
+        </div>
+        <div class="action-items-list">
+          <div class="action-item" style="opacity:.5;pointer-events:none;">
+            <div class="action-checkbox"></div>
+            <div class="action-body">
+              <div class="action-name">Final QA and client review</div>
+              <div class="action-why">End-to-end testing with your team before go-live sign-off.</div>
+              <div class="action-footer"><span class="action-due due-normal">Unlocks after Phase 2</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ RESOURCES ══ -->
+    <div id="tab-resources" class="tab-panel">
+      <div class="resources-layout">
+        <div>
+          <div class="resources-col-header">📁 Documents</div>
+          <div class="doc-filter-row">
+            <button class="doc-filter active">All</button>
+            <button class="doc-filter">Phase 1</button>
+            <button class="doc-filter">Phase 2</button>
+            <button class="doc-filter">Contracts</button>
+          </div>
+          <div class="doc-card" onclick="openDrawer('doc0')"><div class="doc-icon pdf">📄</div><div class="doc-meta"><div class="doc-name">Engagement Agreement</div><div class="doc-detail">Signed 12 Feb 2026 · PDF</div></div><div class="doc-phase-tag">Contract</div></div>
+          <div class="doc-card" onclick="openDrawer('doc1')"><div class="doc-icon sheet">📊</div><div class="doc-meta"><div class="doc-name">Process Mapping Audit</div><div class="doc-detail">Uploaded 1 Mar 2026 · Sheet</div></div><div class="doc-phase-tag">Phase 1</div></div>
+          <div class="doc-card" onclick="openDrawer('doc2')"><div class="doc-icon doc">📝</div><div class="doc-meta"><div class="doc-name">Draft Automation Scope</div><div class="doc-detail">Uploaded 18 Mar 2026 · Doc</div></div><div class="doc-phase-tag">Phase 2</div></div>
+        </div>
+        <div>
+          <div class="resources-col-header">🔧 Tools Set Up by LexOps</div>
+          <div class="tool-card" onclick="openDrawer('tool0')" style="cursor:pointer;">
+            <div class="tool-logo">🎬</div>
+            <div>
+              <div class="tool-name">Guidde</div>
+              <div class="tool-purpose">Process Recordings — watch step-by-step recordings of your new automated workflows before go-live.</div>
+            </div>
+            <div style="margin-left:auto;font-size:12px;color:var(--grey-300);">▶ Watch</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ INVOICES ══ -->
+    <div id="tab-invoices" class="tab-panel">
+      <div class="invoice-stats">
+        <div class="invoice-stat-card"><div class="inv-stat-label">Total Engagement Value</div><div class="inv-stat-val">£18,000</div><div style="font-size:12px;color:var(--grey-500)">Across 4 phases</div></div>
+        <div class="invoice-stat-card"><div class="inv-stat-label">Invoiced to Date</div><div class="inv-stat-val teal">£6,000</div><div class="inv-progress-wrap"><div class="inv-progress-fill" style="width:33%"></div></div><div style="font-size:11px;color:var(--grey-500);margin-top:6px">33% of total</div></div>
+        <div class="invoice-stat-card"><div class="inv-stat-label">Remaining</div><div class="inv-stat-val">£12,000</div><div style="font-size:12px;color:var(--grey-500)">Phases 3 &amp; 4</div></div>
+      </div>
+      <div class="section-title" style="margin-bottom:16px">Invoice History</div>
+      <div class="timeline-list">
+        <div class="timeline-entry"><div class="timeline-dot paid"></div><div class="invoice-card"><div class="inv-date-col"><div class="inv-date">12 Feb 2026</div><div class="inv-sender">Sent by Jai</div></div><div class="inv-desc"><div class="inv-desc-title">Phase 1 — Discovery & Scoping</div><div class="inv-desc-phase">Process mapping, stakeholder sessions, scope definition</div></div><div class="inv-amount">£3,000</div><div class="inv-status-pill inv-paid">Paid</div></div></div>
+        <div class="timeline-entry"><div class="timeline-dot paid"></div><div class="invoice-card"><div class="inv-date-col"><div class="inv-date">1 Mar 2026</div><div class="inv-sender">Sent by Jai</div></div><div class="inv-desc"><div class="inv-desc-title">Phase 2 — Build Milestone 1</div><div class="inv-desc-phase">Intake automation module, Guidde setup</div></div><div class="inv-amount">£3,000</div><div class="inv-status-pill inv-paid">Paid</div></div></div>
+        <div class="timeline-entry"><div class="timeline-dot pending"></div><div class="invoice-card"><div class="inv-date-col"><div class="inv-date">Due Apr 2026</div><div class="inv-sender">Est. by Jai</div></div><div class="inv-desc"><div class="inv-desc-title">Phase 2 — Build Milestone 2</div><div class="inv-desc-phase">Document generation module, scope sign-off</div></div><div class="inv-amount">£6,000</div><div class="inv-status-pill inv-pending">Upcoming</div></div></div>
+      </div>
+    </div>
+
+    <!-- ══ SUPPORT ══ -->
+    <div id="tab-support" class="tab-panel">
+
+      <div class="book-call-card">
+        <div class="book-call-avatar">J</div>
+        <div class="book-call-info">
+          <div class="book-call-name">Book a call with Jai</div>
+          <div class="book-call-detail">30 min · Video call · Estates Automation · Typically responds within 2 hours</div>
+        </div>
+        <button class="book-call-btn">📅 Open Booking Page</button>
+      </div>
+
+      <!-- New ticket form -->
+      <div class="ticket-form" id="ticketForm">
+        <div class="form-title">New Support Request</div>
+        <div class="form-row">
+          <div class="form-field full">
+            <label class="form-label">Title</label>
+            <input class="form-input" id="ticketTitle" placeholder="Brief description of the issue or request" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field full">
+            <label class="form-label">Description</label>
+            <textarea class="form-textarea" id="ticketDesc" placeholder="What's happening? What did you expect instead?"></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Priority</label>
+            <select class="form-select" id="ticketPriority">
+              <option value="high">🔴 High — blocking work</option>
+              <option value="med" selected>🟡 Medium — important but not urgent</option>
+              <option value="low">🟢 Low — nice to have</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Category</label>
+            <select class="form-select" id="ticketCategory">
+              <option>Bug / Something broken</option>
+              <option>Change request</option>
+              <option>Question / Clarification</option>
+              <option>Feature request</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-submit" onclick="submitTicket()">Submit Request</button>
+          <button class="btn-cancel" onclick="closeTicketForm()">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Kanban board -->
+      <div class="kanban-board">
+        <!-- OPEN -->
+        <div class="kanban-col" id="col-open">
+          <div class="kanban-col-header">
+            <div class="kanban-col-title">Open</div>
+            <div class="kanban-col-count open-count" id="count-open">1</div>
+          </div>
+          <div id="tickets-open">
+            <div class="ticket-card" id="ticket-demo-1">
+              <div class="ticket-priority-bar priority-high"></div>
+              <div class="ticket-title">Intake form not routing to correct matter type</div>
+              <div class="ticket-desc">Probate matters are being classified as Wills — happened twice this week with new enquiries.</div>
+              <div class="ticket-footer">
+                <span class="ticket-priority-pill prio-high">🔴 High</span>
+                <span class="ticket-date">Opened 1 Jun 2026</span>
+              </div>
+              <button class="ticket-resolve-btn" onclick="resolveTicket('ticket-demo-1')">Mark as Resolved</button>
+            </div>
+          </div>
+          <button class="new-ticket-btn" onclick="openTicketForm()">＋ New Request</button>
+        </div>
+
+        <!-- IN PROGRESS -->
+        <div class="kanban-col" id="col-progress">
+          <div class="kanban-col-header">
+            <div class="kanban-col-title">In Progress</div>
+            <div class="kanban-col-count prog-count" id="count-progress">1</div>
+          </div>
+          <div id="tickets-progress">
+            <div class="ticket-card" id="ticket-demo-2">
+              <div class="ticket-priority-bar priority-med"></div>
+              <div class="ticket-title">Add matter reference number to auto-generated letter</div>
+              <div class="ticket-desc">The engagement letter template doesn't pull the Smokeball matter reference. Need this before go-live.</div>
+              <div class="ticket-footer">
+                <span class="ticket-priority-pill prio-med">🟡 Medium</span>
+                <span class="ticket-date">Opened 28 May 2026</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RESOLVED -->
+        <div class="kanban-col" id="col-resolved">
+          <div class="kanban-col-header">
+            <div class="kanban-col-title">Resolved</div>
+            <div class="kanban-col-count res-count" id="count-resolved">1</div>
+          </div>
+          <div id="tickets-resolved">
+            <div class="ticket-card resolved-card" id="ticket-demo-3">
+              <div class="ticket-priority-bar priority-low"></div>
+              <div class="ticket-title">Guidde video not loading on Safari</div>
+              <div class="ticket-desc">Fixed by LexOps — browser compatibility patch applied 30 May.</div>
+              <div class="ticket-footer">
+                <span class="ticket-priority-pill prio-low">🟢 Low</span>
+                <span class="ticket-date">Resolved 30 May 2026</span>
+              </div>
+              <div class="ticket-submitted-tag">✓ Submitted to LexOps — verified</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end support -->
+
+  </div><!-- end main -->
+</div><!-- end layout -->
+
+<!-- DRAWER -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" id="drawerTitle">Detail</div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<div class="toast" id="toast">✅ Marked complete — LexOps will verify shortly.</div>
+<div class="confetti-container" id="confettiContainer"></div>
+
+<script>
+// ── TAB SWITCHING ──
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── PHASE ACTIONS NAVIGATION ──
+function goToPhaseActions(phase) {
+  closeDrawer();
+  switchTab('actions', document.querySelectorAll('.nav-tab')[1]);
+  setTimeout(() => {
+    const sec = document.getElementById('phase' + phase + '-section');
+    if (sec) {
+      sec.classList.remove('collapsed');
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, 200);
+}
+
+// ── PHASE SECTION TOGGLE ──
+function togglePhase(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+// ── SCROLL-TRIGGERED PHASE NODES ──
+const phaseNodes = document.querySelectorAll('.phase-node');
+function updatePhaseLit() {
+  const scrollY = window.scrollY || window.pageYOffset;
+  const winH = window.innerHeight;
+  phaseNodes.forEach((node, i) => {
+    const rect = node.getBoundingClientRect();
+    const ratio = 1 - (rect.left / (window.innerWidth));
+    // trigger when user has scrolled past 20% of page
+    const progress = scrollY / (document.body.scrollHeight - winH);
+    const threshold = i / (phaseNodes.length);
+    if (progress >= threshold * 0.3 || scrollY > 80) {
+      node.classList.add('scroll-lit');
+    }
+  });
+}
+window.addEventListener('scroll', updatePhaseLit, { passive: true });
+setTimeout(updatePhaseLit, 400);
+
+// ── SNAKE WORKFLOW SCROLL ANIMATION ──
+function initSnakeObserver() {
+  const nodes = document.querySelectorAll('.workflow-node');
+  const connectors = document.querySelectorAll('.workflow-h-connector');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const node = entry.target;
+        const stage = parseInt(node.dataset.stage);
+        setTimeout(() => {
+          node.classList.add('visible');
+          // light up connector after node
+          const conn = document.querySelector(`.workflow-h-connector[data-conn="${stage}"]`);
+          if (conn) setTimeout(() => conn.classList.add('lit'), 250);
+        }, stage * 120);
+      }
+    });
+  }, { threshold: 0.2 });
+  nodes.forEach(n => observer.observe(n));
+}
+document.addEventListener('DOMContentLoaded', initSnakeObserver);
+setTimeout(initSnakeObserver, 100);
+
+// ── DRAWER DATA ──
+const wfData = {
+  wf0: {
+    title: 'Stage 1 — Client Enquiry Received',
+    desc: 'A prospective client contacts Estates Law Team via web form, phone, or email. Previously this was logged manually by the receptionist into a spreadsheet before being transferred to Smokeball. Now, all channels feed into a single capture layer automatically.',
+    input: 'Client name, contact details, matter type (stated), enquiry channel (web/phone/email)',
+    output: 'Structured enquiry record created in real time — no manual transcription',
+    caseNote: 'The Harrison family contacts the firm after a bereavement, using the website contact form to request probate assistance. The form submission is captured instantly without any staff involvement.',
+    status: 'done'
+  },
+  wf1: {
+    title: 'Stage 2 — Unified Source Capture',
+    desc: 'All enquiry channels — web form, phone note, email — are consolidated into a single intake record. This eliminates duplicate entries and ensures no enquiry is lost regardless of how the client made contact. This is the core of the unified source generation module.',
+    input: 'Raw enquiry data from multiple channels (web, phone transcript, email)',
+    output: 'Single deduplicated intake record with source tag, timestamp, and client fingerprint',
+    caseNote: 'The Harrison enquiry from the web form is matched against a follow-up phone call the next morning. Both are merged into one record, flagged as "Probate — new client", with no manual reconciliation needed.',
+    status: 'done'
+  },
+  wf2: {
+    title: 'Stage 3 — Auto-Classification',
+    desc: 'The intake record is analysed and automatically classified by matter type — Probate, Wills, Trusts, or Administration. Classification rules are defined by the firm during onboarding. Misclassifications are flagged for human review rather than silently passing through.',
+    input: 'Unified intake record with client-stated matter description',
+    output: 'Matter type tag (e.g. "Probate — Grant of Representation"), confidence score, fee earner routing rule triggered',
+    caseNote: 'The Harrison record is classified as "Probate — Grant of Representation" with 94% confidence. It bypasses the manual triage queue entirely and routes to the Probate team.',
+    status: 'done'
+  },
+  wf3: {
+    title: 'Stage 4 — Matter Created in Smokeball',
+    desc: 'A full matter record is automatically created in Smokeball using the classified intake data. All fields are pre-populated — client details, matter type, reference number, assigned team. Zero manual data entry required from any staff member. This stage is currently in active build.',
+    input: 'Classified intake record with matter type, client data, routing rule',
+    output: 'Complete Smokeball matter record: reference number, client file, matter type, team assignment, open date',
+    caseNote: 'Harrison Probate matter SB-2026-0412 is created in Smokeball within 90 seconds of the original enquiry. The Probate team sees it appear in their queue with all fields already populated.',
+    status: 'active'
+  },
+  wf4: {
+    title: 'Stage 5 — Auto Document Generation',
+    desc: 'Once the matter is created, standard documents are generated automatically using Smokeball matter data. Engagement letters, initial instruction forms, and grant application templates are produced without any paralegal involvement for routine matters.',
+    input: 'Smokeball matter record (client name, matter type, reference, fee earner, firm letterhead)',
+    output: 'Engagement letter, client care letter, initial instruction checklist — ready for fee earner review',
+    caseNote: 'Within 3 minutes of matter creation, Jas (the assigned fee earner) receives a notification: "Harrison Probate — 3 documents ready for your review." She reviews, makes one edit to the engagement letter, and sends. Total time: 4 minutes vs. previous average of 45 minutes.',
+    status: 'active'
+  },
+  wf5: {
+    title: 'Stage 6 — Client Notification Sent',
+    desc: 'An automated acknowledgement email is dispatched to the client confirming receipt of their enquiry, providing their matter reference, and setting expectations on next steps. Personalised using matter data — not a generic template.',
+    input: 'Client email address, matter reference, assigned fee earner name, standard timeline',
+    output: 'Personalised confirmation email with matter reference SB-2026-0412 and next steps',
+    caseNote: 'The Harrison family receives an email within 5 minutes: "We have received your probate enquiry. Your matter reference is SB-2026-0412 and Jas will be in touch within one working day." Previously this step happened — if at all — the following morning.',
+    status: 'upcoming'
+  },
+  wf6: {
+    title: 'Stage 7 — Fee Earner Assigned',
+    desc: 'Fee earner assignment is handled by a rules engine configured for the firm: by practice area, current caseload, seniority, and client type. Senior partners are only assigned to high-value or complex matters. Routine probate goes to associates.',
+    input: 'Matter type, estimated complexity, team availability data from Smokeball',
+    output: 'Named fee earner assigned to matter, task created in their queue, calendar blocking initiated for initial client call',
+    caseNote: 'The rules engine assigns the Harrison matter to Jas (Associate, Probate) based on current caseload. A task is created: "Call Harrison family by EOD tomorrow." Senior partner involvement is not triggered for a standard probate.',
+    status: 'upcoming'
+  },
+  wf7: {
+    title: 'Stage 8 — Matter Live & Tracked',
+    desc: 'The matter is now fully live in Smokeball with a complete audit trail from first contact. All activity — documents, communications, time entries — is tracked against the matter record. Reporting dashboards update in real time.',
+    input: 'Complete matter record with all prior stage outputs consolidated',
+    output: 'Live Smokeball matter with full audit trail, reporting dashboard updated, billing clock started',
+    caseNote: 'Harrison Probate SB-2026-0412 is live 8 minutes after the initial web form submission. The entire intake process that previously took 2–3 staff hours has been reduced to a 4-minute fee earner review. End-to-end time saving per matter: ~2.5 hours.',
+    status: 'upcoming'
+  },
+  call: {
+    title: 'Book a call with Jai',
+    desc: 'Schedule a 30-minute video call with your LexOps project manager to discuss progress, review upcoming milestones, or raise any questions about the Estates Automation engagement.',
+    input: null, output: null,
+    caseNote: null, status: 'done'
+  },
+  doc0: {
+    title: 'Engagement Agreement',
+    type: 'doc',
+    tag: 'Contract · PDF · Signed 12 Feb 2026',
+    why: 'This is the master services agreement governing the Estates Automation engagement. It outlines the scope of work, payment terms, intellectual property ownership, and termination conditions agreed between Estates Law Team and LexOps. It was uploaded here so you have permanent access to the signed copy without needing to chase it by email.',
+    uploadedBy: 'Jai — LexOps',
+    phase: 'Contract'
+  },
+  doc1: {
+    title: 'Process Mapping Audit',
+    type: 'doc',
+    tag: 'Phase 1 · Sheet · Uploaded 1 Mar 2026',
+    why: 'This document captures the current state of your intake and matter management workflows as mapped during the Phase 1 Discovery sessions. It records every manual step, handoff point, and decision node in your existing process — and identifies exactly where automation can be applied. It is the foundation the entire build phase is designed against.',
+    uploadedBy: 'Jai — LexOps',
+    phase: 'Phase 1'
+  },
+  doc2: {
+    title: 'Draft Automation Scope',
+    type: 'doc',
+    tag: 'Phase 2 · Doc · Uploaded 18 Mar 2026',
+    why: 'This document defines exactly what will and will not be automated as part of this engagement. It locks the boundaries of the build — preventing scope creep and protecting both parties. Your sign-off on this document is one of the four outstanding actions currently blocking Phase 3. Once confirmed, the document generation module build begins immediately.',
+    uploadedBy: 'Jai — LexOps',
+    phase: 'Phase 2'
+  },
+  tool0: {
+    title: 'Guidde — Process Recordings',
+    type: 'tool',
+    tag: 'Set up by LexOps · Active',
+    why: 'Guidde has been configured to record step-by-step visual walkthroughs of every new automated workflow before go-live. Your team will use these recordings to understand how each automation works, how to handle exceptions, and how to train new staff. Think of it as a living manual that updates as the system evolves — no more static PDFs that go out of date.',
+    loomDesc: 'Watch Jai walk through how Guidde works within your Estates Automation setup — what recordings will be available, how to access them, and how your team should use them before go-live.'
+  }
+};
+
+function openDrawer(key) {
+  const d = wfData[key];
+  if (!d) return;
+  document.getElementById('drawerTitle').textContent = d.title;
+  let html = '';
+
+  // DOCUMENT drawer
+  if (d.type === 'doc') {
+    html += `<span class="drawer-tag">${d.tag}</span> <span class="drawer-tag" style="background:var(--grey-100);color:var(--grey-500);">${d.phase}</span>`;
+    html += `<div class="drawer-section-label" style="margin-top:16px;">Why this was uploaded</div>`;
+    html += `<div style="font-size:13px;color:var(--grey-700);line-height:1.75;margin-bottom:16px;">${d.why}</div>`;
+    html += `<div style="display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--grey-50);border-radius:var(--radius-sm);border:1px solid var(--grey-100);">
+      <span style="font-size:13px;">👤</span>
+      <span style="font-size:12px;color:var(--grey-500);">Uploaded by <strong style="color:var(--grey-900);">${d.uploadedBy}</strong></span>
+    </div>`;
+  }
+
+  // TOOL drawer
+  else if (d.type === 'tool') {
+    html += `<span class="drawer-tag">${d.tag}</span>`;
+    html += `<div class="drawer-section-label" style="margin-top:16px;">What this tool does for you</div>`;
+    html += `<div style="font-size:13px;color:var(--grey-700);line-height:1.75;margin-bottom:20px;">${d.why}</div>`;
+    html += `<div class="drawer-section-label">Walkthrough video</div>`;
+    html += `<div style="font-size:12px;color:var(--grey-500);line-height:1.6;margin-bottom:12px;">${d.loomDesc}</div>`;
+    html += `<div class="video-placeholder" style="cursor:default;">
+      <div style="position:absolute;inset:0;background:linear-gradient(135deg,var(--teal) 0%,#0d2e2b 100%);opacity:.75;border-radius:var(--radius-sm);"></div>
+      <div style="position:relative;z-index:1;text-align:center;">
+        <div class="play-btn" style="margin:0 auto 10px;">▶</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.7);">Loom walkthrough · ~3 min</div>
+      </div>
+    </div>`;
+  }
+
+  // WORKFLOW / CALL drawers (existing logic)
+  else {
+    if (key !== 'call') {
+      html += `<div class="video-placeholder"><div class="play-btn">▶</div></div>`;
+    }
+    html += `<div class="drawer-tag">${d.status === 'done' ? '✓ Complete' : d.status === 'active' ? '⚡ In Build' : '⏳ Upcoming'}</div>`;
+    html += `<div style="font-size:13px;color:var(--grey-700);line-height:1.7;margin:14px 0;">${d.desc}</div>`;
+    if (d.input) {
+      html += `<div class="drawer-section-label">Inputs & Outputs</div>`;
+      html += `<div class="io-grid">
+        <div class="io-box input-box"><div class="io-box-label">Input</div><div class="io-box-content">${d.input}</div></div>
+        <div class="io-box output-box"><div class="io-box-label">Output</div><div class="io-box-content">${d.output}</div></div>
+      </div>`;
+    }
+    if (d.caseNote) {
+      html += `<div class="drawer-section-label">Illustrative Case</div>`;
+      html += `<div class="case-box"><div class="case-box-label">📋 Harrison Probate — Estates Law Team</div><div class="case-box-text">${d.caseNote}</div></div>`;
+    }
+  }
+
+  document.getElementById('drawerBody').innerHTML = html;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+}
+
+// ── ACTION ITEMS ──
+function completeAction(id) {
+  const item = document.getElementById(id);
+  const cb = item.querySelector('.action-checkbox');
+  if (cb.classList.contains('checked')) return;
+  cb.classList.add('checked');
+  item.classList.add('completed');
+  item.querySelector('.action-footer').innerHTML += `<span class="pending-verify">Pending LexOps verification</span>`;
+  const remaining = document.querySelectorAll('#phase2-section .action-checkbox:not(.checked)').length;
+  document.getElementById('phase2-badge').textContent = remaining > 0 ? `${remaining} actions needed` : 'Pending verification';
+  showToast('✅ Marked complete — LexOps will verify shortly.');
+  fireConfetti(item);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+function fireConfetti(el) {
+  const colors = ['#1a4a47','#3d8f88','#d4881a','#2d7a5a','#e8f2f1'];
+  const container = document.getElementById('confettiContainer');
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 16; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.cssText = `left:${rect.left + Math.random()*rect.width}px;top:${rect.top}px;background:${colors[Math.floor(Math.random()*colors.length)]};animation-delay:${Math.random()*.3}s;animation-duration:${.8+Math.random()*.6}s;transform:rotate(${Math.random()*360}deg)`;
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 1500);
+  }
+}
+
+// ── SUPPORT KANBAN ──
+let ticketCount = 4;
+
+function openTicketForm() {
+  const f = document.getElementById('ticketForm');
+  f.classList.add('open');
+  f.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeTicketForm() {
+  document.getElementById('ticketForm').classList.remove('open');
+  document.getElementById('ticketTitle').value = '';
+  document.getElementById('ticketDesc').value = '';
+}
+
+function submitTicket() {
+  const title = document.getElementById('ticketTitle').value.trim();
+  const desc = document.getElementById('ticketDesc').value.trim();
+  const priority = document.getElementById('ticketPriority').value;
+  const cat = document.getElementById('ticketCategory').value;
+  if (!title) { document.getElementById('ticketTitle').focus(); return; }
+
+  const id = 'ticket-' + (++ticketCount);
+  const prioBar = { high: 'priority-high', med: 'priority-med', low: 'priority-low' }[priority];
+  const prioPill = { high: 'prio-high', med: 'prio-med', low: 'prio-low' }[priority];
+  const prioLabel = { high: '🔴 High', med: '🟡 Medium', low: '🟢 Low' }[priority];
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const card = document.createElement('div');
+  card.className = 'ticket-card';
+  card.id = id;
+  card.innerHTML = `
+    <div class="ticket-priority-bar ${prioBar}"></div>
+    <div class="ticket-title">${title}</div>
+    ${desc ? `<div class="ticket-desc">${desc}</div>` : ''}
+    <div class="ticket-footer">
+      <span class="ticket-priority-pill ${prioPill}">${prioLabel}</span>
+      <span class="ticket-date">Opened ${today}</span>
+    </div>
+    <button class="ticket-resolve-btn" onclick="resolveTicket('${id}')">Mark as Resolved</button>
+  `;
+
+  document.getElementById('tickets-open').appendChild(card);
+  updateCounts();
+  closeTicketForm();
+  showToast('📨 Request submitted — LexOps will respond within 24 hours.');
+}
+
+function resolveTicket(id) {
+  const card = document.getElementById(id);
+  if (!card) return;
+  card.classList.add('resolved-card');
+  const btn = card.querySelector('.ticket-resolve-btn');
+  if (btn) btn.remove();
+  const tag = document.createElement('div');
+  tag.className = 'ticket-submitted-tag';
+  tag.textContent = '✓ Submitted to LexOps for review';
+  card.appendChild(tag);
+  document.getElementById('tickets-resolved').appendChild(card);
+  updateCounts();
+  showToast('🔁 Submitted to LexOps for review.');
+}
+
+function updateCounts() {
+  document.getElementById('count-open').textContent = document.getElementById('tickets-open').children.length;
+  document.getElementById('count-progress').textContent = document.getElementById('tickets-progress').children.length;
+  document.getElementById('count-resolved').textContent = document.getElementById('tickets-resolved').children.length;
+}
+
+// ── DOC FILTERS ──
+document.querySelectorAll('.doc-filter').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.doc-filter').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

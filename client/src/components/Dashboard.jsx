@@ -828,13 +828,17 @@ const TICKET_PRIORITIES=["high","medium","low"];
 const TICKET_CATEGORIES=["general","technical","billing","documents","other"];
 const EMPTY_TICKET={title:"",description:"",priority:"medium",category:"general"};
 
-function SupportTab({projectId,isInternal,t,mobile}){
+function SupportTab({projectId,isInternal,project,t,mobile}){
   const [tickets,setTickets]=useState([]);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState(EMPTY_TICKET);
   const [saving,setSaving]=useState(false);
   const [movingId,setMovingId]=useState(null);
   const [loading,setLoading]=useState(true);
+
+  const calendlyUrl=project?.calendly_url||"";
+  const managerName=project?.manager||"your LexOps manager";
+  const managerInitial=(managerName||"L").charAt(0).toUpperCase();
 
   const loadTickets=useCallback(async()=>{
     const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
@@ -864,12 +868,6 @@ function SupportTab({projectId,isInternal,t,mobile}){
     await loadTickets();setMovingId(null);
   }
 
-  async function requestMove(ticket){
-    const next=ticket.status==="open"?"in_progress":"resolved";
-    await supabase.from("support_tickets").update({client_move_requested:next}).eq("id",ticket.id);
-    await loadTickets();
-  }
-
   async function cancelRequest(id){
     await supabase.from("support_tickets").update({client_move_requested:null}).eq("id",id);
     await loadTickets();
@@ -880,60 +878,73 @@ function SupportTab({projectId,isInternal,t,mobile}){
     setTickets(ts=>ts.filter(tk=>tk.id!==id));
   }
 
-  const prioColor={high:"#ef4444",medium:t.amber,low:t.textSub};
-  const colStyle={
-    open:{bg:t.surface,border:t.border,label:t.textSub},
-    in_progress:{bg:"#FFFBEB",border:t.amber+"44",label:t.amber},
-    resolved:{bg:"#F0FAF4",border:t.green+"44",label:t.green},
-  };
+  const prioBar={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
+  const prioPillBg={high:"#fdf0ee",medium:"#fef6e8",low:"#e8f5ef"};
+  const prioPillColor={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
+  const prioEmoji={high:"🔴",medium:"🟡",low:"🟢"};
+
+  const colConfig=[
+    {status:"open",label:"Open",countBg:"#fef6e8",countColor:"#d4881a"},
+    {status:"in_progress",label:"In Progress",countBg:"#e8f2f1",countColor:t.accent},
+    {status:"resolved",label:"Resolved",countBg:"#e8f5ef",countColor:"#2d7a5a"},
+  ];
 
   function TicketCard({ticket}){
     const isBusy=movingId===ticket.id;
     const hasRequest=ticket.client_move_requested;
-    const nextStatus=ticket.status==="open"?"in_progress":ticket.status==="in_progress"?"resolved":null;
-    const nextLabel=ticket.status==="open"?"In Progress":"Resolved";
+    const isResolved=ticket.status==="resolved";
     return(
-      <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 16px",display:"flex",flexDirection:"column",gap:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
-        <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{color:t.text,fontSize:13,fontWeight:600,lineHeight:1.4}}>{ticket.title}</div>
-            {ticket.description&&<div style={{color:t.textSub,fontSize:11,marginTop:4,lineHeight:1.5}}>{ticket.description}</div>}
-          </div>
-          {isInternal&&<button onClick={()=>deleteTicket(ticket.id)} title="Delete" style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0,opacity:0.5}}>×</button>}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          <span style={{fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:prioColor[ticket.priority]||t.textSub}}>{ticket.priority}</span>
-          <span style={{color:t.border}}>·</span>
-          <span style={{fontSize:10,color:t.textSub,textTransform:"capitalize"}}>{ticket.category}</span>
-          <span style={{color:t.border}}>·</span>
-          <span style={{fontSize:10,color:t.textSub}}>{new Date(ticket.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>
-        </div>
-        {isInternal&&hasRequest&&(
-          <div style={{background:t.amberSoft||"#FFFBEB",border:`1px solid ${t.amber}30`,borderRadius:7,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-            <span style={{color:t.amber,fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
-            <div style={{display:"flex",gap:6}}>
-              <button onClick={()=>moveTicket(ticket.id,hasRequest)} disabled={isBusy} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Approve</button>
-              <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:5,padding:"3px 8px",fontSize:11,color:t.textSub,cursor:"pointer"}}>Reject</button>
+      <div style={{
+        background:"#fff",borderRadius:8,border:`1px solid ${t.border}`,
+        padding:"14px",marginBottom:10,boxShadow:"0 1px 3px rgba(26,74,71,0.06)",
+        position:"relative",overflow:"hidden",opacity:isResolved?0.65:1,
+      }}>
+        <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,borderRadius:"4px 0 0 4px",background:prioBar[ticket.priority]||t.border}}/>
+        <div style={{paddingLeft:8}}>
+          <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:4,lineHeight:1.35}}>{ticket.title}</div>
+          {ticket.description&&<div style={{fontSize:11,color:t.textSub,lineHeight:1.4,marginBottom:8}}>{ticket.description}</div>}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:99,background:prioPillBg[ticket.priority]||t.surface,color:prioPillColor[ticket.priority]||t.textSub}}>
+                {prioEmoji[ticket.priority]||""} {(ticket.priority||"").charAt(0).toUpperCase()+(ticket.priority||"").slice(1)}
+              </span>
+              <span style={{fontSize:10,color:t.textSub}}>
+                {new Date(ticket.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
+              </span>
             </div>
+            {isInternal&&<button onClick={()=>deleteTicket(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:14,padding:0,opacity:0.4}}>×</button>}
           </div>
-        )}
-        {!isInternal&&hasRequest&&(
-          <div style={{background:t.amberSoft||"#FFFBEB",border:`1px solid ${t.amber}30`,borderRadius:7,padding:"7px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-            <span style={{color:t.amber,fontSize:11}}>⏳ Move to "{TICKET_STATUS_LABELS[hasRequest]}" pending approval</span>
-            <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Cancel</button>
-          </div>
-        )}
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {isInternal&&hasRequest&&(
+            <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              <span style={{color:"#d4881a",fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
+              <div style={{display:"flex",gap:5}}>
+                <button onClick={()=>moveTicket(ticket.id,hasRequest)} disabled={isBusy} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Approve</button>
+                <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:5,padding:"3px 8px",fontSize:11,color:t.textSub,cursor:"pointer"}}>Reject</button>
+              </div>
+            </div>
+          )}
+          {!isInternal&&hasRequest&&(
+            <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              <span style={{color:"#d4881a",fontSize:11}}>⏳ Pending review</span>
+              <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Cancel</button>
+            </div>
+          )}
           {isInternal
-            ?TICKET_STATUSES.filter(s=>s!==ticket.status).map(st=>(
-                <button key={st} onClick={()=>moveTicket(ticket.id,st)} disabled={isBusy} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",opacity:isBusy?0.4:1}}>
-                  → {TICKET_STATUS_LABELS[st]}
-                </button>
-              ))
-            :(nextStatus&&!hasRequest
-                ?<button onClick={()=>requestMove(ticket)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:t.accentLight,cursor:"pointer",fontFamily:"inherit"}}>
-                    Request → {nextLabel}
+            ?<div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap"}}>
+               {TICKET_STATUSES.filter(s=>s!==ticket.status).map(st=>(
+                 <button key={st} onClick={()=>moveTicket(ticket.id,st)} disabled={isBusy} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"3px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",opacity:isBusy?0.4:1}}>
+                   → {TICKET_STATUS_LABELS[st]}
+                 </button>
+               ))}
+             </div>
+            :(!isResolved&&!hasRequest
+                ?<button onClick={()=>moveTicket(ticket.id,ticket.status==="open"?"in_progress":"resolved")} style={{
+                    fontSize:11,fontWeight:600,color:t.accent,background:"#e8f2f1",border:"none",
+                    borderRadius:99,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit",marginTop:8,display:"block",
+                  }}>
+                    {ticket.status==="open"?"Mark as In Progress →":"Mark as Resolved ✓"}
                   </button>
+                :isResolved?<div style={{fontSize:10,color:"#2d7a5a",fontStyle:"italic",marginTop:6}}>✓ Submitted to LexOps — verified</div>
                 :null
               )
           }
@@ -944,47 +955,88 @@ function SupportTab({projectId,isInternal,t,mobile}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{color:t.textSub,fontSize:12}}>{tickets.length} ticket{tickets.length!==1?"s":""} total</div>
-        <button onClick={()=>setShowForm(s=>!s)} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ New Ticket</button>
+
+      {/* Calendly booking card */}
+      <div style={{
+        background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,
+        padding:"18px 22px",display:"flex",alignItems:"center",gap:16,
+        boxShadow:"0 1px 3px rgba(26,74,71,0.06)",
+      }}>
+        <div style={{width:44,height:44,borderRadius:"50%",background:t.accent,color:"#fff",fontSize:16,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          {managerInitial}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:700,color:t.text,marginBottom:2}}>Book a call with {managerName}</div>
+          <div style={{fontSize:12,color:t.textSub}}>30 min · Video call · {project?.name||project?.project||"this engagement"} · Typically responds within 2 hours</div>
+        </div>
+        {calendlyUrl
+          ?<a href={calendlyUrl} target="_blank" rel="noreferrer" style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>
+              📅 Open Booking Page
+            </a>
+          :<span style={{fontSize:12,color:t.textSub,fontStyle:"italic",flexShrink:0,textAlign:"right"}}>
+              {isInternal?"Set Calendly URL in Project Setup →":"Booking link coming soon"}
+            </span>
+        }
       </div>
+
+      {/* New ticket form */}
       {showForm&&(
-        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px"}}>
+        <div style={{background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
+          <div style={{fontSize:15,fontWeight:700,color:t.text,marginBottom:14,fontFamily:"'Playfair Display',Georgia,serif"}}>New Support Request</div>
           <form onSubmit={createTicket} style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div style={{color:t.text,fontSize:13,fontWeight:600,marginBottom:2}}>Raise a Support Ticket</div>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="What do you need help with? *" required style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}/>
-            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="More detail (optional)…" rows={3} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 10px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
-                {TICKET_PRIORITIES.map(p=><option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)} Priority</option>)}
-              </select>
-              <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 10px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
-                {TICKET_CATEGORIES.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
-              </select>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Brief description of the issue or request *" required
+              style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}/>
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What's happening? What did you expect instead?" rows={3}
+              style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <label style={{fontSize:11,fontWeight:600,color:t.textSub,letterSpacing:"0.04em"}}>Priority</label>
+                <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}
+                  style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"8px 10px",fontSize:13,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
+                  <option value="high">🔴 High — blocking work</option>
+                  <option value="medium">🟡 Medium — important but not urgent</option>
+                  <option value="low">🟢 Low — nice to have</option>
+                </select>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                <label style={{fontSize:11,fontWeight:600,color:t.textSub,letterSpacing:"0.04em"}}>Category</label>
+                <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}
+                  style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"8px 10px",fontSize:13,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
+                  {TICKET_CATEGORIES.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                </select>
+              </div>
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <button type="submit" disabled={saving||!form.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:7,padding:"8px 20px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!form.title.trim()?0.5:1}}>{saving?"Submitting…":"Submit Ticket"}</button>
-              <button type="button" onClick={()=>{setShowForm(false);setForm(EMPTY_TICKET);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 14px",fontSize:13,color:t.textSub,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <div style={{display:"flex",gap:10,marginTop:4}}>
+              <button type="submit" disabled={saving||!form.title.trim()} style={{padding:"9px 22px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!form.title.trim()?0.5:1}}>{saving?"Submitting…":"Submit Request"}</button>
+              <button type="button" onClick={()=>{setShowForm(false);setForm(EMPTY_TICKET);}} style={{padding:"9px 16px",background:"transparent",color:t.textSub,border:`1.5px solid ${t.border}`,borderRadius:8,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
             </div>
           </form>
         </div>
       )}
+
+      {/* Kanban board */}
       {loading
         ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0"}}>Loading tickets…</div>
-        :<div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
-          {TICKET_STATUSES.map(st=>{
-            const col=colStyle[st];
-            const colTickets=tickets.filter(tk=>tk.status===st);
+        :<div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:14}}>
+          {colConfig.map(col=>{
+            const colTickets=tickets.filter(tk=>tk.status===col.status);
             return(
-              <div key={st} style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span style={{color:col.label,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>{TICKET_STATUS_LABELS[st]}</span>
-                  <span style={{background:col.border,color:col.label,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{colTickets.length}</span>
+              <div key={col.status} style={{background:"#f7fafa",borderRadius:12,border:`1px solid ${t.border}`,padding:14,minHeight:350}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <span style={{fontSize:11,fontWeight:700,color:t.text,letterSpacing:"0.06em",textTransform:"uppercase"}}>{col.label}</span>
+                  <span style={{width:22,height:22,borderRadius:"50%",background:col.countBg,color:col.countColor,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{colTickets.length}</span>
                 </div>
-                {colTickets.length===0
-                  ?<div style={{color:t.textSub,fontSize:12,textAlign:"center",padding:"20px 0",opacity:0.6}}>No tickets</div>
-                  :colTickets.map(tk=><TicketCard key={tk.id} ticket={tk}/>)
-                }
+                {colTickets.map(tk=><TicketCard key={tk.id} ticket={tk}/>)}
+                {col.status==="open"&&(
+                  <button onClick={()=>setShowForm(s=>!s)} style={{
+                    width:"100%",padding:10,borderRadius:8,background:"transparent",
+                    border:`1.5px dashed ${t.border}`,color:t.textSub,fontSize:12,
+                    fontWeight:500,cursor:"pointer",fontFamily:"inherit",
+                    display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:4,
+                  }}>
+                    ＋ New Request
+                  </button>
+                )}
               </div>
             );
           })}
@@ -1115,18 +1167,27 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
     {/* Client-view financial summary */}
     {!isInternal&&(
-      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
-        {[
-          {label:"Engagement Value",value:engValue?`£${engValue.toLocaleString()}`:"—",color:t.text,sub:"Total contracted"},
-          {label:"Invoiced to Date",value:`£${(total||0).toLocaleString()}`,color:t.accentLight,sub:`${invoices.filter(i=>i.status==="paid").length} paid`},
-          {label:"Remaining",value:`£${Math.max(0,engValue-total).toLocaleString()}`,color:engValue&&(engValue-total)>0?t.amber:t.green,sub:engValue?"of contract":"pending value"},
-        ].map((s,i)=>(
-          <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
-            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
-            <div style={{color:s.color,fontSize:24,fontWeight:300,letterSpacing:"-0.04em",marginBottom:2}}>{s.value}</div>
-            <div style={{color:t.textSub,fontSize:10}}>{s.sub}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
+          <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Engagement Value</div>
+            <div style={{color:t.text,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{engValue?`£${engValue.toLocaleString()}`:"—"}</div>
+            <div style={{color:t.textSub,fontSize:11}}>Total contracted</div>
           </div>
-        ))}
+          <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Invoiced to Date</div>
+            <div style={{color:t.accentLight,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:6}}>{`£${(total||0).toLocaleString()}`}</div>
+            {engValue>0&&<div style={{height:4,background:"#f0f4f3",borderRadius:99,overflow:"hidden",marginBottom:4}}>
+              <div style={{height:"100%",width:`${Math.min(100,Math.round(total/engValue*100))}%`,background:`linear-gradient(90deg,${t.accent},#3d8f88)`,borderRadius:99,transition:"width 0.6s ease"}}/>
+            </div>}
+            <div style={{color:t.textSub,fontSize:11}}>{engValue>0?`${Math.min(100,Math.round(total/engValue*100))}% of contract · `:""}{invoices.filter(i=>i.status==="paid").length} paid</div>
+          </div>
+          <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Remaining</div>
+            <div style={{color:engValue&&(engValue-total)>0?t.amber:t.green,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{`£${Math.max(0,engValue-total).toLocaleString()}`}</div>
+            <div style={{color:t.textSub,fontSize:11}}>{engValue?"of contract":"pending value"}</div>
+          </div>
+        </div>
       </div>
     )}
     {/* Internal summary + engagement value */}
@@ -1215,10 +1276,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                       {label}
                       <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
                     </div>
-                    {mobile&&<span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em",flexShrink:0}}>${(inv.amount||0).toLocaleString()}</span>}
+                    {mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em",flexShrink:0}}>£{(inv.amount||0).toLocaleString()}</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
-                    {!mobile&&<span style={{color:t.text,fontWeight:300,fontSize:18,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
+                    {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>£{(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {isInternal&&(
                       <>
@@ -2174,21 +2235,29 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   const [invFile, setInvFile] = useState(null);
   const [invSaving, setInvSaving] = useState(false);
 
+  // ── Tools ──
+  const [tools, setTools] = useState([]);
+  const [showAddTool, setShowAddTool] = useState(false);
+  const [newTool, setNewTool] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
+  const [toolSaving, setToolSaving] = useState(false);
+
   // ── Load live data + linked proposal ──
   useEffect(() => { loadAll(); }, [project.id]);
 
   async function loadAll() {
-    const [phRes, tkRes, docRes, invRes, prRes] = await Promise.all([
+    const [phRes, tkRes, docRes, invRes, prRes, tlRes] = await Promise.all([
       supabase.from("phases").select("*").eq("project_id", project.id).order("created_at", { ascending: true }),
       supabase.from("tasks").select("*").eq("project_id", project.id).order("id"),
       supabase.from("documents").select("*").eq("project_id", project.id).order("uploaded_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("project_id", project.id).order("id"),
       supabase.from("proposals").select("id, name, description, client_summary").eq("project_id", project.id).limit(1),
+      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").catch(() => ({ data: [] })),
     ]);
     if (phRes.data) setPhases(phRes.data);
     if (tkRes.data) setTasks(tkRes.data);
     if (docRes.data) setDocs(docRes.data);
     if (invRes.data) setInvoices(invRes.data);
+    if (tlRes.data) setTools(tlRes.data);
     if (prRes.data?.[0]) {
       const pr = prRes.data[0];
       // Also fetch workflow stages for this proposal
@@ -2362,12 +2431,37 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     </div>
   );
 
+  async function addTool(e) {
+    e.preventDefault();
+    if (!newTool.name.trim()) return;
+    setToolSaving(true);
+    await supabase.from("project_tools").insert({
+      project_id: project.id,
+      name: newTool.name.trim(),
+      purpose: newTool.purpose.trim() || null,
+      url: newTool.url.trim() || null,
+      logo_emoji: newTool.logo_emoji || "🔧",
+      sort_order: tools.length,
+    });
+    setNewTool({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
+    setShowAddTool(false);
+    const { data } = await supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order");
+    if (data) setTools(data);
+    setToolSaving(false);
+  }
+
+  async function deleteTool(id) {
+    await supabase.from("project_tools").delete().eq("id", id);
+    setTools(ts => ts.filter(t => t.id !== id));
+  }
+
   const SECTIONS = [
     { key: "details",    label: "Project Details" },
     { key: "milestones", label: "Milestones" },
     { key: "actions",    label: "Actions" },
     { key: "documents",  label: "Documents" },
     { key: "invoices",   label: "Invoices" },
+    { key: "tools",      label: "Tools" },
   ];
 
   const deliverables = tasks.filter(tk => tk.is_deliverable);
@@ -2775,6 +2869,88 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                   </div>
                 )
               }
+            </div>
+          )}
+
+          {/* ═══ TOOLS ═══ */}
+          {section === "tools" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ color: t.textSub, fontSize: 12, lineHeight: 1.6 }}>
+                Tools listed here appear in the client's <strong style={{ color: t.text }}>Resources</strong> tab. Add links to platforms, portals, or software your team has set up for this project.
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => setShowAddTool(s => !s)}
+                  style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "6px 18px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  + Add Tool
+                </button>
+              </div>
+
+              {showAddTool && (
+                <form onSubmit={addTool} style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 10, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Tool Name *</div>
+                      <input autoFocus value={newTool.name} onChange={e => setNewTool(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Client Portal, Notion, Jira" required
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Logo Emoji</div>
+                      <input value={newTool.logo_emoji} onChange={e => setNewTool(f => ({ ...f, logo_emoji: e.target.value }))} placeholder="🔧"
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 18, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Purpose / Description</div>
+                      <input value={newTool.purpose} onChange={e => setNewTool(f => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Your project management workspace"
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Launch URL</div>
+                      <input value={newTool.url} onChange={e => setNewTool(f => ({ ...f, url: e.target.value }))} placeholder="https://…"
+                        style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => setShowAddTool(false)}
+                      style={{ background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 16px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>Cancel</button>
+                    <button type="submit" disabled={toolSaving || !newTool.name.trim()}
+                      style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer", opacity: !newTool.name.trim() ? 0.5 : 1 }}>
+                      {toolSaving ? "Saving…" : "Add Tool"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {tools.length === 0 && !showAddTool && (
+                <div style={{ textAlign: "center", padding: "32px 24px", background: t.surface, borderRadius: 10, border: `1px solid ${t.border}` }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No tools yet</div>
+                  <div style={{ fontSize: 12, color: t.textSub }}>Add tools your team has set up for this client — they'll see them in Resources.</div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {tools.map(tool => (
+                  <div key={tool.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 8, background: t.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                      {tool.logo_emoji || "🔧"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>{tool.name}</div>
+                      {tool.purpose && <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{tool.purpose}</div>}
+                      {tool.url && <div style={{ color: t.accentLight, fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tool.url}</div>}
+                    </div>
+                    {tool.url && (
+                      <a href={tool.url} target="_blank" rel="noreferrer"
+                        style={{ color: t.accentLight, fontSize: 11, textDecoration: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 10px", flexShrink: 0 }}>
+                        ↗ Open
+                      </a>
+                    )}
+                    <button onClick={() => deleteTool(tool.id)}
+                      style={{ background: "transparent", border: "none", color: t.textSub, cursor: "pointer", fontSize: 16, padding: "2px 4px", opacity: 0.4, lineHeight: 1, flexShrink: 0 }}>×</button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -3240,72 +3416,154 @@ function ClientOverviewTab({ project, t, mobile }) {
 // ---------------------------------------------------------------------------
 // Client Actions Tab (filtered tasks for clients)
 // ---------------------------------------------------------------------------
-function ClientActionsTab({ projectId, initialTasks, t, mobile }) {
+function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile }) {
   const [tasks, setTasks] = useState(initialTasks || []);
+  const [phases, setPhases] = useState(initialPhases || []);
+  const [collapsed, setCollapsed] = useState({});
+  const [completing, setCompleting] = useState(null);
+  const [toastMsg, setToastMsg] = useState("");
 
-  const loadTasks = useCallback(async () => {
-    const { data } = await supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id");
-    if (data) setTasks(data);
+  const loadData = useCallback(async () => {
+    const [{ data: td }, { data: pd }] = await Promise.all([
+      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
+      supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order"),
+    ]);
+    if (td) setTasks(td);
+    if (pd) setPhases(pd);
   }, [projectId]);
 
-  useEffect(() => { loadTasks(); }, [loadTasks]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const needsAction = tasks.filter(tk => tk.status !== "done" && tk.assignee);
-  const inProgress = tasks.filter(tk => tk.status === "in-progress" && !tk.assignee);
-  const upcoming = tasks.filter(tk => tk.status === "todo" && !tk.assignee);
-  const completed = tasks.filter(tk => tk.status === "done");
+  function showToast(msg) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3200);
+  }
 
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
-  const sortByPriority = (a, b) => (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+  async function markComplete(task) {
+    if (task.status === "done" || completing === task.id) return;
+    setCompleting(task.id);
+    await supabase.from("tasks").update({ status: "done" }).eq("id", task.id);
+    await loadData();
+    setCompleting(null);
+    showToast("✅ Marked complete — LexOps will verify shortly.");
+  }
 
-  const TaskGroup = ({ title, subtitle, items, color }) => {
-    if (items.length === 0) return null;
+  const allDeliverables = tasks.filter(tk => tk.is_deliverable);
+  const doneDeliverables = allDeliverables.filter(d => d.status === "done").length;
+  const progress = allDeliverables.length > 0 ? Math.round(doneDeliverables / allDeliverables.length * 100) : 0;
+
+  const phaseTaskMap = {};
+  phases.forEach(ph => { phaseTaskMap[ph.id] = []; });
+  const unphased = [];
+  tasks.forEach(tk => {
+    if (tk.phase_id && phaseTaskMap[tk.phase_id] !== undefined) phaseTaskMap[tk.phase_id].push(tk);
+    else unphased.push(tk);
+  });
+
+  function getDueStatus(due_date) {
+    if (!due_date) return null;
+    const days = Math.ceil((new Date(due_date) - new Date()) / 86400000);
+    if (days < 0) return "overdue";
+    if (days <= 7) return "soon";
+    return "normal";
+  }
+  const dueBg = { overdue: "#fdf0ee", soon: "#fef6e8", normal: "#f0f4f3" };
+  const dueColor = { overdue: "#c0392b", soon: "#d4881a", normal: "#6b7c7a" };
+
+  function PhaseSection({ phase, phaseTasks }) {
+    const isOpen = collapsed[phase.id] === true ? false : (phase.status === "active" || phase.status === "pending" || !phases.length);
+    const isDone = phase.status === "complete";
+    const isActive = phase.status === "active";
+    const pendingCount = phaseTasks.filter(tk => tk.status !== "done").length;
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div>
-          <div style={{ color: color || t.text, fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{title}</div>
-          {subtitle && <div style={{ color: t.textSub, fontSize: 12 }}>{subtitle}</div>}
+      <div style={{ marginBottom: 14 }}>
+        <div
+          onClick={() => setCollapsed(c => ({ ...c, [phase.id]: isOpen }))}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#fff", border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", marginBottom: isOpen ? 10 : 0, boxShadow: "0 1px 3px rgba(26,74,71,0.04)" }}
+        >
+          <div style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: isDone ? "#2d7a5a" : isActive ? t.accent : t.border }} />
+          <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text }}>{phase.name}</div>
+          <div style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, fontWeight: 500, background: isDone ? "#e8f5ef" : isActive && pendingCount > 0 ? "#fef6e8" : "#f0f4f3", color: isDone ? "#2d7a5a" : isActive && pendingCount > 0 ? "#d4881a" : "#6b7c7a" }}>
+            {isDone ? "All complete" : pendingCount > 0 ? `${pendingCount} action${pendingCount !== 1 ? "s" : ""} needed` : "Upcoming"}
+          </div>
+          <span style={{ fontSize: 11, color: t.textSub, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 0.2s", display: "inline-block" }}>▼</span>
         </div>
-        <Card t={t}>
-          {items.sort(sortByPriority).map((task, i) => (
-            <div key={task.id}>
-              <div style={{ padding: mobile ? "14px 16px" : "14px 22px", display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                  <div style={{
-                    width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                    border: `1.5px solid ${task.status === "done" ? t.green : task.status === "in-progress" ? t.accent : t.textDim}`,
-                    background: task.status === "done" ? t.green : "transparent",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {task.status === "done" && <span style={{ color: "#fff", fontSize: 9, fontWeight: 800 }}>✓</span>}
+        {isOpen && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {phaseTasks.length === 0 ? (
+              <div style={{ color: t.textSub, fontSize: 12, padding: "12px 16px", background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, opacity: 0.6 }}>No actions for this phase.</div>
+            ) : phaseTasks.map(task => {
+              const dc = getDueStatus(task.due_date);
+              const isDoneTask = task.status === "done";
+              const isBusy = completing === task.id;
+              return (
+                <div key={task.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14, opacity: isDoneTask ? 0.55 : 1, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
+                  <div onClick={() => !isDoneTask && markComplete(task)} style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1, border: `2px solid ${isDoneTask ? t.accent : "#b8c4c2"}`, background: isDoneTask || isBusy ? t.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: isDoneTask ? "default" : "pointer", transition: "all 0.2s" }}>
+                    {(isDoneTask || isBusy) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>✓</span>}
                   </div>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ color: task.status === "done" ? t.textSub : t.text, fontSize: 13, fontWeight: 500, textDecoration: task.status === "done" ? "line-through" : "none" }}>{task.title}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1f1e", marginBottom: 3, textDecoration: isDoneTask ? "line-through" : "none", lineHeight: 1.35 }}>{task.title}</div>
+                    {task.description && <div style={{ fontSize: 12, color: "#6b7c7a", lineHeight: 1.4, marginBottom: 6 }}>{task.description}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {task.due_date && dc && (
+                        <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: dueBg[dc], color: dueColor[dc] }}>
+                          {dc === "overdue" ? "Overdue — " : dc === "soon" ? "Due soon — " : "Due "}
+                          {new Date(task.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                        </span>
+                      )}
+                      {isDoneTask && <span style={{ fontSize: 11, color: "#2d7a5a", fontStyle: "italic" }}>Pending LexOps verification</span>}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                  {task.due && <span style={{ color: t.textSub, fontSize: 11 }}>Due {task.due}</span>}
-                  {task.priority && <Pill t={t} status={task.priority} label={task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} />}
-                </div>
-              </div>
-              {i < items.length - 1 && <Line t={t} />}
-            </div>
-          ))}
-        </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
-  };
+  }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <TaskGroup title="Things we need from you" subtitle="Action items that require your input" items={needsAction} color={t.amber} />
-      <TaskGroup title="In progress by LexOps" subtitle="Currently being worked on by your team" items={inProgress} color={t.accentLight} />
-      <TaskGroup title="Upcoming" items={upcoming} color={t.textSub} />
-      <TaskGroup title="Completed" items={completed} color={t.green} />
-      {tasks.length === 0 && (
-        <CardPad t={t}>
-          <div style={{ textAlign: "center", color: t.textSub, fontSize: 13, padding: "24px 0" }}>No action items at this time.</div>
-        </CardPad>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {toastMsg && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1f1e", color: "#fff", padding: "12px 20px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+          {toastMsg}
+        </div>
+      )}
+
+      {/* Overall progress card */}
+      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: `1px solid ${t.border}`, boxShadow: "0 1px 3px rgba(26,74,71,0.06)", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Overall Engagement Progress</span>
+          <span style={{ fontSize: 13, color: t.textSub }}>{doneDeliverables} of {allDeliverables.length} deliverables complete</span>
+        </div>
+        <div style={{ height: 6, background: "#f0f4f3", borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${progress}%`, background: `linear-gradient(90deg, ${t.accent}, #3d8f88)`, borderRadius: 99, transition: "width 0.6s ease" }} />
+        </div>
+        {phases.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            {phases.map(ph => (
+              <div key={ph.id} onClick={() => setCollapsed(c => ({ ...c, [ph.id]: false }))} style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11, fontWeight: 500, cursor: "pointer", background: ph.status === "complete" ? "#e8f5ef" : ph.status === "active" ? t.accent : "#f0f4f3", color: ph.status === "complete" ? "#2d7a5a" : ph.status === "active" ? "#fff" : "#6b7c7a", border: ph.status === "complete" ? "1.5px solid rgba(45,122,90,0.2)" : "1.5px solid transparent" }}>
+                {ph.status === "complete" ? "✓ " : ph.status === "active" ? "● " : ""}{ph.name}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Phase sections */}
+      {phases.length > 0
+        ? phases.map(ph => <PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id] || []} />)
+        : tasks.length === 0
+          ? <div style={{ background: "#fff", borderRadius: 12, padding: "40px 24px", border: `1px solid ${t.border}`, textAlign: "center" }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>✅</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 5 }}>All clear for now</div>
+              <div style={{ fontSize: 12, color: t.textSub }}>No action items at this time.</div>
+            </div>
+          : <PhaseSection phase={{ id: "all", name: "Your Actions", status: "active" }} phaseTasks={tasks} />
+      }
+      {unphased.length > 0 && phases.length > 0 && (
+        <PhaseSection phase={{ id: "unphased", name: "Other Actions", status: "active" }} phaseTasks={unphased} />
       )}
     </div>
   );
@@ -3481,6 +3739,118 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
   );
 }
 
+// ---------------------------------------------------------------------------
+// Client Resources Tab (documents + tools for client view)
+// ---------------------------------------------------------------------------
+function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
+  const [docs, setDocs] = useState(initialDocuments || []);
+  const [tools, setTools] = useState([]);
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const [{ data: d }, { data: tl }] = await Promise.all([
+      supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").catch(() => ({ data: [] })),
+    ]);
+    if (d) setDocs(d);
+    if (tl) setTools(tl);
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const phases = [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
+  const filteredDocs = phaseFilter === "all" ? docs : docs.filter(d => d.phase_name === phaseFilter);
+
+  function docIcon(fileType) {
+    const e = (fileType || "").toLowerCase();
+    if (e === "pdf") return { emoji: "📄", bg: "#fde8e8" };
+    if (["xls","xlsx","csv"].includes(e)) return { emoji: "📊", bg: "#e8f5e8" };
+    return { emoji: "📝", bg: "#e8eef8" };
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 28 }}>
+      {/* Documents */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}` }}>
+          📁 Documents
+        </div>
+        {phases.length > 0 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {["all", ...phases].map(ph => (
+              <button key={ph} onClick={() => setPhaseFilter(ph)} style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11, fontWeight: 500, background: phaseFilter === ph ? "#e8f2f1" : t.surface, color: phaseFilter === ph ? t.accent : t.textSub, border: `1.5px solid ${phaseFilter === ph ? "rgba(26,102,102,0.25)" : "transparent"}`, cursor: "pointer", fontFamily: "inherit" }}>
+                {ph === "all" ? "All" : ph}
+              </button>
+            ))}
+          </div>
+        )}
+        {loading ? (
+          <div style={{ color: t.textSub, fontSize: 12, padding: "20px 0" }}>Loading…</div>
+        ) : filteredDocs.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "32px 24px", background: "#fff", borderRadius: 10, border: `1px solid ${t.border}` }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>📁</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No documents yet</div>
+            <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.5, maxWidth: 240, margin: "0 auto" }}>Documents will appear here as your engagement progresses.</div>
+          </div>
+        ) : filteredDocs.map(doc => {
+          const ext = doc.file_type || doc.name?.split(".").pop()?.toUpperCase() || "FILE";
+          const icon = docIcon(ext);
+          return (
+            <a key={doc.id} href={doc.file_url} target="_blank" rel="noreferrer" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, cursor: "pointer", boxShadow: "0 1px 3px rgba(26,74,71,0.06)", transition: "all 0.15s" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, background: icon.bg }}>
+                {icon.emoji}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
+                <div style={{ fontSize: 11, color: t.textSub }}>
+                  {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                  {doc.file_type ? ` · ${doc.file_type}` : ""}
+                </div>
+              </div>
+              {doc.phase_name && (
+                <span style={{ fontSize: 10, padding: "2px 8px", background: "#e8f2f1", color: t.accent, borderRadius: 99, fontWeight: 500, flexShrink: 0 }}>{doc.phase_name}</span>
+              )}
+            </a>
+          );
+        })}
+      </div>
+
+      {/* Tools */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}` }}>
+          🔧 Tools Set Up by LexOps
+        </div>
+        {loading ? (
+          <div style={{ color: t.textSub, fontSize: 12, padding: "20px 0" }}>Loading…</div>
+        ) : tools.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "32px 24px", background: "#fff", borderRadius: 10, border: `1px solid ${t.border}` }}>
+            <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No tools configured yet</div>
+            <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.5, maxWidth: 240, margin: "0 auto" }}>LexOps will add tools relevant to your engagement here.</div>
+          </div>
+        ) : tools.map(tool => (
+          <div key={tool.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "16px 18px", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
+            <div style={{ width: 40, height: 40, borderRadius: 8, background: t.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+              {tool.logo_emoji || "🔧"}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 2 }}>{tool.name}</div>
+              {tool.purpose && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.4 }}>{tool.purpose}</div>}
+            </div>
+            {tool.url && (
+              <a href={tool.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 8, background: t.accent, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+                Launch ↗
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
@@ -3602,10 +3972,10 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   );
   const isClientView = view === "client";
   const allTabs = isClientView
-    ? ["overview","actions","documents","flowchart","invoices","support","book"]
+    ? ["overview","actions","resources","invoices","support"]
     : ["overview","plan","documents","flowchart","invoices","software","support","maintenance","book"];
   const tabLabels = isClientView
-    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",support:"Support",book:"Book a Call"}
+    ? {overview:"Overview",actions:"Your Actions",resources:"Resources",invoices:"Invoices",support:"Support"}
     : {overview:"Overview",plan:"Plan",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",support:"Support",maintenance:"Maintenance",book:"Book a Call"};
 
   async function dismissWelcome(){
@@ -3745,17 +4115,15 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
               )}
               {tab==="plan"        &&!isClientView&&<PlanTab projectId={selected.id} initialPhases={selected.phases} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
-              {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} t={t} mobile={mobile}/>}
-              {tab==="documents"   && (isClientView
-                ? <ClientDocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} onRefresh={()=>refreshProject(selected.id)} t={t}/>
-                : <DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>
-              )}
-              {tab==="flowchart"   &&<FlowchartTab    projectId={selected.id} isInternal={!isClientView} userProfile={userProfile} t={t} mobile={mobile}/>}
+              {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
+              {tab==="resources"   &&isClientView&&<ClientResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
+              {tab==="documents"   &&!isClientView&&<DocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="flowchart"   &&!isClientView&&<FlowchartTab projectId={selected.id} isInternal={true} userProfile={userProfile} t={t} mobile={mobile}/>}
               {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
               {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="support"     &&<SupportTab      projectId={selected.id} isInternal={!isClientView} t={t} mobile={mobile}/>}
+              {tab==="support"     &&<SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile}/>}
               {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
-              {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
+              {tab==="book"        &&!isClientView&&<BookingTab      project={selected} t={t}/>}
             </>
           )}
         </div>
