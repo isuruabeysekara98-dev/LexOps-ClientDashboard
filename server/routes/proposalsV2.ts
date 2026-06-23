@@ -783,32 +783,48 @@ router.post("/import-pdf", requireAdmin, upload.single("file"), async (req: any,
     res.status(422).json({ message: "PDF appears to contain no extractable text (scanned image PDFs are not supported yet)." }); return;
   }
 
-  const truncated = rawText.slice(0, 12000);
+  const truncated = rawText.slice(0, 16000);
 
-  let extracted: any = {};
+  let extracted: any = { pain_points: [], objectives: [], workflows: [] };
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-opus-4-5",
-      max_tokens: 1500,
+      model: "claude-sonnet-4-5",
+      max_tokens: 4000,
+      system: "You are a sales development representative that works for Lex Ops. A legal AI and automations integrator for small to mid sized law firms. You must read through this proposal and extract any information and map it to the new proposal form. Use the deliverables to generate a first stab of what the automation workflow should look like step by step.",
       messages: [{
         role: "user",
-        content: `You are extracting structured data from a legal services proposal PDF for a law firm portal.
+        content: `Read the proposal PDF text below and return ONLY valid JSON (no markdown fences, no explanation) with this exact structure:
 
-Extract the following fields from the text below and return ONLY valid JSON (no markdown, no explanation):
 {
-  "name": "proposal title or engagement name",
-  "client_name": "client company/organisation name",
-  "client_contact_name": "client contact person full name",
-  "client_email": "client email address if present, else null",
-  "pain_points": ["array of pain points or challenges mentioned", "..."],
-  "objectives": ["array of goals or objectives mentioned", "..."]
+  "name": "engagement or project title",
+  "client_name": "client company or law firm name",
+  "client_contact_name": "client contact person full name or null",
+  "client_email": "client email address or null",
+  "pain_points": ["concise pain point or challenge the client faces", "..."],
+  "objectives": ["goal or desired outcome from the engagement", "..."],
+  "workflows": [
+    {
+      "name": "Workflow name (e.g. Matter Intake Automation)",
+      "emoji": "⚙️",
+      "stages": [
+        {
+          "title": "Step title",
+          "emoji": "📋",
+          "description": "One or two sentences describing what this automation step does and why"
+        }
+      ]
+    }
+  ]
 }
 
 Rules:
-- If a field is not found, use null for strings and [] for arrays.
-- pain_points and objectives must each be concise 1-sentence strings.
-- Extract up to 6 items per array.
-- Do not invent data. Only extract what is explicitly stated.
+- pain_points: up to 6 items, each a single concise sentence. Extract only what is explicitly stated.
+- objectives: up to 6 items, each a single concise sentence.
+- workflows: create 1–3 workflows based on the deliverables/scope of work described. Each workflow represents a distinct automation area (e.g. intake, document generation, reporting).
+- stages: 3–7 steps per workflow, ordered logically as the automation would run. Make each step concrete and specific to the client's described work.
+- Choose fitting emojis for workflows (⚙️ 🤖 📊 📋 🔄 📝 ✅) and stages (🔍 📥 📤 🗂️ ✉️ 📄 🧠 ✅ 🔔 📊).
+- If a field cannot be found in the text, use null for strings or [] for arrays. Do not invent client details.
+- Return only the JSON object — no preamble, no markdown.
 
 PDF TEXT:
 ${truncated}`,
@@ -822,7 +838,7 @@ ${truncated}`,
     }
   } catch (e) {
     console.warn("[import-pdf] AI extraction failed:", (e as any).message);
-    extracted = { name: file.originalname.replace(/\.pdf$/i, ""), pain_points: [], objectives: [] };
+    extracted = { name: file.originalname.replace(/\.pdf$/i, ""), pain_points: [], objectives: [], workflows: [] };
   }
 
   const user = (req as any).adminUser;
@@ -840,7 +856,38 @@ ${truncated}`,
   }).select("id").single();
 
   if (error) { res.status(500).json({ message: error.message }); return; }
-  res.json({ id: row!.id, extracted });
+  const proposalId = row!.id;
+
+  // Insert AI-generated workflows + stages
+  const aiWorkflows = Array.isArray(extracted.workflows) ? extracted.workflows : [];
+  for (let wi = 0; wi < aiWorkflows.length; wi++) {
+    const wf = aiWorkflows[wi];
+    const { data: wfRow } = await adminSupabase.from("workflows").insert({
+      proposal_id: proposalId,
+      name: wf.name || `Workflow ${wi + 1}`,
+      emoji: wf.emoji || "⚙️",
+      order_index: wi,
+    }).select("id").single();
+    if (!wfRow) continue;
+
+    const aiStages = Array.isArray(wf.stages) ? wf.stages : [];
+    if (aiStages.length > 0) {
+      await adminSupabase.from("workflow_stages").insert(
+        aiStages.map((s: any, si: number) => ({
+          workflow_id: wfRow.id,
+          order_index: si,
+          title: s.title || `Step ${si + 1}`,
+          emoji: s.emoji || "📋",
+          description: s.description || "",
+          stats: [],
+          inputs: [],
+          outputs: [],
+        }))
+      );
+    }
+  }
+
+  res.json({ id: proposalId, extracted });
 });
 
 // ---------------------------------------------------------------------------

@@ -456,7 +456,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                   Import proposal from PDF
                 </div>
                 <div style={{ fontSize: 12, color: t.textMeta, lineHeight: 1.5 }}>
-                  AI will extract client details, pain points, and objectives automatically
+                  AI reads the proposal and auto-generates client details, pain points, objectives, and a full workflow with steps based on the deliverables
                 </div>
               </div>
               <button
@@ -538,7 +538,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                       animation: "spin 0.7s linear infinite",
                     }} />
                     <span style={{ fontSize: 13, color: t.accent, fontWeight: 500 }}>
-                      Reading PDF and extracting data with AI…
+                      Reading PDF · generating workflows with AI…
                     </span>
                   </div>
                 </div>
