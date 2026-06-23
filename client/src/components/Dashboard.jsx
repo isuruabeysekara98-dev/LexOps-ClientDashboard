@@ -154,13 +154,6 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
   const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
-    {isInternal && (
-      <div style={{display:"flex",justifyContent:"flex-end"}}>
-        <button onClick={onSetup} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:7}}>
-          <span style={{fontSize:14}}>⚙</span> Project Setup
-        </button>
-      </div>
-    )}
     <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
     <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":`repeat(${stats.length},1fr)`,gap:12}}>
       {stats.map((s,i)=>(
@@ -3617,7 +3610,12 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>
                   </div>
                 </div>
-                <Pill t={t} status={selected.status} label={selected.status==="complete"?"Complete":selected.phase}/>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  <Pill t={t} status={selected.status} label={selected.status==="complete"?"Complete":selected.phase}/>
+                  {!isClientView&&<button onClick={()=>setSetupOpen(true)} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:mobile?"6px 12px":"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap",flexShrink:0}}>
+                    <span style={{fontSize:13}}>⚙</span>{!mobile&&" Setup"}
+                  </button>}
+                </div>
               </div>
               <div style={{borderBottom:`1px solid ${t.border}`,marginBottom:mobile?16:24,overflowX:"auto",display:"flex",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
                 <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
