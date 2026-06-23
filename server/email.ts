@@ -288,9 +288,10 @@ export async function sendWelcomeEmail(email: string, clientName: string, projec
 export async function sendV2ProposalInvite(
   email: string,
   proposalName: string,
-  portalUrl: string,
+  loginUrl: string,
   loginEmail: string,
-  tempPassword: string | null
+  tempPassword: string | null,
+  isExistingUser: boolean = false
 ) {
   const credBlock = tempPassword
     ? `<div style="margin:20px 0;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px 20px">
@@ -299,12 +300,21 @@ export async function sendV2ProposalInvite(
         <p style="color:#374151;font-size:14px;margin:0"><strong>Temporary password:</strong> ${tempPassword}</p>
        </div>`
     : "";
-  await send(email, `Lex Ops has sent you a proposal for ${proposalName}`, emailWrapper(
+
+  const intro = isExistingUser
+    ? bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Log in with your existing account to review it, try the workflow demos, and share your feedback.`)
+    : bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Use the credentials below to log in, review the proposal, and share your feedback.`);
+
+  const hint = isExistingUser
+    ? subText("Log in with your existing LexOps password.")
+    : subText("Use the temporary password above to log in. You can update your password from your account settings at any time.");
+
+  await send(email, `LexOps: Your proposal for ${proposalName} is ready`, emailWrapper(
     heading(`Your proposal is ready`) +
-    bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Log in to review the proposal, try the workflow demos, and share your feedback.`) +
+    intro +
     credBlock +
-    ctaButton("Review your proposal", portalUrl) +
-    subText("You can log in at any time using the credentials above or by clicking the button.")
+    ctaButton("Log in and review proposal", loginUrl) +
+    hint
   ));
 }
 

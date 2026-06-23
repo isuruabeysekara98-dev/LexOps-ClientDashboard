@@ -43,7 +43,18 @@ export default function LoginPage({ authError: externalError } = {}) {
     setError("");
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+    // After successful login, honour ?next= redirect (proposal links land here)
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    if (next && next.startsWith("/")) {
+      window.location.href = next;
+      return;
+    }
     setLoading(false);
   }
 

@@ -844,8 +844,9 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
-  const proposalUrl = `${SITE_URL}/proposal/${proposal.token}`;
-  await sendV2ProposalInvite(email, proposal.name || "your proposal", proposalUrl, email, tempPassword);
+  const nextPath = encodeURIComponent(`/proposal/${proposal.token}`);
+  const loginUrl = `${SITE_URL}/login?next=${nextPath}`;
+  await sendV2ProposalInvite(email, proposal.name || "your proposal", loginUrl, email, tempPassword, !tempPassword);
 
   await adminSupabase.from("emails_log").insert({
     proposal_id: id,
