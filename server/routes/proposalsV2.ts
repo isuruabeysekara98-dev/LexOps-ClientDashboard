@@ -78,7 +78,7 @@ router.get("/", requireAdmin, async (_req, res) => {
 // POST /api/proposals/v2 — create or update a draft
 // ---------------------------------------------------------------------------
 router.post("/", requireAdmin, async (req, res) => {
-  const { id, name, client_name, client_contact_name, client_email, description, pain_points, objectives, workflows } = req.body;
+  const { id, name, client_name, client_contact_name, client_email, pain_points, objectives, workflows } = req.body;
   const user = (req as any).adminUser;
 
   if (!name?.trim()) { res.status(400).json({ message: "Proposal name is required" }); return; }
@@ -91,7 +91,6 @@ router.post("/", requireAdmin, async (req, res) => {
       client_name: client_name?.trim() || null,
       client_contact_name: client_contact_name?.trim() || null,
       client_email: client_email?.trim() || null,
-      description: description || null,
       pain_points: pain_points || [],
       objectives: objectives || [],
       updated_at: new Date().toISOString(),
@@ -105,7 +104,6 @@ router.post("/", requireAdmin, async (req, res) => {
       client_contact_name: client_contact_name?.trim() || null,
       token,
       client_email: client_email?.trim() || null,
-      description: description || null,
       pain_points: pain_points || [],
       objectives: objectives || [],
       status: "draft",
