@@ -58,7 +58,7 @@ function App() {
   }
 
   // Public route: /proposal/:token
-  const proposalMatch = pathname.match(/^\/proposal\/([a-f0-9-]+)$/i);
+  const proposalMatch = pathname.match(/^\/proposal\/([A-Za-z0-9_-]+)$/);
   if (proposalMatch) {
     return <ProposalPage token={proposalMatch[1]} />;
   }

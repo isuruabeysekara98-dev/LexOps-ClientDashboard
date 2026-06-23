@@ -28,7 +28,12 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 function makeToken(): string {
-  return `p2-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return crypto.randomUUID();
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUUID(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v);
 }
 
 function generatePassword(): string {
@@ -78,12 +83,14 @@ router.get("/", requireAdmin, async (_req, res) => {
 // POST /api/proposals/v2 — create or update a draft
 // ---------------------------------------------------------------------------
 router.post("/", requireAdmin, async (req, res) => {
-  const { id, name, client_name, client_contact_name, client_email, pain_points, objectives, workflows } = req.body;
+  const { id: rawId, name, client_name, client_contact_name, client_email, pain_points, objectives, workflows } = req.body;
   const user = (req as any).adminUser;
 
   if (!name?.trim()) { res.status(400).json({ message: "Proposal name is required" }); return; }
 
-  let proposalId = id || null;
+  // Guard: only treat id as an existing proposal if it is a valid UUID.
+  // Non-UUID strings (e.g. old p2-... tokens) must never be forwarded to Postgres.
+  let proposalId = isUUID(rawId) ? rawId : null;
 
   if (proposalId) {
     const { error } = await adminSupabase.from("proposals").update({
