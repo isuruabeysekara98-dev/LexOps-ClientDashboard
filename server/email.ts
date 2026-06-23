@@ -2,8 +2,8 @@ import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM = "LexOps <noreply@lex-ops.io>";
-const REPLY_TO = "hello@teamsquared.io";
+const FROM = "LexOps Portal <isuru@lex-ops.io>";
+const REPLY_TO = "isuru@lex-ops.io";
 const PORTAL_URL = "https://client.lex-ops.io";
 
 // ---------------------------------------------------------------------------
