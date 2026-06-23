@@ -96,13 +96,26 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
     setPage(initAdminPage(path));
   }
 
-  if (page.name === "proposals") return <ProposalsListPage navigate={navigate} onLogout={onLogout} />;
-  if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} onLogout={onLogout} />;
-  if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
-  if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
-  if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
-  if (page.name === "dashboard") return <Dashboard onLogout={onLogout} userProfile={userProfile} navigate={navigate} />;
-  return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
+  const isDashboard = page.name === "dashboard";
+
+  return (
+    <>
+      {/* Dashboard is always mounted so its state (loaded projects, selected project) survives
+          navigations to/from the proposals section. Hidden via display:none when not active. */}
+      <div style={{ display: isDashboard ? "contents" : "none" }}>
+        <Dashboard onLogout={onLogout} userProfile={userProfile} navigate={navigate} />
+      </div>
+
+      {!isDashboard && (() => {
+        if (page.name === "proposals") return <ProposalsListPage navigate={navigate} onLogout={onLogout} />;
+        if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} onLogout={onLogout} />;
+        if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
+        if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
+        if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
+        return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
+      })()}
+    </>
+  );
 }
 
 function AuthenticatedApp() {
