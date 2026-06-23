@@ -2,6 +2,12 @@ import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { sendV2ProposalInvite } from "../email";
 import Anthropic from "@anthropic-ai/sdk";
+import multer from "multer";
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = _require("pdf-parse");
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const router = Router();
 
@@ -753,6 +759,157 @@ router.get("/runs/:runId/pdf", async (req, res) => {
     console.error("[pdf] generation error:", err.message);
     res.status(500).json({ message: "PDF generation failed." });
   }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proposals/v2/import-pdf — upload PDF, AI-extract, create draft
+// ---------------------------------------------------------------------------
+router.post("/import-pdf", requireAdmin, upload.single("file"), async (req: any, res) => {
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) { res.status(400).json({ message: "No file uploaded" }); return; }
+  if (file.mimetype !== "application/pdf" && !file.originalname.toLowerCase().endsWith(".pdf")) {
+    res.status(400).json({ message: "Only PDF files are supported" }); return;
+  }
+
+  let rawText = "";
+  try {
+    const parsed = await pdfParse(file.buffer);
+    rawText = parsed.text?.trim() || "";
+  } catch (e) {
+    res.status(422).json({ message: "Could not read PDF — is it a valid, text-based PDF?" }); return;
+  }
+
+  if (!rawText || rawText.length < 30) {
+    res.status(422).json({ message: "PDF appears to contain no extractable text (scanned image PDFs are not supported yet)." }); return;
+  }
+
+  const truncated = rawText.slice(0, 12000);
+
+  let extracted: any = {};
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-opus-4-5",
+      max_tokens: 1500,
+      messages: [{
+        role: "user",
+        content: `You are extracting structured data from a legal services proposal PDF for a law firm portal.
+
+Extract the following fields from the text below and return ONLY valid JSON (no markdown, no explanation):
+{
+  "name": "proposal title or engagement name",
+  "client_name": "client company/organisation name",
+  "client_contact_name": "client contact person full name",
+  "client_email": "client email address if present, else null",
+  "pain_points": ["array of pain points or challenges mentioned", "..."],
+  "objectives": ["array of goals or objectives mentioned", "..."]
+}
+
+Rules:
+- If a field is not found, use null for strings and [] for arrays.
+- pain_points and objectives must each be concise 1-sentence strings.
+- Extract up to 6 items per array.
+- Do not invent data. Only extract what is explicitly stated.
+
+PDF TEXT:
+${truncated}`,
+      }],
+    });
+
+    const content = msg.content[0];
+    if (content.type === "text") {
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) extracted = JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.warn("[import-pdf] AI extraction failed:", (e as any).message);
+    extracted = { name: file.originalname.replace(/\.pdf$/i, ""), pain_points: [], objectives: [] };
+  }
+
+  const user = (req as any).adminUser;
+  const token = makeToken();
+  const { data: row, error } = await adminSupabase.from("proposals").insert({
+    name: extracted.name || file.originalname.replace(/\.pdf$/i, ""),
+    client_name: extracted.client_name || null,
+    client_contact_name: extracted.client_contact_name || null,
+    client_email: extracted.client_email || null,
+    pain_points: Array.isArray(extracted.pain_points) ? extracted.pain_points : [],
+    objectives: Array.isArray(extracted.objectives) ? extracted.objectives : [],
+    token,
+    status: "draft",
+    created_by: user.id,
+  }).select("id").single();
+
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ id: row!.id, extracted });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proposals/v2/:id/duplicate — copy a proposal as a new draft
+// ---------------------------------------------------------------------------
+router.post("/:id/duplicate", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).adminUser;
+
+  const { data: src } = await adminSupabase.from("proposals").select("*").eq("id", id).single();
+  if (!src) { res.status(404).json({ message: "Proposal not found" }); return; }
+
+  const { data: srcWorkflows } = await adminSupabase
+    .from("workflows").select("*").eq("proposal_id", id).order("order_index");
+
+  const workflowIds = (srcWorkflows || []).map((w: any) => w.id);
+  const [stagesRes, docReqsRes] = await Promise.all([
+    workflowIds.length
+      ? adminSupabase.from("workflow_stages").select("*").in("workflow_id", workflowIds).order("order_index")
+      : Promise.resolve({ data: [] as any[] }),
+    workflowIds.length
+      ? adminSupabase.from("workflow_document_requirements").select("*").in("workflow_id", workflowIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const token = makeToken();
+  const { data: newProposal, error } = await adminSupabase.from("proposals").insert({
+    name: `Copy of ${src.name || "Untitled"}`,
+    client_name: src.client_name,
+    client_contact_name: src.client_contact_name,
+    client_email: src.client_email,
+    client_company_name: src.client_company_name,
+    pain_points: src.pain_points || [],
+    objectives: src.objectives || [],
+    persona: src.persona || {},
+    stages: src.stages || [],
+    token,
+    status: "draft",
+    created_by: user.id,
+  }).select("id").single();
+
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  const newId = newProposal!.id;
+
+  for (const wf of (srcWorkflows || []) as any[]) {
+    const { data: newWf } = await adminSupabase.from("workflows").insert({
+      proposal_id: newId,
+      name: wf.name,
+      emoji: wf.emoji,
+      order_index: wf.order_index,
+    }).select("id").single();
+    if (!newWf) continue;
+
+    const wfStages = ((stagesRes as any).data || []).filter((s: any) => s.workflow_id === wf.id);
+    if (wfStages.length) {
+      await adminSupabase.from("workflow_stages").insert(
+        wfStages.map(({ id: _sid, workflow_id: _wid, ...rest }: any) => ({ ...rest, workflow_id: newWf.id }))
+      );
+    }
+
+    const wfDocReqs = ((docReqsRes as any).data || []).filter((d: any) => d.workflow_id === wf.id);
+    if (wfDocReqs.length) {
+      await adminSupabase.from("workflow_document_requirements").insert(
+        wfDocReqs.map(({ id: _did, workflow_id: _wid, ...rest }: any) => ({ ...rest, workflow_id: newWf.id }))
+      );
+    }
+  }
+
+  res.json({ id: newId });
 });
 
 // ---------------------------------------------------------------------------

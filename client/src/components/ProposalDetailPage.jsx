@@ -389,6 +389,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const [converted, setConverted] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   useEffect(() => { loadAll(); }, [id]);
 
@@ -444,6 +445,30 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
     navigator.clipboard.writeText(`${window.location.origin}/proposal/${proposal.token}`).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function duplicateProposal() {
+    if (!proposal) return;
+    setDuplicating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/proposals/v2/${id}/duplicate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const j = await res.json();
+      if (res.ok && j.id) {
+        navigate(`/admin/proposals/${j.id}`);
+      } else {
+        setSendMsg({ ok: false, text: j.message || "Duplicate failed." });
+        setTimeout(() => setSendMsg(null), 4000);
+      }
+    } catch {
+      setSendMsg({ ok: false, text: "Network error — try again." });
+      setTimeout(() => setSendMsg(null), 4000);
+    } finally {
+      setDuplicating(false);
+    }
   }
 
   async function sendInvite() {
@@ -586,6 +611,15 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 {sendMsg.text}
               </span>
             )}
+            <button
+              onClick={duplicateProposal}
+              disabled={duplicating}
+              onMouseEnter={() => setHovBtn("dup")} onMouseLeave={() => setHovBtn(null)}
+              title="Duplicate this proposal as a new draft"
+              style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "dup" ? "#F0EDE6" : t.card, opacity: duplicating ? 0.6 : 1 }}
+            >
+              {duplicating ? "Duplicating…" : "⎘ Duplicate"}
+            </button>
             <button
               onClick={() => navigate(`/admin/proposals/${id}/preview`)}
               onMouseEnter={() => setHovBtn("preview")} onMouseLeave={() => setHovBtn(null)}

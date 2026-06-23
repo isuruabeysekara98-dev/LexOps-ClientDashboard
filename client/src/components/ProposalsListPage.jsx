@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
@@ -121,6 +121,12 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   const [copied, setCopied] = useState(null);
   const [hovCard, setHovCard] = useState(null);
   const [hovBtn, setHovBtn] = useState(null);
+  const [pdfModal, setPdfModal] = useState(false);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
+  const [pdfDragOver, setPdfDragOver] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     document.title = "LexOps | Proposals";
@@ -151,6 +157,49 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   function handleOpen(e, pr) {
     e.stopPropagation();
     window.open(`/proposal/${pr.token}`, "_blank");
+  }
+
+  function openPdfModal() {
+    setPdfFile(null);
+    setPdfError(null);
+    setPdfModal(true);
+  }
+
+  function handleFileSelect(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
+      setPdfError("Only PDF files are supported.");
+      return;
+    }
+    setPdfError(null);
+    setPdfFile(file);
+  }
+
+  async function submitPdf() {
+    if (!pdfFile) return;
+    setPdfUploading(true);
+    setPdfError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const form = new FormData();
+      form.append("file", pdfFile);
+      const res = await fetch("/api/proposals/v2/import-pdf", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        body: form,
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setPdfError(j.message || "Import failed.");
+      } else {
+        setPdfModal(false);
+        navigate(`/admin/proposals/${j.id}`);
+      }
+    } catch {
+      setPdfError("Network error — please try again.");
+    } finally {
+      setPdfUploading(false);
+    }
   }
 
   const btnBase = {
@@ -197,6 +246,19 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
           >
             <IconGrid /> Proposals
+          </button>
+          <button
+            onClick={openPdfModal}
+            onMouseEnter={() => setHovBtn("pdf")}
+            onMouseLeave={() => setHovBtn(null)}
+            style={{
+              ...btnBase,
+              border: `1px solid ${t.border}`,
+              color: t.text,
+              background: hovBtn === "pdf" ? "#F0EDE6" : t.card,
+            }}
+          >
+            📄 Import PDF
           </button>
           <button
             onClick={() => navigate("/admin/proposals/new")}
@@ -356,6 +418,168 @@ export default function ProposalsListPage({ navigate, onLogout }) {
           </div>
         )}
       </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        style={{ display: "none" }}
+        onChange={e => handleFileSelect(e.target.files?.[0])}
+      />
+
+      {/* PDF Import Modal */}
+      {pdfModal && (
+        <div
+          onClick={() => !pdfUploading && setPdfModal(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            background: "rgba(8,43,43,0.45)", display: "flex",
+            alignItems: "center", justifyContent: "center", padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: t.card, borderRadius: 16, width: "100%", maxWidth: 500,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.18)", overflow: "hidden",
+            }}
+          >
+            {/* Modal header */}
+            <div style={{
+              padding: "22px 28px 18px",
+              borderBottom: `1px solid ${t.border}`,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: t.text, marginBottom: 3 }}>
+                  Import proposal from PDF
+                </div>
+                <div style={{ fontSize: 12, color: t.textMeta, lineHeight: 1.5 }}>
+                  AI will extract client details, pain points, and objectives automatically
+                </div>
+              </div>
+              <button
+                onClick={() => setPdfModal(false)}
+                disabled={pdfUploading}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: t.textMeta, fontSize: 20, lineHeight: 1, padding: 4,
+                  opacity: pdfUploading ? 0.4 : 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Drop zone */}
+            <div style={{ padding: "24px 28px" }}>
+              <div
+                onClick={() => !pdfUploading && fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); if (!pdfUploading) setPdfDragOver(true); }}
+                onDragLeave={() => setPdfDragOver(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setPdfDragOver(false);
+                  if (!pdfUploading) handleFileSelect(e.dataTransfer.files?.[0]);
+                }}
+                style={{
+                  border: `2px dashed ${pdfDragOver ? t.accent : pdfFile ? t.accent : t.border}`,
+                  borderRadius: 12,
+                  padding: "32px 20px",
+                  textAlign: "center",
+                  cursor: pdfUploading ? "default" : "pointer",
+                  background: pdfDragOver ? t.accentLight : pdfFile ? "#F0F7F7" : "#FAFAF8",
+                  transition: "all 0.15s",
+                }}
+              >
+                {pdfFile ? (
+                  <>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>
+                      {pdfFile.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: t.textMeta }}>
+                      {(pdfFile.size / 1024).toFixed(0)} KB · Click to change
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>📑</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>
+                      Drop a PDF here or click to browse
+                    </div>
+                    <div style={{ fontSize: 12, color: t.textMeta }}>
+                      Up to 20 MB · Text-based PDFs only (not scanned)
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {pdfError && (
+                <div style={{
+                  marginTop: 12, padding: "10px 14px",
+                  background: "#FEF2F2", border: "1px solid #FECACA",
+                  borderRadius: 8, fontSize: 13, color: "#DC2626",
+                }}>
+                  {pdfError}
+                </div>
+              )}
+
+              {pdfUploading && (
+                <div style={{
+                  marginTop: 12, padding: "14px", textAlign: "center",
+                  background: t.accentLight, borderRadius: 8,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                    <div style={{
+                      width: 18, height: 18, border: `2px solid rgba(11,79,79,0.2)`,
+                      borderTop: `2px solid ${t.accent}`, borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                    }} />
+                    <span style={{ fontSize: 13, color: t.accent, fontWeight: 500 }}>
+                      Reading PDF and extracting data with AI…
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: "0 28px 24px",
+              display: "flex", gap: 10, justifyContent: "flex-end",
+            }}>
+              <button
+                onClick={() => setPdfModal(false)}
+                disabled={pdfUploading}
+                style={{
+                  padding: "9px 18px", borderRadius: 8,
+                  border: `1px solid ${t.border}`, background: "transparent",
+                  color: t.textSub, fontFamily: "inherit", fontSize: 13,
+                  cursor: pdfUploading ? "default" : "pointer",
+                  opacity: pdfUploading ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitPdf}
+                disabled={!pdfFile || pdfUploading}
+                style={{
+                  padding: "9px 20px", borderRadius: 8, border: "none",
+                  background: !pdfFile || pdfUploading ? t.border : t.accent,
+                  color: "#fff", fontFamily: "inherit", fontWeight: 600, fontSize: 13,
+                  cursor: !pdfFile || pdfUploading ? "default" : "pointer",
+                }}
+              >
+                {pdfUploading ? "Importing…" : "Import & create draft →"}
+              </button>
+            </div>
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
     </div>
   );
 }
