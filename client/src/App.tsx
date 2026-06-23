@@ -125,18 +125,39 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
   );
 }
 
+const PROFILE_CACHE_KEY = 'lx_profile_v1';
+
+function readCachedProfile() {
+  try { const s = sessionStorage.getItem(PROFILE_CACHE_KEY); return s ? JSON.parse(s) : null; }
+  catch { return null; }
+}
+function writeCachedProfile(p: any) {
+  try { sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(p)); } catch {}
+}
+function clearCachedProfile() {
+  try { sessionStorage.removeItem(PROFILE_CACHE_KEY); } catch {}
+}
+
 function AuthenticatedApp() {
-  const [session, setSession] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // If a cached profile exists the app renders immediately — no spinner on page reloads.
+  const cached = readCachedProfile();
+
+  const [userProfile, setUserProfile] = useState<any>(cached);
+  // Only show the full-screen spinner on a genuine first-ever load (no cache).
+  const [authLoading, setAuthLoading] = useState(!cached);
   const [authError, setAuthError] = useState("");
 
   const initialLoadDone = useRef(false);
 
+  function doLogout() {
+    clearCachedProfile();
+    supabase.auth.signOut();
+  }
+
   useEffect(() => {
     let mounted = true;
 
-    // Safety net: force authLoading to false after 5 seconds
+    // Safety net: never spin forever
     const timeout = setTimeout(() => {
       if (mounted && !initialLoadDone.current) {
         initialLoadDone.current = true;
@@ -150,17 +171,18 @@ function AuthenticatedApp() {
         if (!mounted) return;
 
         if (!session?.user) {
-          setSession(null);
+          // No valid session — clear any stale cache and show login
+          clearCachedProfile();
+          setUserProfile(null);
           return;
         }
-
-        setSession(session);
 
         let profile = await fetchUserProfile(session.user.id);
 
         if (profile?.__noProfile) {
           if (mounted) {
-            setSession(null);
+            clearCachedProfile();
+            setUserProfile(null);
             setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
           }
           return;
@@ -170,11 +192,11 @@ function AuthenticatedApp() {
         if (!profile && mounted) {
           const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
           if (refreshData?.session?.user && !refreshErr) {
-            setSession(refreshData.session);
             profile = await fetchUserProfile(refreshData.session.user.id);
             if (profile?.__noProfile) {
               if (mounted) {
-                setSession(null);
+                clearCachedProfile();
+                setUserProfile(null);
                 setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
               }
               return;
@@ -182,7 +204,8 @@ function AuthenticatedApp() {
           }
         }
 
-        if (mounted) {
+        if (mounted && profile) {
+          writeCachedProfile(profile);
           setUserProfile(profile);
         }
       } catch (err) {
@@ -199,33 +222,36 @@ function AuthenticatedApp() {
       if (!mounted) return;
       if (!initialLoadDone.current) return;
 
-      // TOKEN_REFRESHED and INITIAL_SESSION fire on every tab-return/token-renewal.
-      // The user is already authenticated — silently ignore these to prevent the
-      // full-screen spinner from flashing unnecessarily.
+      // TOKEN_REFRESHED and INITIAL_SESSION fire on every tab-return — already authenticated,
+      // ignore silently so we never flash a spinner for a token renewal.
       if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 
       if (session?.user) {
-        setAuthLoading(true);
+        // Genuine re-auth (e.g. sign in from another tab) — update silently if we already
+        // have a profile, otherwise show spinner for the fresh fetch.
+        const alreadyAuthed = !!userProfile;
+        if (!alreadyAuthed) setAuthLoading(true);
         const profile = await fetchUserProfile(session.user.id);
         if (!mounted) return;
         if (profile?.__noProfile) {
-          setSession(null);
+          clearCachedProfile();
           setUserProfile(null);
           setAuthError("Account not set up correctly. Please contact hello@teamsquared.io");
           setAuthLoading(false);
           return;
         }
-        setSession(session);
+        writeCachedProfile(profile);
         setUserProfile(profile);
-        setAuthLoading(false);
+        if (!alreadyAuthed) setAuthLoading(false);
       } else {
-        // SIGNED_OUT — clear state
-        setSession(null);
+        // SIGNED_OUT
+        clearCachedProfile();
         setUserProfile(null);
       }
     });
 
     return () => { mounted = false; clearTimeout(timeout); subscription.unsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (authLoading) return (
@@ -239,10 +265,10 @@ function AuthenticatedApp() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        {session && userProfile
+        {userProfile
           ? ADMIN_ROLES.includes(userProfile.role)
-            ? <AdminRouter userProfile={userProfile} onLogout={() => supabase.auth.signOut()} />
-            : <Dashboard onLogout={() => supabase.auth.signOut()} userProfile={userProfile} />
+            ? <AdminRouter userProfile={userProfile} onLogout={doLogout} />
+            : <Dashboard onLogout={doLogout} userProfile={userProfile} />
           : <LoginPage authError={authError} />
         }
       </TooltipProvider>
