@@ -3851,6 +3851,381 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Manager inline editor (click-to-edit pencil)
+// ---------------------------------------------------------------------------
+function ManagerEditor({ projectId, value, t, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    setSaving(true);
+    await supabase.from("projects").update({ manager: draft.trim() || null }).eq("id", projectId);
+    setSaving(false);
+    setEditing(false);
+    onSaved?.(draft.trim());
+  }
+  if (editing) return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
+      <span style={{ color:t.textSub, fontSize:12 }}>Manager:</span>
+      <input autoFocus value={draft} onChange={e=>setDraft(e.target.value)}
+        onKeyDown={e=>{ if(e.key==="Enter") save(); if(e.key==="Escape") setEditing(false); }}
+        onBlur={save}
+        style={{ background:"#fff", border:`1.5px solid ${t.accent}`, borderRadius:5, padding:"2px 8px", fontSize:12, color:t.text, fontFamily:"inherit", width:150 }}
+      />
+      {saving&&<span style={{fontSize:11,color:t.textSub}}>…</span>}
+    </span>
+  );
+  return (
+    <button onClick={()=>{ setDraft(value||""); setEditing(true); }}
+      style={{ background:"transparent", border:"none", padding:0, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}>
+      <span style={{color:t.textSub,fontSize:12}}>Manager: </span>
+      <span style={{color:t.accentLight,fontSize:12}}>{value||"—"}</span>
+      <span style={{fontSize:10,color:t.textSub,opacity:0.5,marginLeft:2}}>✏</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Internal Actions Tab (phase-grouped, admin-editable version)
+// ---------------------------------------------------------------------------
+function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile, onRefresh }) {
+  const [tasks, setTasks] = useState(initialTasks || []);
+  const [phases, setPhases] = useState(initialPhases || []);
+  const [collapsed, setCollapsed] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [showAddIn, setShowAddIn] = useState(null);
+  const [newTask, setNewTask] = useState({ title: "", due_date: "" });
+
+  const loadData = useCallback(async () => {
+    const [{ data: td }, { data: pd }] = await Promise.all([
+      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
+      supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order"),
+    ]);
+    if (td) setTasks(td);
+    if (pd) setPhases(pd);
+  }, [projectId]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  function startEdit(task) {
+    setEditingId(task.id);
+    setEditDraft({ title: task.title || "", status: task.status || "pending", due_date: task.due_date || "", phase_id: task.phase_id || "" });
+  }
+  async function saveEdit(taskId) {
+    setSaving(true);
+    await supabase.from("tasks").update({
+      title: editDraft.title, status: editDraft.status,
+      due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
+    }).eq("id", taskId);
+    setEditingId(null);
+    await loadData();
+    setSaving(false);
+    onRefresh?.();
+  }
+  async function deleteTask(taskId) {
+    await supabase.from("tasks").delete().eq("id", taskId);
+    setTasks(ts => ts.filter(t => t.id !== taskId));
+    onRefresh?.();
+  }
+  async function addTask(phaseId) {
+    if (!newTask.title.trim()) return;
+    setSaving(true);
+    await supabase.from("tasks").insert({ project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null });
+    setNewTask({ title: "", due_date: "" });
+    setShowAddIn(null);
+    await loadData();
+    setSaving(false);
+    onRefresh?.();
+  }
+
+  const phaseTaskMap = {};
+  phases.forEach(ph => { phaseTaskMap[ph.id] = []; });
+  const unphased = [];
+  tasks.forEach(tk => { if (tk.phase_id && phaseTaskMap[tk.phase_id] !== undefined) phaseTaskMap[tk.phase_id].push(tk); else unphased.push(tk); });
+
+  const statusOpts = [["pending","Pending"],["in_progress","In Progress"],["done","Done"]];
+  const stStyle = { pending: { bg:"#f0f4f3", color:"#6b7c7a" }, in_progress: { bg:"#fef6e8", color:"#d4881a" }, done: { bg:"#e8f5ef", color:"#2d7a5a" } };
+
+  function TaskRow({ task }) {
+    const isEd = editingId === task.id;
+    const st = stStyle[task.status] || stStyle.pending;
+    if (isEd) return (
+      <div style={{ background:"#fff", border:`1.5px solid ${t.accent}`, borderRadius:8, padding:"14px 16px", marginBottom:8 }}>
+        <input autoFocus value={editDraft.title} onChange={e=>setEditDraft(d=>({...d,title:e.target.value}))}
+          style={{ width:"100%", background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:13, color:t.text, fontFamily:"inherit", boxSizing:"border-box", marginBottom:10 }}/>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+          <select value={editDraft.status} onChange={e=>setEditDraft(d=>({...d,status:e.target.value}))}
+            style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}>
+            {statusOpts.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </select>
+          <select value={editDraft.phase_id} onChange={e=>setEditDraft(d=>({...d,phase_id:e.target.value}))}
+            style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}>
+            <option value="">— No Phase —</option>
+            {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
+          </select>
+          <input type="date" value={editDraft.due_date} onChange={e=>setEditDraft(d=>({...d,due_date:e.target.value}))}
+            style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}/>
+          <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+            <button onClick={()=>setEditingId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 12px", fontSize:12, cursor:"pointer", color:t.textSub, fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={()=>saveEdit(task.id)} disabled={saving} style={{ background:t.accent, border:"none", borderRadius:6, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#fff", fontFamily:"inherit" }}>Save</button>
+          </div>
+        </div>
+      </div>
+    );
+    return (
+      <div style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:8, padding:"12px 16px", marginBottom:8, display:"flex", alignItems:"flex-start", gap:12, boxShadow:"0 1px 3px rgba(26,74,71,0.04)" }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:500, color:task.status==="done"?t.textSub:t.text, textDecoration:task.status==="done"?"line-through":"none", marginBottom:task.due_date?4:0 }}>{task.title}</div>
+          {task.due_date&&<div style={{ fontSize:11, color:t.textSub }}>{new Date(task.due_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>}
+        </div>
+        <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:99, background:st.bg, color:st.color, flexShrink:0 }}>
+          {task.status==="done"?"✓ Done":task.status==="in_progress"?"In Progress":"Pending"}
+        </span>
+        <button onClick={()=>startEdit(task)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", color:t.textSub, fontFamily:"inherit", flexShrink:0 }}>Edit</button>
+        <button onClick={()=>deleteTask(task.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
+      </div>
+    );
+  }
+
+  function PhaseSection({ phase, phaseTasks }) {
+    const isOpen = collapsed[phase.id] === true ? false : true;
+    const isDone = phase.status === "complete";
+    const isActive = phase.status === "active";
+    const doneC = phaseTasks.filter(tk => tk.status === "done").length;
+    return (
+      <div style={{ marginBottom:14 }}>
+        <div onClick={()=>setCollapsed(c=>({...c,[phase.id]:isOpen}))}
+          style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", background:"#fff", border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", boxShadow:"0 1px 3px rgba(26,74,71,0.04)" }}>
+          <div style={{ width:10, height:10, borderRadius:"50%", flexShrink:0, background:isDone?"#2d7a5a":isActive?t.accent:t.border }}/>
+          <div style={{ flex:1, fontSize:13, fontWeight:700, color:t.text }}>{phase.name}</div>
+          <div style={{ fontSize:11, color:t.textSub }}>{doneC}/{phaseTasks.length} done</div>
+          <span style={{ fontSize:11, color:t.textSub, transform:isOpen?"none":"rotate(-90deg)", transition:"transform 0.2s", display:"inline-block" }}>▼</span>
+        </div>
+        {isOpen&&(
+          <div style={{ marginTop:8, paddingLeft:4 }}>
+            {phaseTasks.map(task=><TaskRow key={task.id} task={task}/>)}
+            {showAddIn===phase.id?(
+              <div style={{ background:"#fff", border:`1.5px dashed ${t.border}`, borderRadius:8, padding:"10px 14px", marginBottom:8, display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <input autoFocus value={newTask.title} onChange={e=>setNewTask(n=>({...n,title:e.target.value}))} placeholder="Task title…"
+                  onKeyDown={e=>{ if(e.key==="Enter") addTask(phase.id); if(e.key==="Escape") setShowAddIn(null); }}
+                  style={{ flex:1, minWidth:120, background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 10px", fontSize:13, fontFamily:"inherit", color:t.text }}/>
+                <input type="date" value={newTask.due_date} onChange={e=>setNewTask(n=>({...n,due_date:e.target.value}))}
+                  style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 8px", fontSize:12, fontFamily:"inherit" }}/>
+                <button onClick={()=>addTask(phase.id)} disabled={saving||!newTask.title.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"6px 14px", fontSize:12, fontWeight:600, color:"#fff", cursor:"pointer", fontFamily:"inherit" }}>Add</button>
+                <button onClick={()=>setShowAddIn(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 12px", fontSize:12, color:t.textSub, cursor:"pointer" }}>Cancel</button>
+              </div>
+            ):(
+              <button onClick={()=>{ setShowAddIn(phase.id); setNewTask({title:"",due_date:""}); }}
+                style={{ background:"transparent", border:`1px dashed ${t.border}`, borderRadius:8, padding:"8px 16px", fontSize:12, color:t.textSub, cursor:"pointer", width:"100%", textAlign:"left", fontFamily:"inherit" }}>
+                + Add action to {phase.name}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const totalT = tasks.length, doneT = tasks.filter(tk => tk.status === "done").length;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <div style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 20px", display:"flex", alignItems:"center", gap:16, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:12, color:t.textSub, marginBottom:6 }}>{doneT} of {totalT} actions complete</div>
+          <div style={{ height:4, background:t.surface, borderRadius:99, overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${totalT>0?Math.round(doneT/totalT*100):0}%`, background:`linear-gradient(90deg,${t.accent},#3d8f88)`, borderRadius:99, transition:"width 0.6s ease" }}/>
+          </div>
+        </div>
+        <span style={{ fontSize:22, fontFamily:"'Playfair Display',Georgia,serif", fontWeight:400, color:t.text }}>{totalT>0?`${Math.round(doneT/totalT*100)}%`:"—"}</span>
+      </div>
+      {phases.map(ph=><PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id]||[]}/>)}
+      {unphased.length>0&&(
+        <div>
+          <div style={{ fontSize:11, fontWeight:600, color:t.textSub, textTransform:"uppercase", letterSpacing:"0.07em", padding:"8px 4px", marginBottom:8 }}>No Phase Assigned</div>
+          {unphased.map(task=><TaskRow key={task.id} task={task}/>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Internal Resources Tab (admin-editable docs + tools, mirrors client view)
+// ---------------------------------------------------------------------------
+function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefresh }) {
+  const [docs, setDocs] = useState(initialDocuments || []);
+  const [tools, setTools] = useState([]);
+  const [phaseFilter, setPhaseFilter] = useState("all");
+  const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState("");
+  const [deletingDocId, setDeletingDocId] = useState(null);
+  const [showAddTool, setShowAddTool] = useState(false);
+  const [newTool, setNewTool] = useState({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
+  const [toolSaving, setToolSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    const [{ data:d }, tl] = await Promise.all([
+      supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at",{ascending:false}),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r=>r.error?{data:[]}:r),
+    ]);
+    if (d) setDocs(d);
+    if (tl.data) setTools(tl.data);
+  }, [projectId]);
+  useEffect(() => { load(); }, [load]);
+
+  const phases = [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
+  const filteredDocs = phaseFilter === "all" ? docs : docs.filter(d => d.phase_name === phaseFilter);
+
+  async function handleUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    const storagePath = `${projectId}/${Date.now()}_${file.name}`;
+    const { error:upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert:true });
+    if (upErr) { setUploading(false); return; }
+    const { data:{ publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
+    const ext = file.name.split(".").pop().toUpperCase();
+    await supabase.from("documents").insert({ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
+    await load();
+    setUploading(false);
+    onRefresh?.();
+  }
+
+  async function deleteDoc(doc) {
+    setDeletingDocId(doc.id);
+    if (doc.storage_path) await supabase.storage.from("project-documents").remove([doc.storage_path]);
+    await supabase.from("documents").delete().eq("id", doc.id);
+    setDocs(ds => ds.filter(d => d.id !== doc.id));
+    setDeletingDocId(null);
+    onRefresh?.();
+  }
+
+  async function addTool(e) {
+    e.preventDefault();
+    if (!newTool.name.trim()) return;
+    setToolSaving(true);
+    await supabase.from("project_tools").insert({ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
+    setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
+    setShowAddTool(false);
+    const { data } = await supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order");
+    if (data) setTools(data);
+    setToolSaving(false);
+    onRefresh?.();
+  }
+
+  async function deleteTool(id) {
+    await supabase.from("project_tools").delete().eq("id", id);
+    setTools(ts => ts.filter(t => t.id !== id));
+  }
+
+  function docIcon(ft) {
+    const e = (ft||"").toLowerCase();
+    if (e==="pdf") return { emoji:"📄", bg:"#fde8e8" };
+    if (["xls","xlsx","csv"].includes(e)) return { emoji:"📊", bg:"#e8f5e8" };
+    return { emoji:"📝", bg:"#e8eef8" };
+  }
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:mobile?"1fr":"1fr 1fr", gap:28 }}>
+      {/* ── Docs ── */}
+      <div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, paddingBottom:10, borderBottom:`1.5px solid ${t.border}` }}>
+          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>📁 Documents</span>
+          <label style={{ background:t.accent, color:"#fff", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            {uploading?"Uploading…":"+ Upload"}
+            <input type="file" style={{ display:"none" }} onChange={handleUpload} disabled={uploading}/>
+          </label>
+        </div>
+        <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
+          <select value={uploadPhase} onChange={e=>setUploadPhase(e.target.value)}
+            style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
+            <option value="">Tag with phase (optional)</option>
+            {phases.map(ph=><option key={ph} value={ph}>{ph}</option>)}
+          </select>
+        </div>
+        {phases.length>0&&(
+          <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+            {["all",...phases].map(ph=>(
+              <button key={ph} onClick={()=>setPhaseFilter(ph)} style={{ padding:"4px 12px", borderRadius:99, fontSize:11, fontWeight:500, background:phaseFilter===ph?"#e8f2f1":t.surface, color:phaseFilter===ph?t.accent:t.textSub, border:`1.5px solid ${phaseFilter===ph?"rgba(26,102,102,0.25)":"transparent"}`, cursor:"pointer", fontFamily:"inherit" }}>
+                {ph==="all"?"All":ph}
+              </button>
+            ))}
+          </div>
+        )}
+        {filteredDocs.length===0?(
+          <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
+            <div style={{ fontSize:24, marginBottom:8 }}>📁</div>
+            <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:4 }}>No documents yet</div>
+            <div style={{ fontSize:12, color:t.textSub }}>Upload files using the button above.</div>
+          </div>
+        ):filteredDocs.map(doc=>{
+          const ext=doc.file_type||doc.name?.split(".").pop()?.toUpperCase()||"FILE";
+          const icon=docIcon(ext);
+          return(
+            <div key={doc.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#fff", borderRadius:8, border:`1px solid ${t.border}`, padding:"12px 14px", marginBottom:8, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
+              <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize:13, fontWeight:600, color:t.text, textDecoration:"none", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block" }}>{doc.name}</a>
+                <div style={{ fontSize:11, color:t.textSub }}>{doc.uploaded_at?new Date(doc.uploaded_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):""}{doc.file_type?` · ${doc.file_type}`:""}</div>
+              </div>
+              {doc.phase_name&&<span style={{ fontSize:10, padding:"2px 8px", background:"#e8f2f1", color:t.accent, borderRadius:99, fontWeight:500, flexShrink:0 }}>{doc.phase_name}</span>}
+              <button onClick={()=>deleteDoc(doc)} disabled={deletingDocId===doc.id} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:deletingDocId===doc.id?0.3:0.5, lineHeight:1, flexShrink:0 }}>×</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Tools ── */}
+      <div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, paddingBottom:10, borderBottom:`1.5px solid ${t.border}` }}>
+          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>🔧 Tools</span>
+          <button onClick={()=>setShowAddTool(s=>!s)} style={{ background:t.accent, color:"#fff", border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>+ Add Tool</button>
+        </div>
+        {showAddTool&&(
+          <form onSubmit={addTool} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:14, display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 60px", gap:8 }}>
+              <input autoFocus value={newTool.name} onChange={e=>setNewTool(f=>({...f,name:e.target.value}))} placeholder="Tool name *" required
+                style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+              <input value={newTool.logo_emoji} onChange={e=>setNewTool(f=>({...f,logo_emoji:e.target.value}))} placeholder="🔧"
+                style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 8px", fontSize:16, textAlign:"center", width:"100%", boxSizing:"border-box" }}/>
+            </div>
+            <input value={newTool.purpose} onChange={e=>setNewTool(f=>({...f,purpose:e.target.value}))} placeholder="Purpose / description"
+              style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+            <input value={newTool.url} onChange={e=>setNewTool(f=>({...f,url:e.target.value}))} placeholder="https://…"
+              style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+              <button type="button" onClick={()=>setShowAddTool(false)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 14px", fontSize:12, color:t.textSub, cursor:"pointer" }}>Cancel</button>
+              <button type="submit" disabled={toolSaving||!newTool.name.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"6px 16px", fontSize:12, fontWeight:600, color:"#fff", cursor:"pointer", opacity:!newTool.name.trim()?0.5:1 }}>
+                {toolSaving?"Saving…":"Add"}
+              </button>
+            </div>
+          </form>
+        )}
+        {tools.length===0&&!showAddTool?(
+          <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
+            <div style={{ fontSize:24, marginBottom:8 }}>🔧</div>
+            <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:4 }}>No tools yet</div>
+            <div style={{ fontSize:12, color:t.textSub }}>Add platforms and tools set up for this client.</div>
+          </div>
+        ):tools.map(tool=>(
+          <div key={tool.id} style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", alignItems:"center", gap:14, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
+            <div style={{ width:38, height:38, borderRadius:8, background:t.surface, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{tool.logo_emoji||"🔧"}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:2 }}>{tool.name}</div>
+              {tool.purpose&&<div style={{ fontSize:12, color:t.textSub, lineHeight:1.4 }}>{tool.purpose}</div>}
+            </div>
+            {tool.url&&<a href={tool.url} target="_blank" rel="noreferrer" style={{ padding:"6px 14px", borderRadius:8, background:t.accent, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0 }}>Launch ↗</a>}
+            <button onClick={()=>deleteTool(tool.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
@@ -3971,12 +4346,10 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     </div>
   );
   const isClientView = view === "client";
-  const allTabs = isClientView
-    ? ["overview","actions","resources","invoices","support"]
-    : ["overview","plan","documents","flowchart","invoices","software","support","maintenance","book"];
+  const allTabs = ["overview","actions","resources","invoices","support"];
   const tabLabels = isClientView
     ? {overview:"Overview",actions:"Your Actions",resources:"Resources",invoices:"Invoices",support:"Support"}
-    : {overview:"Overview",plan:"Plan",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",support:"Support",maintenance:"Maintenance",book:"Book a Call"};
+    : {overview:"Overview",actions:"Actions",resources:"Resources",invoices:"Invoices",support:"Support"};
 
   async function dismissWelcome(){
     setShowWelcome(false);
@@ -4089,7 +4462,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
                   <h1 style={{margin:"0 0 7px",fontSize:mobile?22:28,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Playfair Display', Georgia, serif"}}>{selected.project}</h1>
                   <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
-                    {!isClientView&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.accentLight}}>{selected.manager}</span></span>}
+                    {!isClientView&&<ManagerEditor projectId={selected.id} value={selected.manager} t={t} onSaved={()=>refreshProject(selected.id)}/>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>
                   </div>
                 </div>
@@ -4114,16 +4487,12 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
               )}
-              {tab==="plan"        &&!isClientView&&<PlanTab projectId={selected.id} initialPhases={selected.phases} initialTasks={selected.tasks} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile} teamMembers={teamMembers}/>}
-              {tab==="actions"     &&isClientView&&<ClientActionsTab projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
-              {tab==="resources"   &&isClientView&&<ClientResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
-              {tab==="documents"   &&!isClientView&&<DocumentsTab projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="flowchart"   &&!isClientView&&<FlowchartTab projectId={selected.id} isInternal={true} userProfile={userProfile} t={t} mobile={mobile}/>}
-              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
-              {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
-              {tab==="support"     &&<SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile}/>}
-              {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
-              {tab==="book"        &&!isClientView&&<BookingTab      project={selected} t={t}/>}
+              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
+              {tab==="actions"     && !isClientView && <InternalActionsTab  projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+              {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
+              {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+              {tab==="invoices"    && <InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
+              {tab==="support"     && <SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile}/>}
             </>
           )}
         </div>
