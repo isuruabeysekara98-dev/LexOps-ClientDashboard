@@ -5,7 +5,51 @@ import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 import { createRequire } from "module";
 const _require = createRequire(import.meta.url);
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = _require("pdf-parse");
+
+// Robust PDF text extraction using pdfjs-dist (handles browser-printed PDFs, design-tool PDFs, etc.)
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  // pdfjs-dist ships only ESM builds — must use dynamic import
+  const pdfjsLib: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // Disable web worker — not available in Node.js
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    disableFontFace: true,
+    standardFontDataUrl: "",
+  });
+
+  const pdf: any = await loadingTask.promise;
+
+  const pages: string[] = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const items: any[] = content.items;
+    // Reconstruct reading order: sort by descending Y then ascending X
+    items.sort((a, b) => {
+      const dy = b.transform[5] - a.transform[5];
+      if (Math.abs(dy) > 3) return dy;
+      return a.transform[4] - b.transform[4];
+    });
+    let prev: any = null;
+    const parts: string[] = [];
+    for (const item of items) {
+      if (prev && Math.abs(item.transform[5] - prev.transform[5]) > 8) {
+        parts.push("\n");
+      } else if (prev && item.transform[4] - (prev.transform[4] + (prev.width || 0)) > 10) {
+        parts.push(" ");
+      }
+      parts.push(item.str);
+      prev = item;
+    }
+    pages.push(parts.join(""));
+  }
+  return pages.join("\n\n").trim();
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -773,14 +817,14 @@ router.post("/import-pdf", requireAdmin, upload.single("file"), async (req: any,
 
   let rawText = "";
   try {
-    const parsed = await pdfParse(file.buffer);
-    rawText = parsed.text?.trim() || "";
+    rawText = await extractPdfText(file.buffer);
   } catch (e) {
-    res.status(422).json({ message: "Could not read PDF — is it a valid, text-based PDF?" }); return;
+    console.error("[import-pdf] extraction error:", (e as any).message);
+    res.status(422).json({ message: "Could not read PDF. If this was printed from a browser, try saving it as a PDF from the print dialog instead of 'Save as PDF'." }); return;
   }
 
   if (!rawText || rawText.length < 30) {
-    res.status(422).json({ message: "PDF appears to contain no extractable text (scanned image PDFs are not supported yet)." }); return;
+    res.status(422).json({ message: "PDF appears to contain no extractable text. Scanned image PDFs are not supported — try the Transcript tab and paste the text directly." }); return;
   }
 
   const truncated = rawText.slice(0, 16000);
