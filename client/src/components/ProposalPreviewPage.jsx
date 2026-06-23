@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
-import ProposalViewer from "./ProposalViewer.jsx";
+import ProposalPage from "./ProposalPage.jsx";
 
 const ta = {
   accent: "#0B4F4F",
@@ -10,7 +10,7 @@ const ta = {
 };
 
 export default function ProposalPreviewPage({ id, navigate }) {
-  const [proposal, setProposal] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, [id]);
@@ -24,7 +24,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
       });
       if (res.ok) {
         const data = await res.json();
-        setProposal(data);
+        setToken(data.token || null);
         document.title = `Preview — ${data.name || "Proposal"}`;
       }
     } finally {
@@ -35,12 +35,12 @@ export default function ProposalPreviewPage({ id, navigate }) {
   return (
     <div style={{ fontFamily: "'Inter', sans-serif" }}>
 
-      {/* Admin preview banner — sticky over the viewer */}
+      {/* Admin preview banner — sticky */}
       <div style={{
         background: ta.accent, color: "#fff",
         padding: "9px 24px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        fontSize: 13, fontWeight: 500, position: "sticky", top: 0, zIndex: 100,
+        fontSize: 13, fontWeight: 500, position: "sticky", top: 0, zIndex: 200,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ opacity: 0.7 }}>👁</span>
@@ -63,7 +63,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
           <div style={{ width: 28, height: 28, border: `2px solid ${ta.border}`, borderTop: `2px solid ${ta.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
-      ) : !proposal ? (
+      ) : !token ? (
         <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
           <div style={{ color: ta.textSub }}>Proposal not found.</div>
           <button onClick={() => navigate("/admin/proposals")} style={{ background: "none", border: "none", color: ta.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>
@@ -71,26 +71,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
           </button>
         </div>
       ) : (
-        /* Shift content down by the banner height (sticky banner is 42px) */
-        <div style={{ marginTop: -42 }}>
-          <ProposalViewer
-            proposal={proposal}
-            footer={
-              <div style={{
-                background: "#FFFFFF", border: `1.5px dashed ${ta.border}`,
-                borderRadius: 14, padding: "36px 32px", textAlign: "center",
-              }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>✍️</div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: ta.text, marginBottom: 6, fontFamily: "'Playfair Display', Georgia, serif" }}>
-                  Acceptance form appears here
-                </div>
-                <div style={{ color: ta.textSub, fontSize: 13, lineHeight: 1.6 }}>
-                  When the client opens this proposal, they'll be able to accept it by signing their name below the workflow stages.
-                </div>
-              </div>
-            }
-          />
-        </div>
+        <ProposalPage token={token} />
       )}
     </div>
   );
