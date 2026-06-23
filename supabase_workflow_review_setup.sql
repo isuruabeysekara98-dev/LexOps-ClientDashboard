@@ -71,3 +71,10 @@ END $$;
 -- Columns added to proposals:
 --   • submitted_at, change_request_note, signer_note
 -- =============================================================================
+
+
+-- =============================================================================
+-- Migration: Add show_try_matter column to workflows (run this separately if
+-- you already ran the initial setup above)
+-- =============================================================================
+ALTER TABLE workflows ADD COLUMN IF NOT EXISTS show_try_matter boolean DEFAULT false;

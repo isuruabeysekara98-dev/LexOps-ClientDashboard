@@ -141,14 +141,20 @@ router.post("/", requireAdmin, async (req, res) => {
       const wf = workflows[wi];
       let workflowId: string | null = wf.id || null;
 
+      const baseWfData = { name: wf.name || "Workflow", emoji: wf.emoji || "⚙️", order_index: wi };
+      const wfDataWithToggle = { ...baseWfData, show_try_matter: wf.show_try_matter === true };
       if (workflowId) {
-        await adminSupabase.from("workflows")
-          .update({ name: wf.name || "Workflow", emoji: wf.emoji || "⚙️", order_index: wi })
-          .eq("id", workflowId);
+        const { error: upErr } = await adminSupabase.from("workflows").update(wfDataWithToggle).eq("id", workflowId);
+        if (upErr) await adminSupabase.from("workflows").update(baseWfData).eq("id", workflowId);
       } else {
-        const { data: wfRow } = await adminSupabase.from("workflows")
-          .insert({ proposal_id: proposalId, name: wf.name || "Workflow", emoji: wf.emoji || "⚙️", order_index: wi })
-          .select("id").single();
+        let wfRow: any = null;
+        const { data: d1, error: insErr } = await adminSupabase.from("workflows")
+          .insert({ proposal_id: proposalId, ...wfDataWithToggle }).select("id").single();
+        if (insErr) {
+          const { data: d2 } = await adminSupabase.from("workflows")
+            .insert({ proposal_id: proposalId, ...baseWfData }).select("id").single();
+          wfRow = d2;
+        } else { wfRow = d1; }
         workflowId = wfRow?.id || null;
       }
       if (!workflowId) continue;
@@ -338,6 +344,68 @@ Each "content" field should be 2–5 paragraphs of professional, specific analys
   } catch (err: any) {
     console.error("[demo/run] Anthropic error:", err.message);
     res.status(500).json({ message: "Demo generation failed. Please try again in a moment." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proposals/v2/demo/generate-fields — Claude generates dynamic form fields
+// ---------------------------------------------------------------------------
+router.post("/demo/generate-fields", async (req, res) => {
+  const { token, workflow_id } = req.body;
+  if (!token || !workflow_id) { res.json({ fields: [] }); return; }
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal) { res.json({ fields: [] }); return; }
+
+  const { data: workflow } = await adminSupabase.from("workflows").select("*").eq("id", workflow_id).single();
+  if (!workflow || workflow.proposal_id !== proposal.id) { res.json({ fields: [] }); return; }
+
+  const { data: stages } = await adminSupabase.from("workflow_stages").select("*").eq("workflow_id", workflow_id).order("order_index");
+  const stageList = (stages || []) as any[];
+  const stageContext = stageList.map((s: any, i: number) => `Stage ${i + 1}: ${s.emoji} ${s.title} — ${s.description}`).join("\n");
+
+  const painPoints = Array.isArray(proposal.pain_points) ? proposal.pain_points.join("; ") : "";
+  const objectives = Array.isArray(proposal.objectives) ? proposal.objectives.join("; ") : "";
+
+  const prompt = `You are generating intake form fields for a legal workflow demo so a client can run their own matter.
+
+WORKFLOW: ${workflow.emoji} ${workflow.name}
+STAGES:\n${stageContext}
+CLIENT CONTEXT:
+Pain points: ${painPoints || "Not specified"}
+Objectives: ${objectives || "Not specified"}
+
+Generate 3–6 concise intake form fields for a client to fill in before running their matter through this workflow. Make the fields specific to this workflow type and legal context.
+
+Return ONLY a JSON array, no markdown:
+[
+  {"id":"field_id","label":"Field Label","type":"text","placeholder":"e.g. hint","required":true},
+  {"id":"matter_type","label":"Matter type","type":"select","required":true,"options":["Option A","Option B"]}
+]
+
+Rules:
+- type must be one of: text | textarea | select | number
+- "options" array only for "select" type
+- Keep labels under 5 words, professional
+- If the workflow doesn't need specialised fields, return []`;
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const rawText = response.content[0]?.type === "text" ? (response.content[0] as any).text : "[]";
+    let fields: any[] = [];
+    try {
+      const cleaned = rawText.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+      fields = JSON.parse(cleaned);
+      if (!Array.isArray(fields)) fields = [];
+    } catch { fields = []; }
+    res.json({ fields });
+  } catch (err: any) {
+    console.error("[generate-fields] error:", err.message);
+    res.json({ fields: [] });
   }
 });
 

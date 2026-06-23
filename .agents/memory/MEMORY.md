@@ -1,0 +1,2 @@
+- [Proposals v2 page design](proposals-v2-design.md) — horizontal step timeline, stage drawer, try-matter wizard; inputs/outputs stored as label/detail in DB.
+- [Proposals v2 SQL migrations](proposals-v2-sql.md) — show_try_matter column needs ALTER TABLE; SQL appended to supabase_workflow_review_setup.sql.

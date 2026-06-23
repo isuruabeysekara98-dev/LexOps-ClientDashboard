@@ -90,7 +90,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
     client_email: "",
     pain_points: [""],
     objectives: [""],
-    workflows: [{ id: null, name: "Workflow 1", emoji: "⚙️", stages: [] }],
+    workflows: [{ id: null, name: "Workflow 1", emoji: "⚙️", show_try_matter: false, stages: [] }],
   });
 
   useEffect(() => {
@@ -114,12 +114,13 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         objectives: data.objectives?.length ? data.objectives : [""],
         workflows: (data.workflows || []).length ? data.workflows.map(wf => ({
           id: wf.id, name: wf.name || "", emoji: wf.emoji || "⚙️",
+          show_try_matter: wf.show_try_matter === true,
           stages: (wf.stages || []).map(s => ({
             id: s.id, title: s.title || "", emoji: s.emoji || "📋",
             description: s.description || "",
             stats: s.stats || [], inputs: s.inputs || [], outputs: s.outputs || [],
           })),
-        })) : [{ id: null, name: "Workflow 1", emoji: "⚙️", stages: [] }],
+        })) : [{ id: null, name: "Workflow 1", emoji: "⚙️", show_try_matter: false, stages: [] }],
       });
       const expandedSet = new Set();
       if (data.workflows?.[0]?.stages?.length) expandedSet.add(`0-0`);
@@ -417,7 +418,14 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                 <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif" }}>
                   Workflow stages
                 </h2>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {/* show_try_matter toggle */}
+                  <div title={`When on, clients see a 3-step wizard to run their own matter through this workflow (requires SQL migration — see supabase_workflow_review_setup.sql)`} style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8, padding: "5px 12px", background: wf.show_try_matter ? "rgba(11,79,79,0.08)" : "#F4F2ED", border: `1px solid ${wf.show_try_matter ? "rgba(11,79,79,0.22)" : "#E5E3DC"}`, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onClick={() => setForm(f => ({ ...f, workflows: f.workflows.map((w, j) => j !== wi ? w : { ...w, show_try_matter: !w.show_try_matter }) }))}>
+                    <div style={{ width: 30, height: 17, borderRadius: 9, background: wf.show_try_matter ? "#0B4F4F" : "#C9C7BC", position: "relative", transition: "background 0.15s", flexShrink: 0 }}>
+                      <div style={{ position: "absolute", top: 2, left: wf.show_try_matter ? 14 : 2, width: 13, height: 13, borderRadius: "50%", background: "#fff", transition: "left 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.18)" }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: wf.show_try_matter ? "#0B4F4F" : "#9B9B8F", whiteSpace: "nowrap" }}>Try your matter</span>
+                  </div>
                   <button
                     onClick={() => useDefaultTemplate(wi)}
                     onMouseEnter={() => setHovBtn(`tpl-${wi}`)} onMouseLeave={() => setHovBtn(null)}
