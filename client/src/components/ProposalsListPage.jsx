@@ -130,13 +130,26 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptUploading, setTranscriptUploading] = useState(false);
   const [transcriptError, setTranscriptError] = useState(null);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const fileInputRef = useRef(null);
   const txtInputRef = useRef(null);
+  const newMenuRef = useRef(null);
 
   useEffect(() => {
     document.title = "LexOps | Proposals";
     load();
   }, []);
+
+  useEffect(() => {
+    if (!newMenuOpen) return;
+    function handleClickOutside(e) {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target)) {
+        setNewMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [newMenuOpen]);
 
   async function load() {
     setLoading(true);
@@ -295,31 +308,61 @@ export default function ProposalsListPage({ navigate, onLogout }) {
           >
             <IconGrid /> Proposals
           </button>
-          <button
-            onClick={() => openImportModal("pdf")}
-            onMouseEnter={() => setHovBtn("import")}
-            onMouseLeave={() => setHovBtn(null)}
-            style={{
-              ...btnBase,
-              border: `1px solid ${t.border}`,
-              color: t.text,
-              background: hovBtn === "import" ? "#F0EDE6" : t.card,
-            }}
-          >
-            ⬆ Import
-          </button>
-          <button
-            onClick={() => navigate("/admin/proposals/new")}
-            onMouseEnter={() => setHovBtn("new")}
-            onMouseLeave={() => setHovBtn(null)}
-            style={{
-              ...btnBase,
-              background: hovBtn === "new" ? t.accentHover : t.accent,
-              color: "#fff", fontWeight: 600, paddingLeft: 14, paddingRight: 14,
-            }}
-          >
-            + New proposal
-          </button>
+          <div ref={newMenuRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setNewMenuOpen(o => !o)}
+              onMouseEnter={() => setHovBtn("new")}
+              onMouseLeave={() => setHovBtn(null)}
+              style={{
+                ...btnBase,
+                background: newMenuOpen ? t.accentHover : hovBtn === "new" ? t.accentHover : t.accent,
+                color: "#fff", fontWeight: 600, paddingLeft: 14, paddingRight: 14,
+                gap: 8,
+              }}
+            >
+              + New proposal
+              <span style={{
+                fontSize: 10, opacity: 0.8,
+                transform: newMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.15s", display: "inline-block",
+              }}>▼</span>
+            </button>
+
+            {newMenuOpen && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 6px)", right: 0,
+                background: t.card, border: `1px solid ${t.border}`,
+                borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
+                minWidth: 220, zIndex: 200, overflow: "hidden",
+              }}>
+                {[
+                  { icon: "📋", label: "Fill in a form", sub: "Manually enter proposal details", action: () => { setNewMenuOpen(false); navigate("/admin/proposals/new"); } },
+                  { icon: "📄", label: "Import from PDF", sub: "AI reads a PDF proposal", action: () => { setNewMenuOpen(false); openImportModal("pdf"); } },
+                  { icon: "📝", label: "Import from transcript", sub: "AI reads meeting notes or a call transcript", action: () => { setNewMenuOpen(false); openImportModal("transcript"); } },
+                ].map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={item.action}
+                    style={{
+                      width: "100%", background: "none", border: "none",
+                      padding: "11px 16px", textAlign: "left", cursor: "pointer",
+                      fontFamily: "inherit", display: "flex", alignItems: "center", gap: 12,
+                      borderTop: i > 0 ? `1px solid ${t.borderLight}` : "none",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = t.accentLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}
+                  >
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{item.label}</div>
+                      <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>{item.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div style={{ width: 1, height: 18, background: t.border, margin: "0 6px" }} />
           <button
             onClick={onLogout}
