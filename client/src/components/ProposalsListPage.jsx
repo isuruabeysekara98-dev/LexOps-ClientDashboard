@@ -121,12 +121,17 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   const [copied, setCopied] = useState(null);
   const [hovCard, setHovCard] = useState(null);
   const [hovBtn, setHovBtn] = useState(null);
-  const [pdfModal, setPdfModal] = useState(false);
+  const [importModal, setImportModal] = useState(false);
+  const [importTab, setImportTab] = useState("pdf");
   const [pdfFile, setPdfFile] = useState(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [pdfError, setPdfError] = useState(null);
   const [pdfDragOver, setPdfDragOver] = useState(false);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [transcriptUploading, setTranscriptUploading] = useState(false);
+  const [transcriptError, setTranscriptError] = useState(null);
   const fileInputRef = useRef(null);
+  const txtInputRef = useRef(null);
 
   useEffect(() => {
     document.title = "LexOps | Proposals";
@@ -159,10 +164,13 @@ export default function ProposalsListPage({ navigate, onLogout }) {
     window.open(`/proposal/${pr.token}`, "_blank");
   }
 
-  function openPdfModal() {
+  function openImportModal(tab = "pdf") {
     setPdfFile(null);
     setPdfError(null);
-    setPdfModal(true);
+    setTranscriptText("");
+    setTranscriptError(null);
+    setImportTab(tab);
+    setImportModal(true);
   }
 
   function handleFileSelect(file) {
@@ -173,6 +181,14 @@ export default function ProposalsListPage({ navigate, onLogout }) {
     }
     setPdfError(null);
     setPdfFile(file);
+  }
+
+  function handleTxtFileSelect(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => setTranscriptText(e.target.result || "");
+    reader.readAsText(file);
+    setTranscriptError(null);
   }
 
   async function submitPdf() {
@@ -192,13 +208,45 @@ export default function ProposalsListPage({ navigate, onLogout }) {
       if (!res.ok) {
         setPdfError(j.message || "Import failed.");
       } else {
-        setPdfModal(false);
+        setImportModal(false);
         navigate(`/admin/proposals/${j.id}`);
       }
     } catch {
       setPdfError("Network error — please try again.");
     } finally {
       setPdfUploading(false);
+    }
+  }
+
+  async function submitTranscript() {
+    const text = transcriptText.trim();
+    if (!text || text.length < 20) {
+      setTranscriptError("Please paste or upload a transcript with at least a few sentences.");
+      return;
+    }
+    setTranscriptUploading(true);
+    setTranscriptError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/proposals/v2/import-transcript", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setTranscriptError(j.message || "Import failed.");
+      } else {
+        setImportModal(false);
+        navigate(`/admin/proposals/${j.id}`);
+      }
+    } catch {
+      setTranscriptError("Network error — please try again.");
+    } finally {
+      setTranscriptUploading(false);
     }
   }
 
@@ -248,17 +296,17 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             <IconGrid /> Proposals
           </button>
           <button
-            onClick={openPdfModal}
-            onMouseEnter={() => setHovBtn("pdf")}
+            onClick={() => openImportModal("pdf")}
+            onMouseEnter={() => setHovBtn("import")}
             onMouseLeave={() => setHovBtn(null)}
             style={{
               ...btnBase,
               border: `1px solid ${t.border}`,
               color: t.text,
-              background: hovBtn === "pdf" ? "#F0EDE6" : t.card,
+              background: hovBtn === "import" ? "#F0EDE6" : t.card,
             }}
           >
-            📄 Import PDF
+            ⬆ Import
           </button>
           <button
             onClick={() => navigate("/admin/proposals/new")}
@@ -419,7 +467,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
         )}
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -427,11 +475,18 @@ export default function ProposalsListPage({ navigate, onLogout }) {
         style={{ display: "none" }}
         onChange={e => handleFileSelect(e.target.files?.[0])}
       />
+      <input
+        ref={txtInputRef}
+        type="file"
+        accept=".txt,.md,text/plain"
+        style={{ display: "none" }}
+        onChange={e => handleTxtFileSelect(e.target.files?.[0])}
+      />
 
-      {/* PDF Import Modal */}
-      {pdfModal && (
+      {/* Import Modal */}
+      {importModal && (
         <div
-          onClick={() => !pdfUploading && setPdfModal(false)}
+          onClick={() => !pdfUploading && !transcriptUploading && setImportModal(false)}
           style={{
             position: "fixed", inset: 0, zIndex: 100,
             background: "rgba(8,43,43,0.45)", display: "flex",
@@ -441,140 +496,210 @@ export default function ProposalsListPage({ navigate, onLogout }) {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: t.card, borderRadius: 16, width: "100%", maxWidth: 500,
+              background: t.card, borderRadius: 16, width: "100%", maxWidth: 520,
               boxShadow: "0 20px 60px rgba(0,0,0,0.18)", overflow: "hidden",
             }}
           >
             {/* Modal header */}
             <div style={{
-              padding: "22px 28px 18px",
-              borderBottom: `1px solid ${t.border}`,
-              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "22px 28px 0",
+              display: "flex", alignItems: "flex-start", justifyContent: "space-between",
             }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16, color: t.text, marginBottom: 3 }}>
-                  Import proposal from PDF
+                  Import proposal
                 </div>
                 <div style={{ fontSize: 12, color: t.textMeta, lineHeight: 1.5 }}>
-                  AI reads the proposal and auto-generates client details, pain points, objectives, and a full workflow with steps based on the deliverables
+                  AI auto-generates client details, pain points, objectives, and a full workflow
                 </div>
               </div>
               <button
-                onClick={() => setPdfModal(false)}
-                disabled={pdfUploading}
+                onClick={() => setImportModal(false)}
+                disabled={pdfUploading || transcriptUploading}
                 style={{
                   background: "none", border: "none", cursor: "pointer",
                   color: t.textMeta, fontSize: 20, lineHeight: 1, padding: 4,
-                  opacity: pdfUploading ? 0.4 : 1,
+                  opacity: pdfUploading || transcriptUploading ? 0.4 : 1,
+                  marginTop: -2,
                 }}
               >
                 ×
               </button>
             </div>
 
-            {/* Drop zone */}
-            <div style={{ padding: "24px 28px" }}>
-              <div
-                onClick={() => !pdfUploading && fileInputRef.current?.click()}
-                onDragOver={e => { e.preventDefault(); if (!pdfUploading) setPdfDragOver(true); }}
-                onDragLeave={() => setPdfDragOver(false)}
-                onDrop={e => {
-                  e.preventDefault();
-                  setPdfDragOver(false);
-                  if (!pdfUploading) handleFileSelect(e.dataTransfer.files?.[0]);
-                }}
-                style={{
-                  border: `2px dashed ${pdfDragOver ? t.accent : pdfFile ? t.accent : t.border}`,
-                  borderRadius: 12,
-                  padding: "32px 20px",
-                  textAlign: "center",
-                  cursor: pdfUploading ? "default" : "pointer",
-                  background: pdfDragOver ? t.accentLight : pdfFile ? "#F0F7F7" : "#FAFAF8",
-                  transition: "all 0.15s",
-                }}
-              >
-                {pdfFile ? (
-                  <>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>
-                      {pdfFile.name}
-                    </div>
-                    <div style={{ fontSize: 12, color: t.textMeta }}>
-                      {(pdfFile.size / 1024).toFixed(0)} KB · Click to change
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📑</div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>
-                      Drop a PDF here or click to browse
-                    </div>
-                    <div style={{ fontSize: 12, color: t.textMeta }}>
-                      Up to 20 MB · Text-based PDFs only (not scanned)
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {pdfError && (
-                <div style={{
-                  marginTop: 12, padding: "10px 14px",
-                  background: "#FEF2F2", border: "1px solid #FECACA",
-                  borderRadius: 8, fontSize: 13, color: "#DC2626",
-                }}>
-                  {pdfError}
-                </div>
-              )}
-
-              {pdfUploading && (
-                <div style={{
-                  marginTop: 12, padding: "14px", textAlign: "center",
-                  background: t.accentLight, borderRadius: 8,
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                    <div style={{
-                      width: 18, height: 18, border: `2px solid rgba(11,79,79,0.2)`,
-                      borderTop: `2px solid ${t.accent}`, borderRadius: "50%",
-                      animation: "spin 0.7s linear infinite",
-                    }} />
-                    <span style={{ fontSize: 13, color: t.accent, fontWeight: 500 }}>
-                      Reading PDF · generating workflows with AI…
-                    </span>
-                  </div>
-                </div>
-              )}
+            {/* Tabs */}
+            <div style={{
+              display: "flex", gap: 0, padding: "16px 28px 0",
+              borderBottom: `1px solid ${t.border}`,
+            }}>
+              {[
+                { id: "pdf", label: "📄 PDF" },
+                { id: "transcript", label: "📝 Transcript" },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setImportTab(tab.id); setPdfError(null); setTranscriptError(null); }}
+                  disabled={pdfUploading || transcriptUploading}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    fontFamily: "inherit", fontSize: 13, fontWeight: importTab === tab.id ? 600 : 400,
+                    color: importTab === tab.id ? t.accent : t.textSub,
+                    padding: "8px 16px",
+                    borderBottom: importTab === tab.id ? `2px solid ${t.accent}` : "2px solid transparent",
+                    marginBottom: -1, transition: "all 0.12s",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
+            {/* PDF tab */}
+            {importTab === "pdf" && (
+              <div style={{ padding: "24px 28px 0" }}>
+                <div
+                  onClick={() => !pdfUploading && fileInputRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); if (!pdfUploading) setPdfDragOver(true); }}
+                  onDragLeave={() => setPdfDragOver(false)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setPdfDragOver(false);
+                    if (!pdfUploading) handleFileSelect(e.dataTransfer.files?.[0]);
+                  }}
+                  style={{
+                    border: `2px dashed ${pdfDragOver ? t.accent : pdfFile ? t.accent : t.border}`,
+                    borderRadius: 12, padding: "32px 20px", textAlign: "center",
+                    cursor: pdfUploading ? "default" : "pointer",
+                    background: pdfDragOver ? "#E8F4F4" : pdfFile ? "#F0F7F7" : "#FAFAF8",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {pdfFile ? (
+                    <>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>{pdfFile.name}</div>
+                      <div style={{ fontSize: 12, color: t.textMeta }}>{(pdfFile.size / 1024).toFixed(0)} KB · Click to change</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}>📑</div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>Drop a PDF here or click to browse</div>
+                      <div style={{ fontSize: 12, color: t.textMeta }}>Up to 20 MB · Text-based PDFs only (not scanned)</div>
+                    </>
+                  )}
+                </div>
+
+                {pdfError && (
+                  <div style={{ marginTop: 12, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 13, color: "#DC2626" }}>
+                    {pdfError}
+                  </div>
+                )}
+                {pdfUploading && (
+                  <div style={{ marginTop: 12, padding: 14, textAlign: "center", background: "#E8F4F4", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                      <div style={{ width: 18, height: 18, border: `2px solid rgba(11,79,79,0.2)`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                      <span style={{ fontSize: 13, color: t.accent, fontWeight: 500 }}>Reading PDF · generating workflows with AI…</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Transcript tab */}
+            {importTab === "transcript" && (
+              <div style={{ padding: "24px 28px 0" }}>
+                <textarea
+                  value={transcriptText}
+                  onChange={e => { setTranscriptText(e.target.value); setTranscriptError(null); }}
+                  disabled={transcriptUploading}
+                  placeholder="Paste a meeting transcript, discovery call notes, or any written summary describing the client's needs and scope…"
+                  style={{
+                    width: "100%", minHeight: 200, resize: "vertical",
+                    border: `1.5px solid ${t.border}`, borderRadius: 10,
+                    padding: "14px 16px", fontFamily: "inherit", fontSize: 13,
+                    color: t.text, background: "#FAFAF8", lineHeight: 1.6,
+                    outline: "none", boxSizing: "border-box",
+                    opacity: transcriptUploading ? 0.6 : 1,
+                  }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: t.textMeta }}>or</span>
+                  <button
+                    onClick={() => txtInputRef.current?.click()}
+                    disabled={transcriptUploading}
+                    style={{
+                      background: "none", border: `1px solid ${t.border}`, borderRadius: 6,
+                      padding: "5px 12px", fontSize: 12, color: t.textSub,
+                      fontFamily: "inherit", cursor: "pointer",
+                    }}
+                  >
+                    Upload .txt file
+                  </button>
+                  {transcriptText.length > 0 && (
+                    <span style={{ fontSize: 12, color: t.textMeta, marginLeft: "auto" }}>
+                      {transcriptText.length.toLocaleString()} characters
+                    </span>
+                  )}
+                </div>
+                {transcriptError && (
+                  <div style={{ marginTop: 12, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 13, color: "#DC2626" }}>
+                    {transcriptError}
+                  </div>
+                )}
+                {transcriptUploading && (
+                  <div style={{ marginTop: 12, padding: 14, textAlign: "center", background: "#E8F4F4", borderRadius: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                      <div style={{ width: 18, height: 18, border: `2px solid rgba(11,79,79,0.2)`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+                      <span style={{ fontSize: 13, color: t.accent, fontWeight: 500 }}>Reading transcript · generating workflows with AI…</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Footer */}
-            <div style={{
-              padding: "0 28px 24px",
-              display: "flex", gap: 10, justifyContent: "flex-end",
-            }}>
+            <div style={{ padding: "20px 28px 24px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button
-                onClick={() => setPdfModal(false)}
-                disabled={pdfUploading}
+                onClick={() => setImportModal(false)}
+                disabled={pdfUploading || transcriptUploading}
                 style={{
                   padding: "9px 18px", borderRadius: 8,
                   border: `1px solid ${t.border}`, background: "transparent",
                   color: t.textSub, fontFamily: "inherit", fontSize: 13,
-                  cursor: pdfUploading ? "default" : "pointer",
-                  opacity: pdfUploading ? 0.5 : 1,
+                  cursor: pdfUploading || transcriptUploading ? "default" : "pointer",
+                  opacity: pdfUploading || transcriptUploading ? 0.5 : 1,
                 }}
               >
                 Cancel
               </button>
-              <button
-                onClick={submitPdf}
-                disabled={!pdfFile || pdfUploading}
-                style={{
-                  padding: "9px 20px", borderRadius: 8, border: "none",
-                  background: !pdfFile || pdfUploading ? t.border : t.accent,
-                  color: "#fff", fontFamily: "inherit", fontWeight: 600, fontSize: 13,
-                  cursor: !pdfFile || pdfUploading ? "default" : "pointer",
-                }}
-              >
-                {pdfUploading ? "Importing…" : "Import & create draft →"}
-              </button>
+              {importTab === "pdf" && (
+                <button
+                  onClick={submitPdf}
+                  disabled={!pdfFile || pdfUploading}
+                  style={{
+                    padding: "9px 20px", borderRadius: 8, border: "none",
+                    background: !pdfFile || pdfUploading ? t.border : t.accent,
+                    color: "#fff", fontFamily: "inherit", fontWeight: 600, fontSize: 13,
+                    cursor: !pdfFile || pdfUploading ? "default" : "pointer",
+                  }}
+                >
+                  {pdfUploading ? "Importing…" : "Import & create draft →"}
+                </button>
+              )}
+              {importTab === "transcript" && (
+                <button
+                  onClick={submitTranscript}
+                  disabled={transcriptText.trim().length < 20 || transcriptUploading}
+                  style={{
+                    padding: "9px 20px", borderRadius: 8, border: "none",
+                    background: transcriptText.trim().length < 20 || transcriptUploading ? t.border : t.accent,
+                    color: "#fff", fontFamily: "inherit", fontWeight: 600, fontSize: 13,
+                    cursor: transcriptText.trim().length < 20 || transcriptUploading ? "default" : "pointer",
+                  }}
+                >
+                  {transcriptUploading ? "Importing…" : "Import & create draft →"}
+                </button>
+              )}
             </div>
           </div>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

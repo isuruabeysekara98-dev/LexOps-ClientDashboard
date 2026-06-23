@@ -891,6 +891,122 @@ ${truncated}`,
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/proposals/v2/import-transcript — paste/upload text transcript, AI-extract, create draft
+// ---------------------------------------------------------------------------
+router.post("/import-transcript", requireAdmin, async (req: any, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== "string" || text.trim().length < 20) {
+    res.status(400).json({ message: "Please provide a transcript with at least a few sentences." }); return;
+  }
+
+  const truncated = text.trim().slice(0, 16000);
+
+  let extracted: any = { pain_points: [], objectives: [], workflows: [] };
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 4000,
+      system: "You are a sales development representative that works for Lex Ops. A legal AI and automations integrator for small to mid sized law firms. You must read through this transcript or meeting notes and extract any information and map it to a new proposal form. Use the deliverables, scope, and client pain points discussed to generate a first stab of what the automation workflow should look like step by step.",
+      messages: [{
+        role: "user",
+        content: `Read the transcript or meeting notes below and return ONLY valid JSON (no markdown fences, no explanation) with this exact structure:
+
+{
+  "name": "engagement or project title derived from the discussion",
+  "client_name": "client company or law firm name",
+  "client_contact_name": "client contact person full name or null",
+  "client_email": "client email address or null",
+  "pain_points": ["concise pain point or challenge the client faces", "..."],
+  "objectives": ["goal or desired outcome from the engagement", "..."],
+  "workflows": [
+    {
+      "name": "Workflow name (e.g. Matter Intake Automation)",
+      "emoji": "⚙️",
+      "stages": [
+        {
+          "title": "Step title",
+          "emoji": "📋",
+          "description": "One or two sentences describing what this automation step does and why"
+        }
+      ]
+    }
+  ]
+}
+
+Rules:
+- pain_points: up to 6 items, each a single concise sentence. Extract only what is explicitly stated or implied.
+- objectives: up to 6 items, each a single concise sentence.
+- workflows: create 1–3 workflows based on the deliverables/scope discussed. Each workflow represents a distinct automation area (e.g. intake, document generation, reporting).
+- stages: 3–7 steps per workflow, ordered logically as the automation would run. Make each step concrete and specific to the client's described work.
+- Choose fitting emojis for workflows (⚙️ 🤖 📊 📋 🔄 📝 ✅) and stages (🔍 📥 📤 🗂️ ✉️ 📄 🧠 ✅ 🔔 📊).
+- If a field cannot be found in the text, use null for strings or [] for arrays. Do not invent client details.
+- Return only the JSON object — no preamble, no markdown.
+
+TRANSCRIPT:
+${truncated}`,
+      }],
+    });
+
+    const content = msg.content[0];
+    if (content.type === "text") {
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) extracted = JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.warn("[import-transcript] AI extraction failed:", (e as any).message);
+    extracted = { name: "Imported from transcript", pain_points: [], objectives: [], workflows: [] };
+  }
+
+  const user = (req as any).adminUser;
+  const token = makeToken();
+  const { data: row, error } = await adminSupabase.from("proposals").insert({
+    name: extracted.name || "Imported from transcript",
+    client_name: extracted.client_name || null,
+    client_contact_name: extracted.client_contact_name || null,
+    client_email: extracted.client_email || null,
+    pain_points: Array.isArray(extracted.pain_points) ? extracted.pain_points : [],
+    objectives: Array.isArray(extracted.objectives) ? extracted.objectives : [],
+    token,
+    status: "draft",
+    created_by: user.id,
+  }).select("id").single();
+
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  const proposalId = row!.id;
+
+  // Insert AI-generated workflows + stages
+  const aiWorkflows = Array.isArray(extracted.workflows) ? extracted.workflows : [];
+  for (let wi = 0; wi < aiWorkflows.length; wi++) {
+    const wf = aiWorkflows[wi];
+    const { data: wfRow } = await adminSupabase.from("workflows").insert({
+      proposal_id: proposalId,
+      name: wf.name || `Workflow ${wi + 1}`,
+      emoji: wf.emoji || "⚙️",
+      order_index: wi,
+    }).select("id").single();
+    if (!wfRow) continue;
+
+    const aiStages = Array.isArray(wf.stages) ? wf.stages : [];
+    if (aiStages.length > 0) {
+      await adminSupabase.from("workflow_stages").insert(
+        aiStages.map((s: any, si: number) => ({
+          workflow_id: wfRow.id,
+          order_index: si,
+          title: s.title || `Step ${si + 1}`,
+          emoji: s.emoji || "📋",
+          description: s.description || "",
+          stats: [],
+          inputs: [],
+          outputs: [],
+        }))
+      );
+    }
+  }
+
+  res.json({ id: proposalId, extracted });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/proposals/v2/:id/duplicate — copy a proposal as a new draft
 // ---------------------------------------------------------------------------
 router.post("/:id/duplicate", requireAdmin, async (req, res) => {
