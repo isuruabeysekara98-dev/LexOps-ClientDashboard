@@ -20,6 +20,13 @@ description: Architecture and field-name conventions for the v2 proposal client 
 - If Claude returns `[]`, wizard falls back to a single freeform textarea.
 - Endpoint placed BEFORE `/:id` routes to avoid collision (like import-pdf).
 
+## Saved example templates (demo reuse)
+- Table: `workflow_demo_templates (id, workflow_id, name, form_values JSONB, created_at)`.
+- Three endpoints: `GET/POST /api/proposals/v2/workflow/:wfId/demo-templates`, `DELETE /api/proposals/v2/workflow/:wfId/demo-templates/:tid` — all validated by proposal token.
+- GET gracefully returns `[]` if the table doesn't exist yet (no 500 on missing table).
+- Client UX: template pill strip at top of Step 1 (hidden until templates exist). Hover a pill → × delete button overlays. Clicking a pill merges `form_values` into current form state and restores transcript from `__transcript` key if present.
+- Save UX: "🔖 Save these values as a reusable example" link appears below the form once any field has a value. Clicking reveals an inline name-input + Save/Cancel row.
+
 ## show_try_matter toggle
 - Admin toggle in ProposalCreatePage per workflow; tooltip says SQL migration required.
 - Server save is resilient: tries with `show_try_matter`, falls back without if column missing.

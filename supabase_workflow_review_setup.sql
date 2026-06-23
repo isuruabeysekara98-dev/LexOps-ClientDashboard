@@ -78,3 +78,29 @@ END $$;
 -- you already ran the initial setup above)
 -- =============================================================================
 ALTER TABLE workflows ADD COLUMN IF NOT EXISTS show_try_matter boolean DEFAULT false;
+
+-- =============================================================================
+-- Migration: workflow_demo_templates — saved example matters for demo reuse
+-- Run once in Supabase → SQL Editor → New query → Run
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS workflow_demo_templates (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  workflow_id uuid        NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+  name        text        NOT NULL,
+  form_values jsonb       NOT NULL DEFAULT '{}',
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS workflow_demo_templates_workflow_id_idx
+  ON workflow_demo_templates(workflow_id);
+
+ALTER TABLE workflow_demo_templates ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'workflow_demo_templates' AND policyname = 'service_all'
+  ) THEN
+    CREATE POLICY service_all ON workflow_demo_templates FOR ALL USING (true);
+  END IF;
+END $$;

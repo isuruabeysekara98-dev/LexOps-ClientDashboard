@@ -410,6 +410,79 @@ Rules:
 });
 
 // ---------------------------------------------------------------------------
+// GET  /api/proposals/v2/workflow/:wfId/demo-templates  — list saved examples
+// POST /api/proposals/v2/workflow/:wfId/demo-templates  — save a new example
+// DELETE /api/proposals/v2/workflow/:wfId/demo-templates/:tid — remove example
+// ---------------------------------------------------------------------------
+router.get("/workflow/:wfId/demo-templates", async (req, res) => {
+  const { wfId } = req.params;
+  const token = req.query.token as string | undefined;
+  if (!token) { res.json({ templates: [] }); return; }
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal) { res.json({ templates: [] }); return; }
+
+  const { data: wf } = await adminSupabase.from("workflows").select("id, proposal_id").eq("id", wfId).single();
+  if (!wf || wf.proposal_id !== proposal.id) { res.json({ templates: [] }); return; }
+
+  const { data, error } = await adminSupabase
+    .from("workflow_demo_templates")
+    .select("id, name, form_values, created_at")
+    .eq("workflow_id", wfId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    // Table not yet created — silently return empty list
+    res.json({ templates: [] }); return;
+  }
+  res.json({ templates: data || [] });
+});
+
+router.post("/workflow/:wfId/demo-templates", async (req, res) => {
+  const { wfId } = req.params;
+  const { token, name, form_values } = req.body;
+  if (!token || !name?.trim()) { res.status(400).json({ message: "token and name are required" }); return; }
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
+
+  const { data: wf } = await adminSupabase.from("workflows").select("id, proposal_id").eq("id", wfId).single();
+  if (!wf || wf.proposal_id !== proposal.id) { res.status(403).json({ message: "Forbidden" }); return; }
+
+  const { data, error } = await adminSupabase
+    .from("workflow_demo_templates")
+    .insert({ workflow_id: wfId, name: name.trim(), form_values: form_values || {} })
+    .select("id, name, form_values, created_at")
+    .single();
+
+  if (error) {
+    res.status(500).json({ message: "Templates table not set up yet — run the SQL migration in supabase_workflow_review_setup.sql" });
+    return;
+  }
+  res.json({ template: data });
+});
+
+router.delete("/workflow/:wfId/demo-templates/:tid", async (req, res) => {
+  const { wfId, tid } = req.params;
+  const { token } = req.body;
+  if (!token) { res.status(401).json({ message: "token required" }); return; }
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
+
+  const { data: wf } = await adminSupabase.from("workflows").select("id, proposal_id").eq("id", wfId).single();
+  if (!wf || wf.proposal_id !== proposal.id) { res.status(403).json({ message: "Forbidden" }); return; }
+
+  await adminSupabase
+    .from("workflow_demo_templates")
+    .delete()
+    .eq("id", tid)
+    .eq("workflow_id", wfId);
+
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/proposals/v2/workflow/:wfId/feedback — save or update feedback
 // ---------------------------------------------------------------------------
 router.post("/workflow/:wfId/feedback", async (req, res) => {

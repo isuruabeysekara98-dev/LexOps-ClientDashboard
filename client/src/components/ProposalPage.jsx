@@ -379,6 +379,15 @@ function TryMatterWizard({ wf, token, proposal }) {
   const [feedbackError, setFeedbackError] = useState("");
   const [lastSavedFeedback, setLastSavedFeedback] = useState(wf.feedback_text || "");
 
+  // ── Template state ─────────────────────────────────────────────────────────
+  const [templates, setTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateError, setTemplateError] = useState("");
+  const [hovTemplate, setHovTemplate] = useState(null);
+
   const stages = wf.stages || [];
 
   // Restore latest run result if available
@@ -387,6 +396,54 @@ function TryMatterWizard({ wf, token, proposal }) {
       setRunResult(wf.latest_run.output_json);
     }
   }, []);
+
+  // Load saved example templates for this workflow
+  async function loadTemplates() {
+    try {
+      const res = await fetch(`/api/proposals/v2/workflow/${wf.id}/demo-templates?token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+    } catch { setTemplates([]); }
+    finally { setLoadingTemplates(false); }
+  }
+
+  useEffect(() => { loadTemplates(); }, [wf.id]);
+
+  function handleApplyTemplate(tpl) {
+    const vals = tpl.form_values || {};
+    setFormValues(prev => ({ ...prev, ...vals }));
+    if (vals.__transcript) { setTranscript(vals.__transcript); setTranscriptOpen(true); }
+  }
+
+  async function handleSaveTemplate() {
+    if (!templateName.trim()) { setTemplateError("Please enter a name for this example."); return; }
+    setSavingTemplate(true); setTemplateError("");
+    const valuesToSave = { ...formValues };
+    if (transcript.trim()) valuesToSave.__transcript = transcript.trim();
+    try {
+      const res = await fetch(`/api/proposals/v2/workflow/${wf.id}/demo-templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, name: templateName.trim(), form_values: valuesToSave }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setTemplateError(data.message || "Failed to save."); return; }
+      setTemplates(prev => [data.template, ...prev]);
+      setTemplateName(""); setShowSaveForm(false);
+    } catch { setTemplateError("Connection error. Please try again."); }
+    finally { setSavingTemplate(false); }
+  }
+
+  async function handleDeleteTemplate(tid) {
+    setTemplates(prev => prev.filter(t => t.id !== tid));
+    try {
+      await fetch(`/api/proposals/v2/workflow/${wf.id}/demo-templates/${tid}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+    } catch { loadTemplates(); }
+  }
 
   // Load dynamic form fields from Claude when wizard first opens
   useEffect(() => {
@@ -501,6 +558,32 @@ function TryMatterWizard({ wf, token, proposal }) {
       {/* Step 1: Matter details */}
       {step === 1 && (
         <div style={{ padding: "20px 22px" }}>
+
+          {/* ── Saved examples strip ─────────────────────────────────────────── */}
+          {!loadingTemplates && templates.length > 0 && (
+            <div style={{ marginBottom: 16, padding: "10px 14px", background: t.surface, border: `1px solid ${t.border}`, borderRadius: 9, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, whiteSpace: "nowrap", marginRight: 2 }}>Load example:</span>
+              {templates.map(tpl => (
+                <div key={tpl.id} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+                  onMouseEnter={() => setHovTemplate(tpl.id)} onMouseLeave={() => setHovTemplate(null)}>
+                  <button
+                    onClick={() => handleApplyTemplate(tpl)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: `1px solid ${t.accentBorder}`, borderRadius: 20, background: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: t.accent, transition: "background 0.12s", paddingRight: hovTemplate === tpl.id ? 26 : 10 }}
+                  >
+                    <span>📋</span>{tpl.name}
+                  </button>
+                  {hovTemplate === tpl.id && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDeleteTemplate(tpl.id); }}
+                      title="Remove this example"
+                      style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13, lineHeight: 1, padding: "2px 3px", display: "flex", alignItems: "center" }}
+                    >×</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Transcript accordion */}
           <div style={{ border: `1px solid ${t.border}`, borderRadius: 9, marginBottom: 16, overflow: "hidden" }}>
             <button onClick={() => setTranscriptOpen(o => !o)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: t.textSub }}>
@@ -550,6 +633,49 @@ function TryMatterWizard({ wf, token, proposal }) {
               ))}
             </div>
           )}
+
+          {/* ── Save as example strip ────────────────────────────────────────── */}
+          {fields !== null && (() => {
+            const hasValues = Object.values(formValues).some(v => String(v).trim()) || transcript.trim();
+            return hasValues ? (
+              <div style={{ marginTop: 16 }}>
+                {!showSaveForm ? (
+                  <button
+                    onClick={() => { setShowSaveForm(true); setTemplateError(""); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.textMeta, display: "flex", alignItems: "center", gap: 5, padding: 0, transition: "color 0.12s" }}
+                    onMouseEnter={e => e.currentTarget.style.color = t.accent}
+                    onMouseLeave={e => e.currentTarget.style.color = t.textMeta}
+                  >
+                    <span style={{ fontSize: 14 }}>🔖</span> Save these values as a reusable example
+                  </button>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 14px", background: t.surface, border: `1px solid ${t.accentBorder}`, borderRadius: 9 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Name this example</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        autoFocus
+                        value={templateName}
+                        onChange={e => { setTemplateName(e.target.value); setTemplateError(""); }}
+                        onKeyDown={e => { if (e.key === "Enter") handleSaveTemplate(); if (e.key === "Escape") { setShowSaveForm(false); setTemplateName(""); } }}
+                        placeholder="e.g. Okafor estate — test matter"
+                        style={{ ...inp, flex: 1, padding: "8px 12px", fontSize: 13 }}
+                      />
+                      <button
+                        onClick={handleSaveTemplate}
+                        disabled={savingTemplate}
+                        style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: savingTemplate ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: savingTemplate ? 0.7 : 1, flexShrink: 0 }}
+                      >{savingTemplate ? "Saving…" : "Save"}</button>
+                      <button
+                        onClick={() => { setShowSaveForm(false); setTemplateName(""); setTemplateError(""); }}
+                        style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: t.textSub }}
+                      >Cancel</button>
+                    </div>
+                    {templateError && <div style={{ fontSize: 12, color: t.red }}>{templateError}</div>}
+                  </div>
+                )}
+              </div>
+            ) : null;
+          })()}
 
           <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
             <button onClick={() => setStep(2)} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Next: Add documents →</button>
