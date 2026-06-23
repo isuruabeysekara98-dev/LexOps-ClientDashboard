@@ -333,19 +333,21 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
   }), []);
 
   // ───── Load + realtime ─────
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent=true → refresh data in background without showing the spinner (used for
+  // tab-return re-fetches and realtime-triggered reloads so the UI never flashes).
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     const [nRes, aRes] = await Promise.all([
       supabase.from("flowchart_nodes").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
       supabase.from("flowchart_arrows").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (nRes.error && /relation .* does not exist|Could not find the table/i.test(nRes.error.message)) {
-      setMissingTables(true); setLoading(false); return;
+      setMissingTables(true); if (!silent) setLoading(false); return;
     }
     setMissingTables(false);
     setNodes((nRes.data || []).map(toRfNode));
     setEdges((aRes.data || []).map(toRfEdge));
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [projectId, toRfNode, toRfEdge]);
 
   useEffect(() => { load(); }, [load]);
@@ -366,8 +368,8 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
       teardown();
       const ch = supabase
         .channel(`flowchart-${projectId}-${Date.now()}`)
-        .on("postgres_changes", { event: "*", schema: "public", table: "flowchart_nodes", filter: `project_id=eq.${projectId}` }, () => load())
-        .on("postgres_changes", { event: "*", schema: "public", table: "flowchart_arrows", filter: `project_id=eq.${projectId}` }, () => load())
+        .on("postgres_changes", { event: "*", schema: "public", table: "flowchart_nodes", filter: `project_id=eq.${projectId}` }, () => load({ silent: true }))
+        .on("postgres_changes", { event: "*", schema: "public", table: "flowchart_arrows", filter: `project_id=eq.${projectId}` }, () => load({ silent: true }))
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
             subscribedRef.current = true;
@@ -383,16 +385,17 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     };
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
-      load();
+      // Refresh data silently on tab-return — no spinner, just swap in fresh nodes/edges.
+      load({ silent: true });
       if (!subscribedRef.current) { retryRef.current = 0; subscribe(); }
     };
     subscribe();
     document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleVisibility);
+    // NOTE: window "focus" removed — it fires on any click into the window (too aggressive)
+    // and would show a spinner on every browser-window refocus. visibilitychange is enough.
     return () => {
       teardown();
       document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleVisibility);
     };
   }, [projectId, missingTables, load]);
 
