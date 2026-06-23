@@ -143,63 +143,176 @@ function SidebarRow({p,active,onClick,t}) {
 }
 
 function OverviewTab({project,isInternal,t,mobile,onSetup}) {
-  const daysLeft=project.dueDate ? Math.ceil((new Date(project.dueDate)-new Date())/86400000) : 0;
-  const done=project.tasks.filter(tk=>tk.status==="done").length;
-  const stats=[
-    {label:"Progress",value:`${project.progress ?? 0}%`,sub:project.phase || "—",accent:true},
-    {label:"Due Date",value:project.dueDate ? project.dueDate.slice(5).replace("-"," / ") : "TBD",sub:project.dueDate ? (daysLeft>0?`${daysLeft} days remaining`:"Past due") : ""},
-    ...(isInternal?[{label:"Budget",value:`$${(project.budget ?? 0).toLocaleString()}`,sub:`$${(project.spent ?? 0).toLocaleString()} spent · ${project.budget ? Math.round((project.spent ?? 0)/project.budget*100) : 0}%`}]:[]),
-    {label:"Tasks",value:`${done} / ${project.tasks.length}`,sub:"completed"},
-  ];
+  const daysLeft = project.dueDate ? Math.ceil((new Date(project.dueDate)-new Date())/86400000) : null;
+  const tasks = project.tasks || [];
+  const done = tasks.filter(tk=>tk.status==="done").length;
+  const deliverables = tasks.filter(tk=>tk.is_deliverable);
+  const doneDel = deliverables.filter(d=>d.status==="done").length;
+  const pendingDel = deliverables.filter(d=>d.status!=="done");
+  const phases = project.phases || [];
+  const activePhase = phases.find(p=>p.status==="active") || phases.find(p=>p.status!=="complete") || null;
+  const budgetPct = project.budget ? Math.round((project.spent??0)/project.budget*100) : 0;
+
   const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
-  return <div style={{display:"flex",flexDirection:"column",gap:20}}>
-    <CardPad t={t}><SectionLabel t={t}>Project Summary</SectionLabel><p style={{color:t.textSub,fontSize:13,lineHeight:1.75,margin:0}}>{project.summary}</p></CardPad>
-    <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":`repeat(${stats.length},1fr)`,gap:12}}>
-      {stats.map((s,i)=>(
-        <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
-          <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
-          <div style={{color:s.accent?t.accentLight:t.text,fontSize:24,fontWeight:300,letterSpacing:"-0.04em",marginBottom:3}}>{s.value}</div>
-          <div style={{color:t.textSub,fontSize:11}}>{s.sub}</div>
-        </div>
-      ))}
-    </div>
-    <Card t={t}>
-      <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Project Milestones</SectionLabel></div>
-      <Line t={t}/>
-      {project.phases.map((ph,i)=>(
-        <div key={i}>
-          <div style={{padding:"16px 24px",display:"flex",alignItems:"center",gap:16}}>
-            <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:ph.status==="complete"?t.green:ph.status==="active"?t.accent:"transparent",border:`1.5px solid ${ph.status==="complete"?t.green:ph.status==="active"?t.accent:t.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-              {ph.status==="complete"&&<span style={{color:"#fff",fontSize:10,fontWeight:800}}>✓</span>}
-              {ph.status==="active"&&<span style={{width:6,height:6,borderRadius:"50%",background:"#fff",display:"block"}}/>}
-            </div>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-                <span style={{color:ph.status==="pending"?t.textSub:t.text,fontSize:13,fontWeight:500}}>{ph.name}</span>
-                <Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/>
-              </div>
-              <Thin value={ph.progress} t={t}/>
-            </div>
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:20}}>
+
+      {/* ── Top banner ── */}
+      <div style={{
+        background:`linear-gradient(135deg, ${t.accent} 0%, ${t.accentLight} 100%)`,
+        borderRadius:14, padding:mobile?"18px 20px":"22px 28px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        gap:16, boxShadow:"0 4px 24px rgba(26,102,102,0.22)",
+        position:"relative", overflow:"hidden", flexWrap:"wrap", rowGap:16,
+      }}>
+        <div style={{position:"absolute",right:-40,top:-40,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.05)",pointerEvents:"none"}}/>
+        <div style={{position:"relative",flex:1,minWidth:180}}>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:5}}>
+            {activePhase ? "Active Phase" : "Project Status"}
           </div>
-          {i<project.phases.length-1&&<Line t={t}/>}
+          <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,color:"#fff",fontWeight:600,marginBottom:6,lineHeight:1.2}}>
+            {activePhase ? activePhase.name : project.phase || "In Progress"}
+          </div>
+          {project.manager && (
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.75)"}}>
+              Manager: <strong style={{color:"#fff"}}>{project.manager}</strong>
+            </div>
+          )}
         </div>
-      ))}
-    </Card>
-    <Card t={t}>
-      <div style={{padding:"18px 24px 14px"}}><SectionLabel t={t}>Recent Activity</SectionLabel></div>
-      <Line t={t}/>
-      <div style={{padding:"6px 0"}}>
-        {project.activity.map((a,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"10px 24px"}}>
-            <span style={{color:colorMap[a.type],fontSize:10,marginTop:2,flexShrink:0,fontWeight:700}}>{iconMap[a.type]}</span>
-            <span style={{color:t.text,fontSize:13,flex:1}}>{a.text}</span>
-            <span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>{a.date}</span>
+        <div style={{display:"flex",gap:mobile?12:20,alignItems:"center",position:"relative",flexShrink:0,flexWrap:"wrap"}}>
+          {[
+            {val:`${project.progress??0}%`, label:"Progress"},
+            {val:doneDel+"/"+deliverables.length, label:"Deliverables"},
+            ...(daysLeft!==null?[{val:daysLeft<=0?"Past due":String(daysLeft), label:"Days Left"}]:[]),
+          ].map((s,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
+              {i>0&&<div style={{width:1,background:"rgba(255,255,255,0.2)",alignSelf:"stretch"}}/>}
+              <div style={{textAlign:"center"}}>
+                <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:mobile?20:26,fontWeight:700,color:"#fff",lineHeight:1}}>{s.val}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",marginTop:4,whiteSpace:"nowrap"}}>{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
+        {[
+          {label:"Tasks Done",value:`${done}/${tasks.length}`,sub:`${tasks.length-done} remaining`,bar:tasks.length?Math.round(done/tasks.length*100):0},
+          {label:"Due Date",value:project.dueDate?project.dueDate.slice(5).replace("-"," / "):"TBD",sub:daysLeft!==null?(daysLeft>0?`${daysLeft} days remaining`:"Past due"):"No date set"},
+          {label:"Budget",value:`£${(project.budget??0).toLocaleString()}`,sub:`£${(project.spent??0).toLocaleString()} spent`,bar:budgetPct},
+          {label:"Engagement Value",value:project.total_engagement_value?`£${Number(project.total_engagement_value).toLocaleString()}`:"—",sub:"Total contracted"},
+        ].map((s,i)=>(
+          <div key={i} style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"16px 18px",boxShadow:t.shadow}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
+            <div style={{color:t.text,fontSize:mobile?18:22,fontWeight:300,letterSpacing:"-0.03em",marginBottom:4}}>{s.value}</div>
+            <div style={{color:t.textSub,fontSize:11,marginBottom:s.bar!==undefined?6:0}}>{s.sub}</div>
+            {s.bar!==undefined&&<div style={{height:3,background:t.border,borderRadius:99,overflow:"hidden"}}>
+              <div style={{height:"100%",width:`${Math.min(s.bar,100)}%`,background:s.bar>90?t.green:t.accent,borderRadius:99,transition:"width 0.6s ease"}}/>
+            </div>}
           </div>
         ))}
       </div>
-    </Card>
-  </div>;
+
+      {/* ── Phase milestones ── */}
+      {phases.length>0&&(
+        <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
+          <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`}}>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Project Milestones</div>
+          </div>
+          <div style={{overflowX:"auto",padding:"16px 22px",display:"flex",gap:0}}>
+            {phases.map((ph,i)=>{
+              const isDone=ph.status==="complete";
+              const isActive=ph.status==="active";
+              return (
+                <div key={ph.id||i} style={{display:"flex",alignItems:"flex-start",flex:1,minWidth:120,maxWidth:200}}>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",alignItems:"center",marginBottom:10}}>
+                      <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:isDone?t.green:isActive?t.accent:"transparent",border:`2px solid ${isDone?t.green:isActive?t.accent:t.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1}}>
+                        {isDone&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+                        {isActive&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff",display:"block"}}/>}
+                      </div>
+                      {i<phases.length-1&&<div style={{flex:1,height:2,background:isDone?t.green:t.border,marginLeft:0}}/>}
+                    </div>
+                    <div style={{paddingRight:8}}>
+                      <div style={{color:isDone||isActive?t.text:t.textSub,fontSize:12,fontWeight:500,lineHeight:1.3,marginBottom:4}}>{ph.name}</div>
+                      <Pill t={t} status={isDone?"complete":isActive?"active":"pending"} label={isDone?"Done":isActive?"Active":"Pending"}/>
+                      {ph.progress>0&&!isDone&&<div style={{marginTop:6,height:2,background:t.border,borderRadius:99,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${ph.progress}%`,background:t.accent,borderRadius:99}}/>
+                      </div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Project summary / notes ── */}
+      {(project.summary||project.client_summary)&&(
+        <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":(project.summary&&project.client_summary?"1fr 1fr":"1fr"),gap:14}}>
+          {project.summary&&(
+            <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 22px",boxShadow:t.shadow}}>
+              <div style={{fontSize:11,fontWeight:700,color:t.textSub,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Internal Notes</div>
+              <p style={{color:t.text,fontSize:13,lineHeight:1.8,margin:0}}>{project.summary}</p>
+            </div>
+          )}
+          {project.client_summary&&(
+            <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 22px",boxShadow:t.shadow}}>
+              <div style={{fontSize:11,fontWeight:700,color:t.textSub,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Client Overview (visible to client)</div>
+              <p style={{color:t.text,fontSize:13,lineHeight:1.8,margin:0}}>{project.client_summary}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Pending deliverables ── */}
+      {pendingDel.length>0&&(
+        <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
+          <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Pending Deliverables</div>
+            <span style={{color:t.textSub,fontSize:12}}>{pendingDel.length} outstanding</span>
+          </div>
+          <div style={{padding:"8px 0"}}>
+            {pendingDel.slice(0,5).map((d,i)=>(
+              <div key={d.id||i} style={{padding:"10px 22px",display:"flex",alignItems:"center",gap:12,borderBottom:i<Math.min(pendingDel.length,5)-1?`1px solid ${t.border}`:"none"}}>
+                <span style={{fontSize:15,flexShrink:0}}>📦</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{color:t.text,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title}</div>
+                  {d.due_date&&<div style={{color:t.textSub,fontSize:11,marginTop:1}}>Due {d.due_date}</div>}
+                </div>
+                <Pill t={t} status={d.status==="in-progress"?"in-progress":"pending"} label={d.status==="in-progress"?"In Progress":"To Do"}/>
+              </div>
+            ))}
+            {pendingDel.length>5&&<div style={{padding:"8px 22px",color:t.textSub,fontSize:12}}>+{pendingDel.length-5} more in the Plan tab</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Recent activity ── */}
+      {project.activity?.length>0&&(
+        <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
+          <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`}}>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Recent Activity</div>
+          </div>
+          <div style={{padding:"4px 0"}}>
+            {project.activity.map((a,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"10px 22px",borderBottom:i<project.activity.length-1?`1px solid ${t.border}`:"none"}}>
+                <span style={{color:colorMap[a.type]||t.textSub,fontSize:10,marginTop:3,flexShrink:0,fontWeight:700}}>{iconMap[a.type]||"·"}</span>
+                <span style={{color:t.text,fontSize:13,flex:1,lineHeight:1.5}}>{a.text}</span>
+                <span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap",flexShrink:0}}>{a.date}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
 }
 
 const toNull=v=>v===""?null:v;
