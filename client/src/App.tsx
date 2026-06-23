@@ -11,6 +11,7 @@ import SetPasswordPage from "@/components/SetPasswordPage";
 import LandingPage from "@/components/LandingPage";
 import ProposalsListPage from "@/components/ProposalsListPage";
 import ProposalCreatePage from "@/components/ProposalCreatePage";
+import ProposalDetailPage from "@/components/ProposalDetailPage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -71,6 +72,8 @@ function initAdminPage(pathname: string) {
   if (pathname.startsWith("/admin/proposals/new")) return { name: "proposal-new", id: null as string | null };
   const editMatch = pathname.match(/^\/admin\/proposals\/([^/]+)\/edit$/);
   if (editMatch) return { name: "proposal-edit", id: editMatch[1] };
+  const detailMatch = pathname.match(/^\/admin\/proposals\/([^/]+)$/);
+  if (detailMatch) return { name: "proposal-detail", id: detailMatch[1] };
   if (pathname.startsWith("/admin/proposals")) return { name: "proposals", id: null as string | null };
   if (pathname === "/active-projects") return { name: "dashboard", id: null as string | null };
   return { name: "landing", id: null as string | null };
@@ -90,9 +93,10 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
     setPage(initAdminPage(path));
   }
 
-  if (page.name === "proposals") return <ProposalsListPage navigate={navigate} />;
-  if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} />;
-  if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} />;
+  if (page.name === "proposals") return <ProposalsListPage navigate={navigate} onLogout={onLogout} />;
+  if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} onLogout={onLogout} />;
+  if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
+  if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
   if (page.name === "dashboard") return <Dashboard onLogout={onLogout} userProfile={userProfile} />;
   return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
 }

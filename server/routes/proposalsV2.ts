@@ -33,23 +33,46 @@ function generatePassword(): string {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/proposals/v2 — list all v2 proposals (admin)
+// GET /api/proposals/v2 — list all v2 proposals with stage counts
 // ---------------------------------------------------------------------------
 router.get("/", requireAdmin, async (_req, res) => {
-  const { data, error } = await adminSupabase
+  const { data: proposals, error } = await adminSupabase
     .from("proposals")
-    .select("id, name, client_email, status, created_at, updated_at, token")
-    .not("name", "is", null)
+    .select("id, name, client_name, client_contact_name, client_email, status, created_at, updated_at, token")
     .order("created_at", { ascending: false });
+
   if (error) { res.status(500).json({ message: error.message }); return; }
-  res.json(data || []);
+  if (!proposals || proposals.length === 0) { res.json([]); return; }
+
+  // Compute stage counts via workflows → workflow_stages join
+  const ids = proposals.map((p: any) => p.id);
+  const { data: workflows } = await adminSupabase
+    .from("workflows").select("id, proposal_id").in("proposal_id", ids);
+
+  let stageCounts: Record<string, number> = {};
+  if (workflows && workflows.length > 0) {
+    const wfIds = workflows.map((w: any) => w.id);
+    const { data: stages } = await adminSupabase
+      .from("workflow_stages").select("workflow_id").in("workflow_id", wfIds);
+
+    const wfToProposal: Record<string, string> = {};
+    for (const w of workflows as any[]) wfToProposal[w.id] = w.proposal_id;
+
+    for (const s of (stages || []) as any[]) {
+      const pid = wfToProposal[s.workflow_id];
+      if (pid) stageCounts[pid] = (stageCounts[pid] || 0) + 1;
+    }
+  }
+
+  const result = proposals.map((p: any) => ({ ...p, stage_count: stageCounts[p.id] || 0 }));
+  res.json(result);
 });
 
 // ---------------------------------------------------------------------------
 // POST /api/proposals/v2 — create or update a draft
 // ---------------------------------------------------------------------------
 router.post("/", requireAdmin, async (req, res) => {
-  const { id, name, client_email, pain_points, objectives, workflows } = req.body;
+  const { id, name, client_name, client_contact_name, client_email, description, pain_points, objectives, workflows } = req.body;
   const user = (req as any).adminUser;
 
   if (!name?.trim()) { res.status(400).json({ message: "Proposal name is required" }); return; }
@@ -59,7 +82,10 @@ router.post("/", requireAdmin, async (req, res) => {
   if (proposalId) {
     const { error } = await adminSupabase.from("proposals").update({
       name: name.trim(),
+      client_name: client_name?.trim() || null,
+      client_contact_name: client_contact_name?.trim() || null,
       client_email: client_email?.trim() || null,
+      description: description || null,
       pain_points: pain_points || [],
       objectives: objectives || [],
       updated_at: new Date().toISOString(),
@@ -69,9 +95,11 @@ router.post("/", requireAdmin, async (req, res) => {
     const token = makeToken();
     const { data: row, error } = await adminSupabase.from("proposals").insert({
       name: name.trim(),
-      client_name: name.trim(),
+      client_name: client_name?.trim() || name.trim(),
+      client_contact_name: client_contact_name?.trim() || null,
       token,
       client_email: client_email?.trim() || null,
+      description: description || null,
       pain_points: pain_points || [],
       objectives: objectives || [],
       status: "draft",
@@ -102,18 +130,27 @@ router.post("/", requireAdmin, async (req, res) => {
       // Stages — delete all and re-insert to preserve order cleanly
       await adminSupabase.from("workflow_stages").delete().eq("workflow_id", workflowId);
       if (Array.isArray(wf.stages) && wf.stages.length) {
-        await adminSupabase.from("workflow_stages").insert(
-          wf.stages.map((s: any, si: number) => ({
-            workflow_id: workflowId,
-            order_index: si,
-            title: s.title || "Stage",
-            emoji: s.emoji || "📋",
-            description: s.description || "",
-          }))
-        );
+        // Try inserting with stats/inputs/outputs; fall back without if columns missing
+        const stageRows = wf.stages.map((s: any, si: number) => ({
+          workflow_id: workflowId,
+          order_index: si,
+          title: s.title || "Stage",
+          emoji: s.emoji || "📋",
+          description: s.description || "",
+          stats: s.stats || [],
+          inputs: s.inputs || [],
+          outputs: s.outputs || [],
+        }));
+        const { error: stageErr } = await adminSupabase.from("workflow_stages").insert(stageRows);
+        if (stageErr) {
+          // Columns may not exist yet — retry without extra JSONB columns
+          await adminSupabase.from("workflow_stages").insert(
+            stageRows.map(({ stats, inputs, outputs, ...rest }: any) => rest)
+          );
+        }
       }
 
-      // Doc requirements — same
+      // Doc requirements — keep backward compat
       await adminSupabase.from("workflow_document_requirements").delete().eq("workflow_id", workflowId);
       if (Array.isArray(wf.doc_requirements) && wf.doc_requirements.length) {
         await adminSupabase.from("workflow_document_requirements").insert(
@@ -154,7 +191,14 @@ router.get("/:id", requireAdmin, async (req, res) => {
 
   const enriched = (workflows || []).map((wf: any) => ({
     ...wf,
-    stages: (stages || []).filter((s: any) => s.workflow_id === wf.id),
+    stages: (stages || [])
+      .filter((s: any) => s.workflow_id === wf.id)
+      .map((s: any) => ({
+        ...s,
+        stats: s.stats || [],
+        inputs: s.inputs || [],
+        outputs: s.outputs || [],
+      })),
     doc_requirements: (docReqs || []).filter((d: any) => d.workflow_id === wf.id),
   }));
 
@@ -210,6 +254,22 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
   }).catch(() => {});
 
   res.json({ success: true, client_user_id: clientUserId });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/proposals/v2/:id/status — update proposal status
+// ---------------------------------------------------------------------------
+router.post("/:id/status", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const allowed = ["draft", "sent", "in_review", "submitted", "won", "lost", "converted"];
+  if (!allowed.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
+  const { error } = await adminSupabase.from("proposals").update({
+    status,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ success: true, status });
 });
 
 export default router;
