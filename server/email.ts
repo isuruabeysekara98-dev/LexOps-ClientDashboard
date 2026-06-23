@@ -283,6 +283,32 @@ export async function sendWelcomeEmail(email: string, clientName: string, projec
 }
 
 // ---------------------------------------------------------------------------
+// r-2. v2 Proposal Invite (client invite with login credentials)
+// ---------------------------------------------------------------------------
+export async function sendV2ProposalInvite(
+  email: string,
+  proposalName: string,
+  portalUrl: string,
+  loginEmail: string,
+  tempPassword: string | null
+) {
+  const credBlock = tempPassword
+    ? `<div style="margin:20px 0;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:16px 20px">
+        <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 10px">Your login details</p>
+        <p style="color:#374151;font-size:14px;margin:0 0 6px"><strong>Email:</strong> ${loginEmail}</p>
+        <p style="color:#374151;font-size:14px;margin:0"><strong>Temporary password:</strong> ${tempPassword}</p>
+       </div>`
+    : "";
+  await send(email, `Lex Ops has sent you a proposal for ${proposalName}`, emailWrapper(
+    heading(`Your proposal is ready`) +
+    bodyText(`Lex Ops has sent you a proposal for <strong>${proposalName}</strong>. Log in to review the proposal, try the workflow demos, and share your feedback.`) +
+    credBlock +
+    ctaButton("Review your proposal", portalUrl) +
+    subText("You can log in at any time using the credentials above or by clicking the button.")
+  ));
+}
+
+// ---------------------------------------------------------------------------
 // r. Client Inactive (admin notification)
 // ---------------------------------------------------------------------------
 export async function sendClientInactive(adminEmail: string, clientName: string, projectName: string, daysSinceLogin: number) {

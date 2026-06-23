@@ -8,6 +8,9 @@ import Dashboard from "@/components/Dashboard";
 import LoginPage from "@/components/LoginPage";
 import ProposalPage from "@/components/ProposalPage";
 import SetPasswordPage from "@/components/SetPasswordPage";
+import LandingPage from "@/components/LandingPage";
+import ProposalsListPage from "@/components/ProposalsListPage";
+import ProposalCreatePage from "@/components/ProposalCreatePage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -60,6 +63,38 @@ function App() {
 
   // ── Auth flow (only runs for non-public routes) ──
   return <AuthenticatedApp />;
+}
+
+const ADMIN_ROLES = ["lexops_admin", "lexops_member"];
+
+function initAdminPage(pathname: string) {
+  if (pathname.startsWith("/admin/proposals/new")) return { name: "proposal-new", id: null as string | null };
+  const editMatch = pathname.match(/^\/admin\/proposals\/([^/]+)\/edit$/);
+  if (editMatch) return { name: "proposal-edit", id: editMatch[1] };
+  if (pathname.startsWith("/admin/proposals")) return { name: "proposals", id: null as string | null };
+  if (pathname === "/active-projects") return { name: "dashboard", id: null as string | null };
+  return { name: "landing", id: null as string | null };
+}
+
+function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: () => void }) {
+  const [page, setPage] = useState(() => initAdminPage(window.location.pathname));
+
+  useEffect(() => {
+    function onPop() { setPage(initAdminPage(window.location.pathname)); }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  function navigate(path: string) {
+    window.history.pushState(null, "", path);
+    setPage(initAdminPage(path));
+  }
+
+  if (page.name === "proposals") return <ProposalsListPage navigate={navigate} />;
+  if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} />;
+  if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} />;
+  if (page.name === "dashboard") return <Dashboard onLogout={onLogout} userProfile={userProfile} />;
+  return <LandingPage navigate={navigate} userProfile={userProfile} onLogout={onLogout} />;
 }
 
 function AuthenticatedApp() {
@@ -171,7 +206,9 @@ function AuthenticatedApp() {
       <TooltipProvider>
         <Toaster />
         {session && userProfile
-          ? <Dashboard onLogout={() => supabase.auth.signOut()} userProfile={userProfile} />
+          ? ADMIN_ROLES.includes(userProfile.role)
+            ? <AdminRouter userProfile={userProfile} onLogout={() => supabase.auth.signOut()} />
+            : <Dashboard onLogout={() => supabase.auth.signOut()} userProfile={userProfile} />
           : <LoginPage authError={authError} />
         }
       </TooltipProvider>

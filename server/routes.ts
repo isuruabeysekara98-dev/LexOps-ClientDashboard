@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import adminRoutes from "./routes/admin";
 import proposalRoutes from "./routes/proposal";
+import proposalsV2Routes from "./routes/proposalsV2";
 import notifyRoutes from "./routes/notify";
 import moduleRoutes from "./routes/modules";
 
@@ -14,6 +15,7 @@ export async function registerRoutes(
   // prefix all routes with /api
 
   app.use("/api/admin", adminRoutes);
+  app.use("/api/proposals/v2", proposalsV2Routes);
   app.use("/api/proposal", proposalRoutes);
   app.use("/api/notify", notifyRoutes);
   app.use("/api/modules", moduleRoutes);
