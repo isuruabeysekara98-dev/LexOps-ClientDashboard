@@ -88,7 +88,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
     client_name: "",
     client_contact_name: "",
     client_email: "",
-    description: "",
+    pain_points: [""],
+    objectives: [""],
     workflows: [{ id: null, name: "Workflow 1", emoji: "⚙️", stages: [] }],
   });
 
@@ -109,7 +110,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         client_name: data.client_name || "",
         client_contact_name: data.client_contact_name || "",
         client_email: data.client_email || "",
-        description: data.description || "",
+        pain_points: data.pain_points?.length ? data.pain_points : [""],
+        objectives: data.objectives?.length ? data.objectives : [""],
         workflows: (data.workflows || []).length ? data.workflows.map(wf => ({
           id: wf.id, name: wf.name || "", emoji: wf.emoji || "⚙️",
           stages: (wf.stages || []).map(s => ({
@@ -201,7 +203,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         client_name: form.client_name,
         client_contact_name: form.client_contact_name,
         client_email: form.client_email,
-        description: form.description,
+        pain_points: form.pain_points.filter(v => v.trim()),
+        objectives: form.objectives.filter(v => v.trim()),
         workflows: form.workflows,
       };
 
@@ -335,18 +338,74 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           </div>
         </div>
 
-        {/* Description */}
+        {/* Client context: Pain points + Objectives */}
         <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
-          <label style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 8 }}>
-            Description
-          </label>
-          <textarea
-            style={{ ...inp, resize: "vertical", minHeight: 80, lineHeight: 1.6 }}
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            placeholder="One or two sentences describing the persona scenario…"
-            rows={3}
-          />
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 18 }}>
+            Client context
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {/* Pain points */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: t.text }}>😣 Pain points</label>
+                <button
+                  onClick={() => setForm(f => ({ ...f, pain_points: [...f.pain_points, ""] }))}
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.accent, fontWeight: 600, padding: 0 }}
+                >
+                  + Add
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {form.pain_points.map((pt, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      style={{ ...inp, flex: 1 }}
+                      value={pt}
+                      onChange={e => setForm(f => ({ ...f, pain_points: f.pain_points.map((v, j) => j === i ? e.target.value : v) }))}
+                      placeholder={`e.g. Manual document review`}
+                    />
+                    {form.pain_points.length > 1 && (
+                      <button
+                        onClick={() => setForm(f => ({ ...f, pain_points: f.pain_points.filter((_, j) => j !== i) }))}
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, fontSize: 14, padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
+                      >🗑</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Objectives */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: t.text }}>🎯 Objectives</label>
+                <button
+                  onClick={() => setForm(f => ({ ...f, objectives: [...f.objectives, ""] }))}
+                  style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.accent, fontWeight: 600, padding: 0 }}
+                >
+                  + Add
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {form.objectives.map((ob, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <input
+                      style={{ ...inp, flex: 1 }}
+                      value={ob}
+                      onChange={e => setForm(f => ({ ...f, objectives: f.objectives.map((v, j) => j === i ? e.target.value : v) }))}
+                      placeholder={`e.g. Automate intake process`}
+                    />
+                    {form.objectives.length > 1 && (
+                      <button
+                        onClick={() => setForm(f => ({ ...f, objectives: f.objectives.filter((_, j) => j !== i) }))}
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, fontSize: 14, padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
+                      >🗑</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Workflow Stages */}
