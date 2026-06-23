@@ -511,7 +511,7 @@ router.get("/runs/:runId/pdf", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/proposals/v2/:id — load one proposal with all nested data
+// GET /api/proposals/v2/:id — load one proposal with all nested data + run state
 // ---------------------------------------------------------------------------
 router.get("/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
@@ -522,22 +522,40 @@ router.get("/:id", requireAdmin, async (req, res) => {
   if (!proposal) { res.status(404).json({ message: "Not found" }); return; }
 
   const workflowIds = (workflows || []).map((w: any) => w.id);
-  const [{ data: stages }, { data: docReqs }] = await Promise.all([
+
+  const [{ data: stages }, { data: docReqs }, runsResult, subsResult] = await Promise.all([
     workflowIds.length
       ? adminSupabase.from("workflow_stages").select("*").in("workflow_id", workflowIds).order("order_index")
       : Promise.resolve({ data: [] as any[] }),
     workflowIds.length
       ? adminSupabase.from("workflow_document_requirements").select("*").in("workflow_id", workflowIds)
       : Promise.resolve({ data: [] as any[] }),
+    workflowIds.length
+      ? adminSupabase.from("workflow_runs").select("id, workflow_id, output_json, created_at").in("workflow_id", workflowIds).order("created_at", { ascending: false }).catch(() => ({ data: [] }))
+      : Promise.resolve({ data: [] }),
+    workflowIds.length
+      ? adminSupabase.from("workflow_submissions").select("*").in("workflow_id", workflowIds).catch(() => ({ data: [] }))
+      : Promise.resolve({ data: [] }),
   ]);
 
-  const enriched = (workflows || []).map((wf: any) => ({
-    ...wf,
-    stages: (stages || [])
-      .filter((s: any) => s.workflow_id === wf.id)
-      .map((s: any) => ({ ...s, stats: s.stats || [], inputs: s.inputs || [], outputs: s.outputs || [] })),
-    doc_requirements: (docReqs || []).filter((d: any) => d.workflow_id === wf.id),
-  }));
+  const runs = (runsResult as any).data || [];
+  const subs = (subsResult as any).data || [];
+
+  const enriched = (workflows || []).map((wf: any) => {
+    const wfRuns = runs.filter((r: any) => r.workflow_id === wf.id);
+    const sub = subs.find((s: any) => s.workflow_id === wf.id);
+    return {
+      ...wf,
+      stages: (stages || [])
+        .filter((s: any) => s.workflow_id === wf.id)
+        .map((s: any) => ({ ...s, stats: s.stats || [], inputs: s.inputs || [], outputs: s.outputs || [] })),
+      doc_requirements: (docReqs || []).filter((d: any) => d.workflow_id === wf.id),
+      run_count: wfRuns.length,
+      latest_run: wfRuns[0] || null,
+      feedback_text: sub?.feedback_text || null,
+      has_proceeded: sub?.proceeded || false,
+    };
+  });
 
   res.json({ ...proposal, workflows: enriched });
 });
