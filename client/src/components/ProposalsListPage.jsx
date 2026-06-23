@@ -21,10 +21,12 @@ const STATUS_CFG = {
   draft:          { label: "Draft",             bg: "transparent",          color: t.textSub,   border: t.border },
   sent:           { label: "Sent",              bg: "#EFF6FF",              color: "#2563EB",   border: "#BFDBFE" },
   in_review:      { label: "In review",         bg: "#FFFBEB",              color: "#D97706",   border: "#FDE68A" },
-  submitted:      { label: "Feedback received", bg: t.accent,               color: "#FFFFFF",   border: t.accent },
-  won:            { label: "Won / Graduated",   bg: "#ECFDF5",              color: "#059669",   border: "#A7F3D0" },
-  lost:           { label: "Lost",              bg: "#FEF2F2",              color: "#DC2626",   border: "#FECACA" },
-  converted:      { label: "Converted",         bg: t.accent,               color: "#FFFFFF",   border: t.accent },
+  submitted:          { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
+  feedback_received:  { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
+  viewed:             { label: "Viewed",             bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
+  won:                { label: "Won / Graduated",   bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
+  lost:               { label: "Lost",              bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
+  converted:          { label: "Converted",         bg: t.accent,  color: "#FFFFFF", border: t.accent },
 };
 
 function StatusPill({ status }) {

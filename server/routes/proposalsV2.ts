@@ -262,7 +262,7 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
 router.post("/:id/status", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const allowed = ["draft", "sent", "in_review", "submitted", "won", "lost", "converted"];
+  const allowed = ["draft", "sent", "viewed", "feedback_received", "won", "lost", "converted"];
   if (!allowed.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
   const { error } = await adminSupabase.from("proposals").update({
     status,
