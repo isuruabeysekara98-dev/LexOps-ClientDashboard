@@ -169,6 +169,44 @@ router.post("/", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/proposals/v2/by-token/:token — public, no auth (token is the key)
+// ---------------------------------------------------------------------------
+router.get("/by-token/:token", async (req, res) => {
+  const { token } = req.params;
+  const { data: proposal } = await adminSupabase
+    .from("proposals").select("*").eq("token", token).single();
+  if (!proposal) { res.status(404).json({ message: "Not found" }); return; }
+
+  const { data: workflows } = await adminSupabase
+    .from("workflows").select("*").eq("proposal_id", proposal.id).order("order_index");
+
+  const workflowIds = (workflows || []).map((w: any) => w.id);
+  const [{ data: stages }, { data: docReqs }] = await Promise.all([
+    workflowIds.length
+      ? adminSupabase.from("workflow_stages").select("*").in("workflow_id", workflowIds).order("order_index")
+      : Promise.resolve({ data: [] as any[] }),
+    workflowIds.length
+      ? adminSupabase.from("workflow_document_requirements").select("*").in("workflow_id", workflowIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  const enriched = (workflows || []).map((wf: any) => ({
+    ...wf,
+    stages: (stages || [])
+      .filter((s: any) => s.workflow_id === wf.id)
+      .map((s: any) => ({ ...s, stats: s.stats || [], inputs: s.inputs || [], outputs: s.outputs || [] })),
+    doc_requirements: (docReqs || []).filter((d: any) => d.workflow_id === wf.id),
+  }));
+
+  // Mark as viewed if sent
+  if (proposal.status === "sent") {
+    await adminSupabase.from("proposals").update({ status: "viewed", updated_at: new Date().toISOString() }).eq("id", proposal.id);
+  }
+
+  res.json({ ...proposal, workflows: enriched });
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/proposals/v2/:id — load one proposal with all nested data
 // ---------------------------------------------------------------------------
 router.get("/:id", requireAdmin, async (req, res) => {
