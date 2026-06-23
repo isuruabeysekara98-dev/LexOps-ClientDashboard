@@ -238,6 +238,13 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               {copied ? "✓ Copied" : "Copy link"}
             </button>
             <button
+              onClick={() => navigate(`/admin/proposals/${id}/preview`)}
+              onMouseEnter={() => setHovBtn("preview")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "preview" ? "#F0EDE6" : t.card }}
+            >
+              Preview
+            </button>
+            <button
               onClick={() => navigate(`/admin/proposals/${id}/edit`)}
               onMouseEnter={() => setHovBtn("edit")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "edit" ? "#F0EDE6" : t.card }}
