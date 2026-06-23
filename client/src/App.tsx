@@ -195,9 +195,14 @@ function AuthenticatedApp() {
       }
     })();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event: any, session: any) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: any, session: any) => {
       if (!mounted) return;
       if (!initialLoadDone.current) return;
+
+      // TOKEN_REFRESHED and INITIAL_SESSION fire on every tab-return/token-renewal.
+      // The user is already authenticated — silently ignore these to prevent the
+      // full-screen spinner from flashing unnecessarily.
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 
       if (session?.user) {
         setAuthLoading(true);
@@ -214,6 +219,7 @@ function AuthenticatedApp() {
         setUserProfile(profile);
         setAuthLoading(false);
       } else {
+        // SIGNED_OUT — clear state
         setSession(null);
         setUserProfile(null);
       }

@@ -2205,8 +2205,9 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   useEffect(()=>{
     const handleVisibility=async()=>{
       if(document.visibilityState!=="visible") return;
-      const {data:{session}}=await supabase.auth.getSession();
-      if(!session){ if(onLogout) onLogout(); return; }
+      // Do NOT call onLogout on null session — getSession() can transiently return null
+      // during a token refresh on tab-return, which would incorrectly sign the user out.
+      // Actual sign-outs are handled by the onAuthStateChange listener in App.tsx.
       if(Date.now()-lastLoadRef.current < 5*60*1000) return;
       loadProjects({silent:true});
     };
