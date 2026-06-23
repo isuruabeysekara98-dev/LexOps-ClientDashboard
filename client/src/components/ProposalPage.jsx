@@ -887,7 +887,7 @@ function SimpleWorkflowTabs({ wf, token }) {
 }
 
 // ─── Single workflow block ─────────────────────────────────────────────────────
-function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, onRefresh }) {
+function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, previewMode, onRefresh }) {
   const [selectedStage, setSelectedStage] = useState(null);
   const stages = wf.stages || [];
   const showTryMatter = wf.show_try_matter === true;
@@ -926,7 +926,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, o
       </div>
 
       {/* Try matter wizard or simple tabs */}
-      {!isFrozen && (
+      {(!isFrozen || previewMode) && (
         <div style={{ padding: "0 18px 18px" }}>
           {showTryMatter ? (
             <TryMatterWizard wf={wf} token={token} proposal={proposal} />
@@ -952,7 +952,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, o
 }
 
 // ─── V2 client review flow ────────────────────────────────────────────────────
-function ClientReviewFlow({ proposal, token, onRefresh }) {
+function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
   const workflows = proposal.workflows || [];
   const isFrozen = ["feedback_received", "won", "lost", "converted"].includes(proposal.status);
   const painPoints = Array.isArray(proposal.pain_points) ? proposal.pain_points : [];
@@ -1031,6 +1031,7 @@ function ClientReviewFlow({ proposal, token, onRefresh }) {
                   token={token}
                   proposal={proposal}
                   isFrozen={isFrozen}
+                  previewMode={previewMode}
                   onRefresh={onRefresh}
                 />
               ))}
@@ -1046,7 +1047,7 @@ function ClientReviewFlow({ proposal, token, onRefresh }) {
 }
 
 // ─── Main page component ──────────────────────────────────────────────────────
-export default function ProposalPage({ token }) {
+export default function ProposalPage({ token, previewMode = false }) {
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1101,7 +1102,7 @@ export default function ProposalPage({ token }) {
   if (!proposal) return null;
 
   if ((proposal.workflows || []).length > 0) {
-    return <ClientReviewFlow proposal={proposal} token={token} onRefresh={load} />;
+    return <ClientReviewFlow proposal={proposal} token={token} onRefresh={load} previewMode={previewMode} />;
   }
 
   return (

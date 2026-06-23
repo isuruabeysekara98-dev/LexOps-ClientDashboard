@@ -483,6 +483,26 @@ router.delete("/workflow/:wfId/demo-templates/:tid", async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/proposals/v2/workflow/:wfId/try-matter — toggle show_try_matter
+// ---------------------------------------------------------------------------
+router.patch("/workflow/:wfId/try-matter", requireAdmin, async (req, res) => {
+  const { wfId } = req.params;
+  const { show_try_matter } = req.body;
+
+  if (typeof show_try_matter !== "boolean") {
+    res.status(400).json({ message: "show_try_matter must be boolean" }); return;
+  }
+
+  const { error } = await adminSupabase
+    .from("workflows")
+    .update({ show_try_matter })
+    .eq("id", wfId);
+
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/proposals/v2/workflow/:wfId/feedback — save or update feedback
 // ---------------------------------------------------------------------------
 router.post("/workflow/:wfId/feedback", async (req, res) => {

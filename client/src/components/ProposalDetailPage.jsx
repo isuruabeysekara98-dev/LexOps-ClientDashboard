@@ -90,12 +90,29 @@ function CheckDot({ done, label }) {
 
 function WorkflowCard({ wf, index }) {
   const [open, setOpen] = useState(false);
+  const [tryMatter, setTryMatter] = useState(!!wf.show_try_matter);
+  const [saving, setSaving] = useState(false);
   const runDone = (wf.run_count || 0) > 0;
   const feedbackDone = !!wf.feedback_text;
   const proceeded = wf.has_proceeded;
   const complete = runDone && feedbackDone && proceeded;
 
   const stageOutputs = wf.latest_run?.output_json?.stages || [];
+
+  async function toggleTryMatter() {
+    const next = !tryMatter;
+    setTryMatter(next);
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch(`/api/proposals/v2/workflow/${wf.id}/try-matter`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ show_try_matter: next }),
+      });
+    } catch { setTryMatter(!next); }
+    finally { setSaving(false); }
+  }
 
   return (
     <div style={{
@@ -144,6 +161,29 @@ function WorkflowCard({ wf, index }) {
           <CheckDot done={runDone} label={`Demo run ${runDone ? `(${wf.run_count}×)` : "— not yet run"}`} />
           <CheckDot done={feedbackDone} label="Feedback submitted" />
           <CheckDot done={proceeded} label="Proceeded to next workflow" />
+        </div>
+
+        {/* Try your matter toggle */}
+        <div style={{ marginTop: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Show "Try your matter" wizard</div>
+            <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>Let clients test this workflow with their own data</div>
+          </div>
+          <button
+            onClick={toggleTryMatter}
+            disabled={saving}
+            style={{
+              width: 40, height: 22, borderRadius: 11, border: "none", cursor: saving ? "default" : "pointer",
+              background: tryMatter ? t.accent : t.border,
+              position: "relative", transition: "background 0.2s", flexShrink: 0, padding: 0,
+            }}
+          >
+            <span style={{
+              position: "absolute", top: 3, left: tryMatter ? 21 : 3, width: 16, height: 16,
+              borderRadius: "50%", background: "#fff",
+              transition: "left 0.18s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            }} />
+          </button>
         </div>
 
         {feedbackDone && (

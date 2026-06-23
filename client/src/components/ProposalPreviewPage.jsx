@@ -71,7 +71,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
           </button>
         </div>
       ) : (
-        <ProposalPage token={token} />
+        <ProposalPage token={token} previewMode={true} />
       )}
     </div>
   );
