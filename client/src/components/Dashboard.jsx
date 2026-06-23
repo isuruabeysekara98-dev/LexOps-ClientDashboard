@@ -706,10 +706,185 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
   </div>;
 }
 
-const INVOICE_STATUSES=[["upcoming","Upcoming"],["pending","Pending"],["paid","Paid"]];
-const EMPTY_INVOICE={invoice_number:"",due_date:""};
+// ---------------------------------------------------------------------------
+// Support Tickets Tab
+// ---------------------------------------------------------------------------
+const TICKET_STATUSES=["open","in_progress","resolved"];
+const TICKET_STATUS_LABELS={open:"Open",in_progress:"In Progress",resolved:"Resolved"};
+const TICKET_PRIORITIES=["high","medium","low"];
+const TICKET_CATEGORIES=["general","technical","billing","documents","other"];
+const EMPTY_TICKET={title:"",description:"",priority:"medium",category:"general"};
 
-function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) {
+function SupportTab({projectId,isInternal,t,mobile}){
+  const [tickets,setTickets]=useState([]);
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState(EMPTY_TICKET);
+  const [saving,setSaving]=useState(false);
+  const [movingId,setMovingId]=useState(null);
+  const [loading,setLoading]=useState(true);
+
+  const loadTickets=useCallback(async()=>{
+    const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
+    if(data) setTickets(data);
+    setLoading(false);
+  },[projectId]);
+
+  useEffect(()=>{loadTickets();},[loadTickets]);
+
+  async function createTicket(e){
+    e.preventDefault();
+    if(!form.title.trim()) return;
+    setSaving(true);
+    await supabase.from("support_tickets").insert({
+      project_id:projectId,title:form.title.trim(),
+      description:form.description.trim()||null,
+      priority:form.priority,category:form.category,
+      status:"open",created_by:isInternal?"admin":"client",
+    });
+    setForm(EMPTY_TICKET);setShowForm(false);
+    await loadTickets();setSaving(false);
+  }
+
+  async function moveTicket(id,newStatus){
+    setMovingId(id);
+    await supabase.from("support_tickets").update({status:newStatus,client_move_requested:null,updated_at:new Date().toISOString()}).eq("id",id);
+    await loadTickets();setMovingId(null);
+  }
+
+  async function requestMove(ticket){
+    const next=ticket.status==="open"?"in_progress":"resolved";
+    await supabase.from("support_tickets").update({client_move_requested:next}).eq("id",ticket.id);
+    await loadTickets();
+  }
+
+  async function cancelRequest(id){
+    await supabase.from("support_tickets").update({client_move_requested:null}).eq("id",id);
+    await loadTickets();
+  }
+
+  async function deleteTicket(id){
+    await supabase.from("support_tickets").delete().eq("id",id);
+    setTickets(ts=>ts.filter(tk=>tk.id!==id));
+  }
+
+  const prioColor={high:"#ef4444",medium:t.amber,low:t.textSub};
+  const colStyle={
+    open:{bg:t.surface,border:t.border,label:t.textSub},
+    in_progress:{bg:"#FFFBEB",border:t.amber+"44",label:t.amber},
+    resolved:{bg:"#F0FAF4",border:t.green+"44",label:t.green},
+  };
+
+  function TicketCard({ticket}){
+    const isBusy=movingId===ticket.id;
+    const hasRequest=ticket.client_move_requested;
+    const nextStatus=ticket.status==="open"?"in_progress":ticket.status==="in_progress"?"resolved":null;
+    const nextLabel=ticket.status==="open"?"In Progress":"Resolved";
+    return(
+      <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 16px",display:"flex",flexDirection:"column",gap:10,boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{color:t.text,fontSize:13,fontWeight:600,lineHeight:1.4}}>{ticket.title}</div>
+            {ticket.description&&<div style={{color:t.textSub,fontSize:11,marginTop:4,lineHeight:1.5}}>{ticket.description}</div>}
+          </div>
+          {isInternal&&<button onClick={()=>deleteTicket(ticket.id)} title="Delete" style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:16,lineHeight:1,padding:"0 2px",flexShrink:0,opacity:0.5}}>×</button>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",color:prioColor[ticket.priority]||t.textSub}}>{ticket.priority}</span>
+          <span style={{color:t.border}}>·</span>
+          <span style={{fontSize:10,color:t.textSub,textTransform:"capitalize"}}>{ticket.category}</span>
+          <span style={{color:t.border}}>·</span>
+          <span style={{fontSize:10,color:t.textSub}}>{new Date(ticket.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>
+        </div>
+        {isInternal&&hasRequest&&(
+          <div style={{background:t.amberSoft||"#FFFBEB",border:`1px solid ${t.amber}30`,borderRadius:7,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+            <span style={{color:t.amber,fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>moveTicket(ticket.id,hasRequest)} disabled={isBusy} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Approve</button>
+              <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:5,padding:"3px 8px",fontSize:11,color:t.textSub,cursor:"pointer"}}>Reject</button>
+            </div>
+          </div>
+        )}
+        {!isInternal&&hasRequest&&(
+          <div style={{background:t.amberSoft||"#FFFBEB",border:`1px solid ${t.amber}30`,borderRadius:7,padding:"7px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+            <span style={{color:t.amber,fontSize:11}}>⏳ Move to "{TICKET_STATUS_LABELS[hasRequest]}" pending approval</span>
+            <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Cancel</button>
+          </div>
+        )}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {isInternal
+            ?TICKET_STATUSES.filter(s=>s!==ticket.status).map(st=>(
+                <button key={st} onClick={()=>moveTicket(ticket.id,st)} disabled={isBusy} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:t.textSub,cursor:"pointer",fontFamily:"inherit",opacity:isBusy?0.4:1}}>
+                  → {TICKET_STATUS_LABELS[st]}
+                </button>
+              ))
+            :(nextStatus&&!hasRequest
+                ?<button onClick={()=>requestMove(ticket)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,color:t.accentLight,cursor:"pointer",fontFamily:"inherit"}}>
+                    Request → {nextLabel}
+                  </button>
+                :null
+              )
+          }
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{color:t.textSub,fontSize:12}}>{tickets.length} ticket{tickets.length!==1?"s":""} total</div>
+        <button onClick={()=>setShowForm(s=>!s)} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ New Ticket</button>
+      </div>
+      {showForm&&(
+        <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px"}}>
+          <form onSubmit={createTicket} style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{color:t.text,fontSize:13,fontWeight:600,marginBottom:2}}>Raise a Support Ticket</div>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="What do you need help with? *" required style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}/>
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="More detail (optional)…" rows={3} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit",resize:"vertical"}}/>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 10px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
+                {TICKET_PRIORITIES.map(p=><option key={p} value={p}>{p.charAt(0).toUpperCase()+p.slice(1)} Priority</option>)}
+              </select>
+              <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 10px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
+                {TICKET_CATEGORIES.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button type="submit" disabled={saving||!form.title.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:7,padding:"8px 20px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!form.title.trim()?0.5:1}}>{saving?"Submitting…":"Submit Ticket"}</button>
+              <button type="button" onClick={()=>{setShowForm(false);setForm(EMPTY_TICKET);}} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:7,padding:"8px 14px",fontSize:13,color:t.textSub,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
+      {loading
+        ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0"}}>Loading tickets…</div>
+        :<div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"repeat(3,1fr)",gap:12}}>
+          {TICKET_STATUSES.map(st=>{
+            const col=colStyle[st];
+            const colTickets=tickets.filter(tk=>tk.status===st);
+            return(
+              <div key={st} style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{background:col.bg,border:`1px solid ${col.border}`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{color:col.label,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>{TICKET_STATUS_LABELS[st]}</span>
+                  <span style={{background:col.border,color:col.label,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{colTickets.length}</span>
+                </div>
+                {colTickets.length===0
+                  ?<div style={{color:t.textSub,fontSize:12,textAlign:"center",padding:"20px 0",opacity:0.6}}>No tickets</div>
+                  :colTickets.map(tk=><TicketCard key={tk.id} ticket={tk}/>)
+                }
+              </div>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+}
+
+const INVOICE_STATUSES=[["upcoming","Upcoming"],["pending","Pending"],["paid","Paid"]];
+const EMPTY_INVOICE={invoice_number:"",due_date:"",amount:"",description:"",phase_name:""};
+
+function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,mobile}) {
   const [invoices,setInvoices]=useState(initialInvoices||[]);
   const [showAdd,setShowAdd]=useState(false);
   const [newForm,setNewForm]=useState(EMPTY_INVOICE);
@@ -719,6 +894,9 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   const [uploadingId,setUploadingId]=useState(null);
   const [formError,setFormError]=useState("");
   const [addFile,setAddFile]=useState(null);
+  const [engValue,setEngValue]=useState(project?.total_engagement_value||0);
+  const [editingEng,setEditingEng]=useState(false);
+  const [engInput,setEngInput]=useState(String(project?.total_engagement_value||0));
   const addFileRef=useState(()=>({current:null}))[0];
   const fileRef=useState(()=>({current:null,invoiceId:null}))[0];
 
@@ -732,15 +910,15 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   async function addInvoice(e){
     e.preventDefault();
     if(!newForm.invoice_number.trim()){setFormError("Invoice number is required.");return;}
-    if(!addFile){setFormError("PDF file is required.");return;}
     setFormError("");
     setSaving(true);
-    // Upload PDF first
-    const storagePath=`${projectId}/invoices/${addFile.name}`;
-    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
-    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setSaving(false);return;}
-    const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    // Insert invoice record
+    let publicUrl=null,storagePath=null;
+    if(addFile){
+      storagePath=`${projectId}/invoices/${addFile.name}`;
+      const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
+      if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setSaving(false);return;}
+      publicUrl=supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
+    }
     const {error}=await supabase.from("invoices").insert({
       invoice_number:newForm.invoice_number,
       due_date:toNull(newForm.due_date),
@@ -748,24 +926,28 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
       file_url:publicUrl,
       storage_path:storagePath,
       project_id:projectId,
+      amount:Number(newForm.amount)||0,
+      description:newForm.description||null,
+      phase_name:newForm.phase_name||null,
     });
     if(error){
       console.error("[InvoicesTab] insert error:",error.message);
-      // Rollback: remove uploaded file
-      await supabase.storage.from("project-documents").remove([storagePath]);
+      if(storagePath) await supabase.storage.from("project-documents").remove([storagePath]);
       setFormError(error.message);setSaving(false);return;
     }
-    setNewForm(EMPTY_INVOICE);
-    setAddFile(null);
-    setShowAdd(false);
-    await loadInvoices();
-    setSaving(false);
-    onRefresh?.();
+    setNewForm(EMPTY_INVOICE);setAddFile(null);setShowAdd(false);
+    await loadInvoices();setSaving(false);onRefresh?.();
+  }
+
+  async function saveEngValue(){
+    const v=Number(engInput)||0;
+    await supabase.from("projects").update({total_engagement_value:v}).eq("id",projectId);
+    setEngValue(v);setEditingEng(false);onRefresh?.();
   }
 
   function startEdit(inv){
     setEditingId(inv.id);
-    setEditForm({description:inv.description||"",status:inv.status||"upcoming",due_date:inv.due_date||""});
+    setEditForm({description:inv.description||"",status:inv.status||"upcoming",due_date:inv.due_date||"",amount:String(inv.amount||"")});
     setFormError("");
   }
 
@@ -773,7 +955,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
     e.preventDefault();
     setFormError("");
     setSaving(true);
-    const payload={...editForm,due_date:toNull(editForm.due_date)};
+    const payload={...editForm,due_date:toNull(editForm.due_date),amount:Number(editForm.amount)||0};
     const {error}=await supabase.from("invoices").update(payload).eq("id",id);
     if(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
@@ -818,12 +1000,43 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
   );
 
   return <div style={{display:"flex",flexDirection:"column",gap:16}}>
-    {isInternal&&(
+    {/* Client-view financial summary */}
+    {!isInternal&&(
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
-        {[{label:"Total Value",value:`$${(total||0).toLocaleString()}`,color:t.text},{label:"Collected",value:`$${(paid||0).toLocaleString()}`,color:t.green},{label:"Outstanding",value:`$${((total-paid)||0).toLocaleString()}`,color:t.amber}].map((s,i)=>(
+        {[
+          {label:"Engagement Value",value:engValue?`£${engValue.toLocaleString()}`:"—",color:t.text,sub:"Total contracted"},
+          {label:"Invoiced to Date",value:`£${(total||0).toLocaleString()}`,color:t.accentLight,sub:`${invoices.filter(i=>i.status==="paid").length} paid`},
+          {label:"Remaining",value:`£${Math.max(0,engValue-total).toLocaleString()}`,color:engValue&&(engValue-total)>0?t.amber:t.green,sub:engValue?"of contract":"pending value"},
+        ].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow}}>
+            <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
+            <div style={{color:s.color,fontSize:24,fontWeight:300,letterSpacing:"-0.04em",marginBottom:2}}>{s.value}</div>
+            <div style={{color:t.textSub,fontSize:10}}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+    )}
+    {/* Internal summary + engagement value */}
+    {isInternal&&(
+      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
+        {[
+          {label:"Engagement Value",value:engValue?`£${engValue.toLocaleString()}`:"Set value →",color:t.text,eng:true},
+          {label:"Invoiced",value:`£${(total||0).toLocaleString()}`,color:t.text},
+          {label:"Collected",value:`£${(paid||0).toLocaleString()}`,color:t.green},
+          {label:"Outstanding",value:`£${((total-paid)||0).toLocaleString()}`,color:t.amber},
+        ].map((s,i)=>(
+          <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow,position:"relative"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
-            <div style={{color:s.color,fontSize:24,fontWeight:300,letterSpacing:"-0.04em"}}>{s.value}</div>
+            {s.eng&&editingEng
+              ?<div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <input value={engInput} onChange={e=>setEngInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEngValue();if(e.key==="Escape"){setEditingEng(false);setEngInput(String(engValue));}}} autoFocus style={{background:t.surfaceHigh,border:`1px solid ${t.accent}`,borderRadius:6,padding:"4px 8px",fontSize:16,color:t.text,outline:"none",fontFamily:"inherit",width:"100%"}}/>
+                  <button onClick={saveEngValue} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"4px 10px",fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Save</button>
+                </div>
+              :<div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{color:s.color,fontSize:22,fontWeight:300,letterSpacing:"-0.04em"}}>{s.value}</span>
+                  {s.eng&&<button onClick={()=>{setEditingEng(true);setEngInput(String(engValue));}} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:13,padding:0,opacity:0.6}}>✏</button>}
+                </div>
+            }
           </div>
         ))}
       </div>
@@ -840,15 +1053,18 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
       {showAdd&&isInternal&&(
         <div>
           <form onSubmit={addInvoice} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
-            {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice #",{flex:"0 1 120px"})}
+            {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice # *",{flex:"0 1 110px"})}
+            {inlineInput(newForm.description,e=>setNewForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 160px"})}
+            <input type="number" min="0" step="0.01" value={newForm.amount} onChange={e=>setNewForm(f=>({...f,amount:e.target.value}))} placeholder="Amount £" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 100px"}}/>
+            {inlineInput(newForm.phase_name,e=>setNewForm(f=>({...f,phase_name:e.target.value})),"Phase",{flex:"0 1 100px"})}
             <input type="date" value={newForm.due_date} onChange={e=>setNewForm(f=>({...f,due_date:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
             <input ref={r=>{addFileRef.current=r;}} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)setAddFile(f);e.target.value="";}}/>
-            <button type="button" onClick={()=>addFileRef.current?.click()} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 12px",fontSize:12,color:addFile?t.text:t.textSub,cursor:"pointer",fontFamily:"inherit",flex:"0 1 180px",textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              {addFile?addFile.name:"Choose PDF…"}
+            <button type="button" onClick={()=>addFileRef.current?.click()} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 12px",fontSize:12,color:addFile?t.text:t.textSub,cursor:"pointer",fontFamily:"inherit",flex:"0 1 160px",textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+              {addFile?addFile.name:"PDF (optional)"}
             </button>
             <div style={{display:"flex",gap:6}}>
-              <button type="submit" disabled={saving||!newForm.invoice_number.trim()||!addFile} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.invoice_number.trim()||!addFile?0.5:1}}>
-                {saving?"Uploading…":"Save"}
+              <button type="submit" disabled={saving||!newForm.invoice_number.trim()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"5px 14px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:saving||!newForm.invoice_number.trim()?0.5:1}}>
+                {saving?"Saving…":"Save"}
               </button>
               <button type="button" onClick={()=>{setShowAdd(false);setNewForm(EMPTY_INVOICE);setAddFile(null);setFormError("");}} style={{background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 10px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
             </div>
@@ -868,7 +1084,8 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,t,mobile}) 
             <div key={inv.id}>
               {isEditing?(
                 <form onSubmit={e=>saveEdit(e,inv.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
-                  {inlineInput(editForm.description,e=>setEditForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 180px"})}
+                  {inlineInput(editForm.description,e=>setEditForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 160px"})}
+                  <input type="number" min="0" step="0.01" value={editForm.amount} onChange={e=>setEditForm(f=>({...f,amount:e.target.value}))} placeholder="Amount £" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 90px"}}/>
                   {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
                   {inlineInput(editForm.due_date,e=>setEditForm(f=>({...f,due_date:e.target.value})),"Due date",{flex:"0 1 120px",type:"date"})}
                   <div style={{display:"flex",gap:6}}>
@@ -1739,7 +1956,8 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
 }
 
 function BookingTab({project,t}) {
-  const CALENDLY_URL="https://calendly.com/lexops/project-catchup";
+  const CALENDLY_URL=project?.calendly_url||"https://calendly.com/lexops/project-catchup";
+  const hasCustomUrl=!!project?.calendly_url;
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}>
       <div style={{display:"flex",alignItems:"flex-start",gap:20}}>
@@ -1747,9 +1965,9 @@ function BookingTab({project,t}) {
         <div style={{flex:1}}>
           <div style={{color:t.text,fontSize:16,fontWeight:500,marginBottom:6}}>Book a Project Catchup</div>
           <div style={{color:t.textSub,fontSize:13,lineHeight:1.7,marginBottom:16}}>
-            Schedule time directly with your LexOps project manager to discuss progress, answer questions, or review upcoming milestones for <strong style={{color:t.text,fontWeight:500}}>{project.project}</strong>.
+            Schedule time directly with your LexOps project manager to discuss progress, answer questions, or review upcoming milestones for <strong style={{color:t.text,fontWeight:500}}>{project?.name||project?.project}</strong>.
           </div>
-          <div style={{display:"flex",gap:10}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
             <a href={CALENDLY_URL} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"9px 20px",fontSize:13,fontWeight:600,cursor:"pointer",textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>
               <span>Open Booking Page</span>
               <span style={{fontSize:11,opacity:0.8}}>↗</span>
@@ -1758,6 +1976,7 @@ function BookingTab({project,t}) {
               30 min · Video call
             </div>
           </div>
+          {!hasCustomUrl&&<div style={{marginTop:12,color:t.textSub,fontSize:11}}>Admin tip: set a Calendly URL on this project to use your team member's personal booking link.</div>}
         </div>
       </div>
     </CardPad>
@@ -1768,9 +1987,9 @@ function BookingTab({project,t}) {
       </div>
       <Line t={t}/>
       <iframe
-        src={`${CALENDLY_URL}?embed_type=inline&hide_event_type_details=1&hide_gdpr_banner=1&primary_color=${encodeURIComponent("4a7fa5")}`}
+        src={`${CALENDLY_URL}?embed_type=inline&hide_event_type_details=1&hide_gdpr_banner=1&primary_color=${encodeURIComponent("1A6666")}`}
         width="100%"
-        height="520"
+        height="580"
         frameBorder="0"
         style={{display:"block",borderRadius:"0 0 12px 12px"}}
         title="Book a time with LexOps"
@@ -1779,12 +1998,12 @@ function BookingTab({project,t}) {
     <CardPad t={t} style={{border:`1px dashed ${t.border}`}}>
       <SectionLabel t={t}>Prefer to reach out directly?</SectionLabel>
       <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-        {[{label:"Email",value:"hello@teamsquared.io",icon:"✉"},{label:"Your Manager",value:project.manager,icon:"👤"}].map((c,i)=>(
+        {[{label:"Email",value:"hello@teamsquared.io",icon:"✉"},{label:"Your Manager",value:project?.manager,icon:"👤"}].map((c,i)=>(
           <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:14}}>{c.icon}</span>
             <div>
               <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{c.label}</div>
-              <div style={{color:t.accentLight,fontSize:13,fontWeight:500}}>{c.value}</div>
+              <div style={{color:t.accentLight,fontSize:13,fontWeight:500}}>{c.value||"—"}</div>
             </div>
           </div>
         ))}
@@ -2328,6 +2547,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
   const [requests, setRequests] = useState((initialDocRequests || []).filter(r => !r.fulfilled_at));
   const [uploading, setUploading] = useState(null);
   const [uploadError, setUploadError] = useState("");
+  const [selfUploading, setSelfUploading] = useState(false);
 
   const loadDocs = useCallback(async () => {
     const [{ data: d }, { data: r }] = await Promise.all([
@@ -2381,10 +2601,48 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
     onRefresh?.();
   }
 
+  async function handleSelfUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadError("");
+    setSelfUploading(true);
+    const storagePath = `${projectId}/${file.name}`;
+    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
+    if (upErr) { setUploadError(upErr.message); setSelfUploading(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
+    const ext = file.name.split(".").pop().toUpperCase();
+    await supabase.from("documents").insert({
+      project_id: projectId, name: file.name, file_type: ext,
+      file_size: file.size, file_url: publicUrl, storage_path: storagePath,
+      uploaded_at: new Date().toISOString(),
+    });
+    await loadDocs();
+    setSelfUploading(false);
+    onRefresh?.();
+  }
+
   const tc = { PDF: "#f87171", DOCX: "#4a7fa5", XLSX: "#4ade80", PNG: "#4ade80", JPG: "#4ade80", CSV: "#f59e0b" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Generic uploader */}
+      <div style={{ background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 12, padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ color: t.text, fontSize: 14, fontWeight: 600, marginBottom: 3 }}>Upload a Document</div>
+          <div style={{ color: t.textSub, fontSize: 12 }}>Share any file with your LexOps team (PDF, DOCX, XLSX, images…)</div>
+        </div>
+        <div>
+          <input type="file" id="self-upload-input" style={{ display: "none" }} onChange={handleSelfUpload} />
+          <label htmlFor="self-upload-input" style={{
+            background: t.accent, color: "#fff", borderRadius: 8, padding: "9px 20px",
+            fontSize: 13, fontWeight: 600, cursor: selfUploading ? "not-allowed" : "pointer",
+            opacity: selfUploading ? 0.6 : 1, display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
+          }}>
+            {selfUploading ? "Uploading…" : "↑ Upload File"}
+          </label>
+        </div>
+      </div>
       {/* Pending Document Requests */}
       {requests.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2571,11 +2829,11 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   );
   const isClientView = view === "client";
   const allTabs = isClientView
-    ? ["overview","actions","documents","flowchart","invoices","software","book"]
-    : ["overview","plan","documents","flowchart","invoices","software","maintenance","book"];
+    ? ["overview","actions","documents","flowchart","invoices","support","book"]
+    : ["overview","plan","documents","flowchart","invoices","software","support","maintenance","book"];
   const tabLabels = isClientView
-    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",book:"Book a Call"}
-    : {overview:"Overview",plan:"Plan",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",maintenance:"Maintenance",book:"Book a Call"};
+    ? {overview:"Overview",actions:"Your Actions",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",support:"Support",book:"Book a Call"}
+    : {overview:"Overview",plan:"Plan",documents:"Documents",flowchart:"Flowchart",invoices:"Invoices",software:"Software",support:"Support",maintenance:"Maintenance",book:"Book a Call"};
 
   async function dismissWelcome(){
     setShowWelcome(false);
@@ -2714,8 +2972,9 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 : <DocumentsTab    projectId={selected.id} initialDocuments={selected.documents} initialDocRequests={selected.docRequests} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t}/>
               )}
               {tab==="flowchart"   &&<FlowchartTab    projectId={selected.id} isInternal={!isClientView} userProfile={userProfile} t={t} mobile={mobile}/>}
-              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
+              {tab==="invoices"    &&<InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
               {tab==="software"    &&<SoftwareTab     projectId={selected.id} initialSoftware={selected.software} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} t={t}/>}
+              {tab==="support"     &&<SupportTab      projectId={selected.id} isInternal={!isClientView} t={t} mobile={mobile}/>}
               {tab==="maintenance" &&!isClientView&&<MaintenanceTab  projectId={selected.id} initialMaintenance={selected.maintenance} isInternal={true} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
               {tab==="book"        &&<BookingTab      project={selected} t={t}/>}
             </>

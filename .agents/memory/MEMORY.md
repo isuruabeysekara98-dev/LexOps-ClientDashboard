@@ -1,2 +1,4 @@
 - [Proposals v2 page design](proposals-v2-design.md) — horizontal step timeline, stage drawer, try-matter wizard; inputs/outputs stored as label/detail in DB.
 - [Proposals v2 SQL migrations](proposals-v2-sql.md) — show_try_matter column needs ALTER TABLE; SQL appended to supabase_workflow_review_setup.sql.
+- [Support tickets + invoice/project schema](portal-schema-additions.md) — three ALTER TABLE + one CREATE TABLE needed before SupportTab and full InvoicesTab work; SQL block provided to user in session.
+- [Project Calendly URL](portal-schema-additions.md) — projects.calendly_url drives BookingTab embed; falls back to generic LexOps URL when null.
