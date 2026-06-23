@@ -197,10 +197,10 @@ router.get("/by-token/:token", async (req, res) => {
       ? adminSupabase.from("workflow_document_requirements").select("*").in("workflow_id", workflowIds)
       : Promise.resolve({ data: [] as any[] }),
     workflowIds.length
-      ? adminSupabase.from("workflow_runs").select("id, workflow_id, output_json, created_at").in("workflow_id", workflowIds).order("created_at", { ascending: false }).catch(() => ({ data: [] }))
+      ? adminSupabase.from("workflow_runs").select("id, workflow_id, output_json, created_at").in("workflow_id", workflowIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     workflowIds.length
-      ? adminSupabase.from("workflow_submissions").select("*").in("workflow_id", workflowIds).catch(() => ({ data: [] }))
+      ? adminSupabase.from("workflow_submissions").select("*").in("workflow_id", workflowIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -776,10 +776,10 @@ router.get("/:id", requireAdmin, async (req, res) => {
       ? adminSupabase.from("workflow_document_requirements").select("*").in("workflow_id", workflowIds)
       : Promise.resolve({ data: [] as any[] }),
     workflowIds.length
-      ? adminSupabase.from("workflow_runs").select("id, workflow_id, output_json, created_at").in("workflow_id", workflowIds).order("created_at", { ascending: false }).catch(() => ({ data: [] }))
+      ? adminSupabase.from("workflow_runs").select("id, workflow_id, output_json, created_at").in("workflow_id", workflowIds).order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     workflowIds.length
-      ? adminSupabase.from("workflow_submissions").select("*").in("workflow_id", workflowIds).catch(() => ({ data: [] }))
+      ? adminSupabase.from("workflow_submissions").select("*").in("workflow_id", workflowIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -833,6 +833,62 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/proposals/v2/:id/accept — client accepts proposal (no-auth, token-gated)
+// ---------------------------------------------------------------------------
+router.post("/:id/accept", async (req, res) => {
+  const { id } = req.params;
+  const { token, signer_name, note } = req.body;
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Forbidden" }); return; }
+
+  const frozen = ["feedback_received", "won", "lost", "converted"];
+  if (frozen.includes(proposal.status)) {
+    res.json({ success: true, alreadyAccepted: true }); return;
+  }
+
+  await adminSupabase.from("proposals").update({
+    status: "feedback_received",
+    submitted_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+
+  // Notify LexOps team
+  const baseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  const adminLink = `${baseUrl}/admin/proposals/${id}`;
+  const clientName = proposal.client_contact_name || proposal.client_name || proposal.client_email || "the client";
+
+  try {
+    const { send } = await import("../email.js");
+    await send({
+      to: "isuru@lex-ops.io",
+      subject: `✅ Proposal accepted: ${proposal.name || "Untitled"}`,
+      html: `
+<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F3EF;font-family:'Inter',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3EF;padding:40px 20px;">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E5E3DC;">
+<tr><td style="background:#0B4F4F;padding:28px 36px;font-size:22px;font-weight:700;color:#FFFFFF;font-family:Georgia,serif;">LexOps Portal</td></tr>
+<tr><td style="padding:32px 36px 8px;"><span style="background:#ECFDF5;color:#059669;border:1px solid #A7F3D0;border-radius:99px;padding:4px 14px;font-size:12px;font-weight:600;">✅ Proposal Accepted</span></td></tr>
+<tr><td style="padding:16px 36px 8px;font-size:22px;font-weight:700;color:#1A1A18;font-family:Georgia,serif;">${proposal.name || "Proposal"}</td></tr>
+<tr><td style="padding:0 36px 20px;font-size:14px;color:#6B6B5F;line-height:1.7;">
+  <strong style="color:#1A1A18;">${clientName}</strong> has accepted this proposal.
+  ${signer_name ? `<br>Signed by: <strong style="color:#1A1A18;">${signer_name}</strong>` : ""}
+  ${note ? `<br><br><em style="color:#6B6B5F;">"${note}"</em>` : ""}
+</td></tr>
+<tr><td style="padding:0 36px 36px;">
+  <a href="${adminLink}" style="background:#0B4F4F;color:#FFFFFF;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:600;display:inline-block;">View Proposal →</a>
+</td></tr>
+</table></td></tr></table>
+</body></html>`,
+    });
+  } catch (e) {
+    console.warn("[accept] email failed:", (e as any).message);
+  }
+
+  res.json({ success: true });
+});
+
 // POST /api/proposals/v2/:id/status — update proposal status (admin)
 // ---------------------------------------------------------------------------
 router.post("/:id/status", requireAdmin, async (req, res) => {

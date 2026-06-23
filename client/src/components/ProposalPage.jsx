@@ -21,21 +21,105 @@ const inp = {
   outline: "none", boxSizing: "border-box", fontFamily: "inherit",
 };
 
-// ─── Legacy acceptance form (kept for proposals without workflows) ───────────
+// ─── Client response panel (Accept / Request changes) ────────────────────────
 
-function AcceptanceForm({ proposal, token }) {
+function SimpleResponsePanel({ proposal, token, onRefresh }) {
+  // mode: "idle" | "accepting" | "requesting" | "done-accept" | "done-request"
+  const [mode, setMode] = useState("idle");
   const [signerName, setSignerName] = useState("");
-  const [signerNote, setSignerNote] = useState("");
-  const [agreed, setAgreed] = useState(false);
+  const [changeNote, setChangeNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [accepted, setAccepted] = useState(false);
-  const [acctPassword, setAcctPassword] = useState("");
-  const [acctConfirm, setAcctConfirm] = useState("");
-  const [acctLoading, setAcctLoading] = useState(false);
-  const [acctError, setAcctError] = useState("");
-  const [acctDone, setAcctDone] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [resent, setResent] = useState(false);
+  const [error, setError] = useState("");
+
+  const isFrozen = ["feedback_received", "won", "lost", "converted"].includes(proposal.status);
+  const hasChangePending = proposal.status === "sent" && proposal.change_request_note;
+
+  if (isFrozen || mode === "done-accept") {
+    return (
+      <div style={{
+        background: t.greenSoft, border: `1px solid ${t.greenBorder}`,
+        borderRadius: 14, padding: "28px 28px",
+        display: "flex", gap: 16, alignItems: "flex-start",
+      }}>
+        <div style={{
+          width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+          background: "#FFFFFF", border: `1px solid ${t.greenBorder}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+        }}>✓</div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.green, marginBottom: 6, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            Proposal Accepted
+          </div>
+          <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>
+            Thank you — your acceptance has been sent to the LexOps team. We'll be in touch shortly with next steps.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "done-request") {
+    return (
+      <div style={{
+        background: t.amberSoft, border: `1px solid ${t.amberBorder}`,
+        borderRadius: 14, padding: "28px 28px",
+        display: "flex", gap: 16, alignItems: "flex-start",
+      }}>
+        <div style={{
+          width: 42, height: 42, borderRadius: 10, flexShrink: 0,
+          background: "#FFFFFF", border: `1px solid ${t.amberBorder}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
+        }}>↩</div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.amber, marginBottom: 6, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            Change request sent
+          </div>
+          <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>
+            The LexOps team has been notified and will reach out to discuss your feedback.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function handleAccept() {
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/proposals/v2/${proposal.id}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, signer_name: signerName.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || "Something went wrong. Please try again."); setSubmitting(false); return; }
+      setMode("done-accept");
+      if (onRefresh) onRefresh();
+    } catch {
+      setError("Connection error — please try again.");
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRequestChanges() {
+    if (!changeNote.trim()) { setError("Please describe what you'd like changed."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/proposals/v2/${proposal.id}/request-changes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, note: changeNote.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || "Something went wrong. Please try again."); setSubmitting(false); return; }
+      setMode("done-request");
+      if (onRefresh) onRefresh();
+    } catch {
+      setError("Connection error — please try again.");
+      setSubmitting(false);
+    }
+  }
 
   const labelStyle = {
     color: t.textSub, fontSize: 11, fontWeight: 700,
@@ -43,109 +127,167 @@ function AcceptanceForm({ proposal, token }) {
     display: "block", marginBottom: 6,
   };
 
-  async function handleAccept(e) {
-    e.preventDefault();
-    if (!signerName.trim() || !agreed) return;
-    setSubmitting(true);
-    try {
-      await fetch("/api/proposal/accept", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, signer_name: signerName.trim(), signer_note: signerNote.trim() || undefined }),
-      });
-    } catch {}
-    setAccepted(true);
-    setSubmitting(false);
-  }
+  return (
+    <div style={{
+      background: t.card, border: `1px solid ${t.accentBorder}`,
+      borderRadius: 14, overflow: "hidden", boxShadow: t.shadowMd,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: "20px 24px", borderBottom: `1px solid ${t.border}`,
+        background: t.accentLight,
+        display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+          background: t.card, border: `1px solid ${t.accentBorder}`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+        }}>📋</div>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            Ready to respond?
+          </div>
+          <div style={{ fontSize: 12, color: t.textSub, marginTop: 2 }}>
+            Accept this proposal or let us know what you'd like changed.
+          </div>
+        </div>
+      </div>
 
-  async function handleCreateAccount(e) {
-    e.preventDefault();
-    setAcctError("");
-    if (acctPassword.length < 8) { setAcctError("Password must be at least 8 characters."); return; }
-    if (acctPassword !== acctConfirm) { setAcctError("Passwords do not match."); return; }
-    setAcctLoading(true);
-    const { error: signUpErr } = await supabase.auth.signUp({
-      email: proposal.client_email,
-      password: acctPassword,
-      options: { data: { full_name: proposal.client_contact_name ?? proposal.client_name, role: "client" } },
-    });
-    if (signUpErr) {
-      setAcctError(
-        signUpErr.message?.includes("already")
-          ? "An account already exists for this email. Please check your inbox or sign in directly."
-          : signUpErr.message
-      );
-      setAcctLoading(false);
-      return;
-    }
-    setAcctDone(true);
-    setAcctLoading(false);
-  }
+      {/* Body */}
+      <div style={{ padding: "24px 24px" }}>
+        {error && (
+          <div style={{
+            background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)",
+            borderRadius: 8, padding: "10px 14px", color: t.red,
+            fontSize: 12, marginBottom: 16,
+          }}>{error}</div>
+        )}
 
-  async function handleResend() {
-    setResending(true);
-    await supabase.auth.resend({ type: "signup", email: proposal.client_email });
-    setResending(false);
-    setResent(true);
-    setTimeout(() => setResent(false), 4000);
-  }
-
-  if (accepted) {
-    return (
-      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", boxShadow: t.shadow }}>
-        {!acctDone ? (
-          <>
-            <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: t.greenSoft, border: "1px solid rgba(5,150,105,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
-              <h2 style={{ color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Playfair Display', Georgia, serif" }}>Proposal Accepted</h2>
-              <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: 0 }}>Create your account below to access your project dashboard.</p>
-            </div>
-            <form onSubmit={handleCreateAccount} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div><label style={labelStyle}>Email</label><input type="email" value={proposal.client_email} disabled style={{ ...inp, opacity: 0.55, cursor: "not-allowed" }} /></div>
-              <div><label style={labelStyle}>Password</label><input type="password" autoComplete="new-password" required value={acctPassword} onChange={e => setAcctPassword(e.target.value)} placeholder="At least 8 characters" style={inp} /></div>
-              <div><label style={labelStyle}>Confirm Password</label><input type="password" autoComplete="new-password" required value={acctConfirm} onChange={e => setAcctConfirm(e.target.value)} placeholder="Re-enter your password" style={inp} /></div>
-              {acctError && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 8, padding: "10px 14px", color: t.red, fontSize: 12 }}>{acctError}</div>}
-              <button type="submit" disabled={acctLoading} style={{ background: acctLoading ? "#E5E3DC" : t.accent, color: acctLoading ? t.textSub : "#fff", border: "none", borderRadius: 8, padding: "12px 0", fontSize: 14, fontWeight: 600, cursor: acctLoading ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                {acctLoading ? "Creating account…" : "Create Account & Get Started"}
-              </button>
-            </form>
-          </>
-        ) : (
-          <div style={{ textAlign: "center", padding: "8px 0" }}>
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: t.greenSoft, border: "1px solid rgba(5,150,105,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={t.green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            </div>
-            <h2 style={{ color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 10px", fontFamily: "'Playfair Display', Georgia, serif" }}>You're almost in.</h2>
-            <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: "0 0 24px" }}>We've sent a confirmation link to <strong style={{ color: t.text }}>{proposal.client_email}</strong>. Click it to activate your account.</p>
-            <button onClick={handleResend} disabled={resending} style={{ background: "transparent", color: t.accent, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 24px", fontSize: 13, fontWeight: 600, cursor: resending ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: resending ? 0.6 : 1 }}>
-              {resent ? "Confirmation email resent ✓" : resending ? "Resending…" : "Resend confirmation email"}
+        {/* Idle — two CTAs */}
+        {mode === "idle" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {hasChangePending && (
+              <div style={{
+                background: t.amberSoft, border: `1px solid ${t.amberBorder}`,
+                borderRadius: 8, padding: "10px 14px", fontSize: 12, color: t.amber,
+              }}>
+                ↩ You previously requested changes. Accept to confirm you're happy with the revised proposal, or send a new change request.
+              </div>
+            )}
+            <button
+              onClick={() => setMode("accepting")}
+              style={{
+                background: t.accent, color: "#fff", border: "none", borderRadius: 8,
+                padding: "13px 24px", fontSize: 14, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                display: "flex", alignItems: "center", gap: 10,
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.88"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
+              <span style={{ fontSize: 18 }}>✓</span>
+              <span>Accept this proposal</span>
+            </button>
+            <button
+              onClick={() => setMode("requesting")}
+              style={{
+                background: "transparent", color: t.textSub,
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                padding: "13px 24px", fontSize: 14, fontWeight: 500,
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                display: "flex", alignItems: "center", gap: 10,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = t.accentBorder; e.currentTarget.style.color = t.accent; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSub; }}
+            >
+              <span style={{ fontSize: 18 }}>↩</span>
+              <span>Request changes</span>
             </button>
           </div>
         )}
-      </div>
-    );
-  }
 
-  return (
-    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: "36px 32px", boxShadow: t.shadow }}>
-      <h3 style={{ margin: "0 0 6px", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", fontFamily: "'Playfair Display', Georgia, serif", color: t.text }}>Accept this Proposal</h3>
-      <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: "0 0 24px" }}>By accepting you agree to move forward with the proposed scope.</p>
-      <form onSubmit={handleAccept} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div><label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Your full name</label><input type="text" required value={signerName} onChange={e => setSignerName(e.target.value)} placeholder="e.g. Jane Smith" style={inp} /></div>
-        <div>
-          <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Notes or change requests <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: t.textMeta }}>— optional</span></label>
-          <textarea value={signerNote} onChange={e => setSignerNote(e.target.value)} placeholder="Any questions, adjustments, or comments…" rows={4} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }} />
-        </div>
-        <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", color: t.textSub, fontSize: 13, lineHeight: 1.5 }}>
-          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ accentColor: t.accent, width: 16, height: 16, marginTop: 2, flexShrink: 0, cursor: "pointer" }} />
-          I have read and agree to the terms and conditions outlined in this proposal.
-        </label>
-        <div style={{ display: "flex", justifyContent: "flex-end", paddingTop: 4 }}>
-          <button type="submit" disabled={submitting || !signerName.trim() || !agreed} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "11px 32px", fontSize: 14, fontWeight: 600, cursor: submitting || !signerName.trim() || !agreed ? "not-allowed" : "pointer", opacity: submitting || !signerName.trim() || !agreed ? 0.45 : 1, fontFamily: "inherit" }}>
-            {submitting ? "Submitting…" : "Accept Proposal →"}
-          </button>
-        </div>
-      </form>
+        {/* Accepting — optional name field */}
+        {mode === "accepting" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Your name <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: t.textMeta }}>— optional</span></label>
+              <input
+                type="text"
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+                placeholder="e.g. Jane Smith"
+                style={inp}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleAccept}
+                disabled={submitting}
+                style={{
+                  background: submitting ? t.border : t.accent, color: submitting ? t.textSub : "#fff",
+                  border: "none", borderRadius: 8, padding: "11px 24px",
+                  fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", opacity: submitting ? 0.7 : 1,
+                }}
+              >
+                {submitting ? "Confirming…" : "Confirm acceptance →"}
+              </button>
+              <button
+                onClick={() => { setMode("idle"); setError(""); }}
+                style={{
+                  background: "transparent", color: t.textSub, border: `1px solid ${t.border}`,
+                  borderRadius: 8, padding: "11px 20px", fontSize: 14,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Requesting changes — textarea */}
+        {mode === "requesting" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={labelStyle}>What would you like changed?</label>
+              <textarea
+                value={changeNote}
+                onChange={e => setChangeNote(e.target.value)}
+                placeholder="Describe what you'd like LexOps to revise or clarify…"
+                rows={4}
+                style={{ ...inp, resize: "vertical", lineHeight: 1.6 }}
+                autoFocus
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={handleRequestChanges}
+                disabled={submitting}
+                style={{
+                  background: submitting ? t.border : t.accent, color: submitting ? t.textSub : "#fff",
+                  border: "none", borderRadius: 8, padding: "11px 24px",
+                  fontSize: 14, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", opacity: submitting ? 0.7 : 1,
+                }}
+              >
+                {submitting ? "Sending…" : "Send change request →"}
+              </button>
+              <button
+                onClick={() => { setMode("idle"); setError(""); }}
+                style={{
+                  background: "transparent", color: t.textSub, border: `1px solid ${t.border}`,
+                  borderRadius: 8, padding: "11px 20px", fontSize: 14,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -658,12 +800,15 @@ function ClientReviewFlow({ proposal, token, onRefresh }) {
           ))}
         </div>
 
-        {/* Final actions */}
-        {allComplete && !isFrozen && (
-          <div style={{ animation: "fadeUp 0.35s ease-out" }}>
-            <FinalActions proposal={proposal} token={token} onRefresh={onRefresh} />
-          </div>
-        )}
+        {/* Final actions — always visible so client can respond at any point */}
+        <div style={{ animation: "fadeUp 0.35s ease-out", marginTop: 8 }}>
+          {allComplete && !isFrozen && (
+            <div style={{ marginBottom: 16 }}>
+              <FinalActions proposal={proposal} token={token} onRefresh={onRefresh} />
+            </div>
+          )}
+          <SimpleResponsePanel proposal={proposal} token={token} onRefresh={onRefresh} />
+        </div>
       </div>
 
       {/* Demo modal */}
@@ -745,25 +890,11 @@ export default function ProposalPage({ token }) {
     );
   }
 
-  // Legacy flow: proposals with no workflows (old format)
+  // Legacy flow: proposals with no workflows
   return (
     <ProposalViewer
       proposal={proposal}
-      footer={
-        proposal.status !== "accepted"
-          ? <AcceptanceForm proposal={proposal} token={token} />
-          : (
-            <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: "36px 32px", textAlign: "center", boxShadow: t.shadow }}>
-              <div style={{ width: 52, height: 52, borderRadius: "50%", background: t.greenSoft, border: "1px solid rgba(5,150,105,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✓</div>
-              <h3 style={{ color: t.text, fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Playfair Display', Georgia, serif" }}>Proposal already accepted</h3>
-              <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-                You've already accepted this proposal. Please{" "}
-                <a href="/" style={{ color: t.accent, textDecoration: "none", fontWeight: 600 }}>sign in to your dashboard</a>{" "}
-                to track your project progress.
-              </p>
-            </div>
-          )
-      }
+      footer={<SimpleResponsePanel proposal={proposal} token={token} onRefresh={load} />}
     />
   );
 }
