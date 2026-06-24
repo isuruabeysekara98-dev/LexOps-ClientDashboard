@@ -2529,7 +2529,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       supabase.from("documents").select("*").eq("project_id", project.id).order("uploaded_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("project_id", project.id).order("id"),
       supabase.from("proposals").select("id, name, description, client_summary").eq("project_id", project.id).limit(1),
-      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").catch(e => ({ error: e, data: [] })),
+      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").then(r => r.error ? { data: [] } : r),
     ]);
     if (phRes.data) setPhases(phRes.data);
     if (tkRes.data) setTasks(tkRes.data);
@@ -4379,6 +4379,8 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState({});
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [ownerColMissing, setOwnerColMissing] = useState(false);
   const [showAddIn, setShowAddIn] = useState(null);
   const [newTask, setNewTask] = useState({ title: "", due_date: "", owner: "" });
 
@@ -4398,17 +4400,34 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   }
   async function saveEdit(taskId) {
     setSaving(true);
+    setSaveError("");
     try {
+      // Step 1: save core fields (title, status, due_date, phase_id) — always works
       await adminFetch(`/tasks/${taskId}`, { method: "PATCH", body: {
-        title: editDraft.title, status: editDraft.status,
-        due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
-        owner: editDraft.owner || null,
+        title: editDraft.title,
+        status: editDraft.status,
+        due_date: editDraft.due_date || null,
+        phase_id: editDraft.phase_id || null,
       }});
       if (editDraft.status === "done") await autoCompletePhaseIfDone(projectId, editDraft.phase_id);
+
+      // Step 2: save owner via dedicated endpoint — gracefully handles missing column
+      try {
+        await adminFetch(`/tasks/${taskId}/owner`, { method: "PATCH", body: { owner: editDraft.owner || null } });
+        setOwnerColMissing(false);
+      } catch(ownerErr) {
+        if (ownerErr.message === "owner_column_missing") {
+          setOwnerColMissing(true);
+        }
+      }
+
       setEditingId(null);
       await loadData();
       onRefresh?.();
-    } catch(err) { console.error("[InternalActionsTab] saveEdit failed:", err.message); }
+    } catch(err) {
+      console.error("[InternalActionsTab] saveEdit failed:", err.message);
+      setSaveError(err.message);
+    }
     setSaving(false);
   }
   async function deleteTask(taskId) {
@@ -4465,10 +4484,11 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
           <input type="date" value={editDraft.due_date} onChange={e=>setEditDraft(d=>({...d,due_date:e.target.value}))}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}/>
           <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
-            <button onClick={()=>setEditingId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 12px", fontSize:12, cursor:"pointer", color:t.textSub, fontFamily:"inherit" }}>Cancel</button>
-            <button onClick={()=>saveEdit(task.id)} disabled={saving} style={{ background:t.accent, border:"none", borderRadius:6, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#fff", fontFamily:"inherit" }}>Save</button>
+            <button onClick={()=>{setEditingId(null);setSaveError("");}} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 12px", fontSize:12, cursor:"pointer", color:t.textSub, fontFamily:"inherit" }}>Cancel</button>
+            <button onClick={()=>saveEdit(task.id)} disabled={saving} style={{ background:t.accent, border:"none", borderRadius:6, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#fff", fontFamily:"inherit" }}>{saving?"Saving…":"Save"}</button>
           </div>
         </div>
+        {saveError&&<div style={{marginTop:8,color:"#c0392b",fontSize:11,background:"rgba(192,57,43,0.08)",borderRadius:5,padding:"5px 10px"}}>{saveError}</div>}
       </div>
     );
     const ownerStyle = { client:{bg:"#e8f0fe",color:"#2b5fcc",label:"Client"}, lexops:{bg:"#e8f5ef",color:"#1A6666",label:"LexOps"} };
@@ -4541,8 +4561,25 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   const intOverdueClient = tasks.filter(tk => tk.status !== "done" && tk.owner === "client" && tk.due_date && new Date(tk.due_date) < todayMid);
   const intOverdueLexops = tasks.filter(tk => tk.status !== "done" && tk.owner === "lexops" && tk.due_date && new Date(tk.due_date) < todayMid);
 
+  function copyOwnerSql() {
+    navigator.clipboard.writeText("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS owner text;").catch(()=>{});
+  }
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {ownerColMissing && (
+        <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"14px 18px", display:"flex", gap:14, alignItems:"flex-start" }}>
+          <span style={{ fontSize:18, lineHeight:1, flexShrink:0 }}>⚙️</span>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:4 }}>One-time database setup needed for Owner field</div>
+            <div style={{ fontSize:12, color:"#7a5f00", marginBottom:8 }}>Run this SQL once in your <strong>Supabase dashboard → SQL Editor</strong> to enable the Owner (Client / LexOps) column:</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <code style={{ background:"rgba(0,0,0,0.06)", borderRadius:5, padding:"5px 10px", fontSize:12, flex:1, fontFamily:"monospace", color:"#3a3000" }}>ALTER TABLE tasks ADD COLUMN IF NOT EXISTS owner text;</code>
+              <button onClick={copyOwnerSql} style={{ flexShrink:0, background:"#f5c542", border:"none", borderRadius:6, padding:"5px 12px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#3a3000", fontFamily:"inherit" }}>Copy SQL</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 20px", display:"flex", alignItems:"center", gap:16, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:12, color:t.textSub, marginBottom:6 }}>{doneT} of {totalT} actions complete</div>
@@ -4633,7 +4670,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const load = useCallback(async () => {
     const [{ data:d }, tl] = await Promise.all([
       supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at",{ascending:false}),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").catch(e => ({ error: e, data: [] })),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
     ]);
     if (d) setDocs(d);
     if (tl?.data) {

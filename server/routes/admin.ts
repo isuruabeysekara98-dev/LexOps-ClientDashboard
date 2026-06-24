@@ -12,6 +12,7 @@ const adminSupabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+
 const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
 
 // ---------------------------------------------------------------------------
@@ -354,11 +355,28 @@ router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
 // PATCH /api/admin/tasks/:id — full task update
 router.patch("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const allowed = ["title", "status", "due_date", "phase_id", "is_internal", "is_deliverable", "description", "assignee", "owner"];
+  const allowed = ["title", "status", "due_date", "phase_id", "is_internal", "is_deliverable", "description", "assignee"];
   const payload = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   if (Object.keys(payload).length === 0) { res.status(400).json({ message: "No valid fields to update" }); return; }
   const { error } = await adminSupabase.from("tasks").update(payload).eq("id", id);
   if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// PATCH /api/admin/tasks/:id/owner — update owner field separately (column may need manual creation)
+router.patch("/tasks/:id/owner", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { owner } = req.body;
+  if (owner !== null && owner !== undefined && owner !== "client" && owner !== "lexops" && owner !== "") {
+    res.status(400).json({ message: "owner must be null, 'client', or 'lexops'" }); return;
+  }
+  const { error } = await adminSupabase.from("tasks").update({ owner: owner || null }).eq("id", id);
+  if (error) {
+    if (error.message?.includes("owner")) {
+      res.status(409).json({ message: "owner_column_missing", sql: "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS owner text;" }); return;
+    }
+    res.status(500).json({ message: error.message }); return;
+  }
   res.json({ ok: true });
 });
 
