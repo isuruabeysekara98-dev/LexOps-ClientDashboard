@@ -1424,7 +1424,15 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
   }
 
   async function deleteInvoice(id){
-    try{await dbWrite("invoices","delete",null,{id});}catch(error){console.error("[InvoicesTab] delete error:",error.message);setFormError(error.message);return;}
+    let token;
+    try { const { data:{ session } } = await supabase.auth.getSession(); token = session?.access_token; } catch { token = null; }
+    try {
+      const resp = await fetch(`/api/admin/invoices/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.message || `HTTP ${resp.status}`); }
+    } catch(error) { console.error("[InvoicesTab] delete error:", error.message); setFormError(error.message); return; }
     setInvoices(inv=>inv.filter(x=>x.id!==id));
     onRefresh?.();
   }
@@ -1438,7 +1446,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
     if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setUploadingId(null);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    try{await dbWrite("invoices","update",{file_url:publicUrl},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
+    try{await dbWrite("invoices","update",{file_url:publicUrl,storage_path:storagePath},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
     await loadInvoices();
     setUploadingId(null);
     onRefresh?.();
@@ -1543,9 +1551,11 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
         ?<div style={{color:t.textSub,textAlign:"center",padding:"40px 0",fontSize:13}}>No invoices yet.</div>
         :invoices.map((inv,i)=>{
           const isEditing=editingId===inv.id;
+          const invName=inv.description||inv.invoice_number;
+          const dlHref=inv.file_url?`${inv.file_url}${inv.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(invName+".pdf")}`:"#";
           const label=inv.file_url
-            ?<a href={inv.file_url} target="_blank" rel="noreferrer" style={{color:t.accentLight,textDecoration:"none",fontWeight:500,fontSize:13}}>{inv.description||inv.invoice_number}</a>
-            :<span style={{color:t.text,fontSize:13,fontWeight:500}}>{inv.description||inv.invoice_number}</span>;
+            ?<a href={inv.file_url} target="_blank" rel="noreferrer" style={{color:t.accentLight,textDecoration:"none",fontWeight:500,fontSize:13}}>{invName}</a>
+            :<span style={{color:t.text,fontSize:13,fontWeight:500}}>{invName}</span>;
           return(
             <div key={inv.id}>
               {isEditing?(
@@ -1573,6 +1583,9 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
                     {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>£{(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
+                    {inv.file_url&&(
+                      <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
+                    )}
                     {isInternal&&(
                       <>
                         <input type="file" accept=".pdf" style={{display:"none"}} ref={r=>{if(fileRef.invoiceId===inv.id)fileRef.current=r;}} onChange={e=>handlePdfUpload(e,inv)}/>
@@ -2717,7 +2730,15 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   }
 
   async function deleteInvoice(id) {
-    await dbWrite("invoices","delete",null,{id});
+    let token;
+    try { const { data:{ session } } = await supabase.auth.getSession(); token = session?.access_token; } catch { token = null; }
+    try {
+      const resp = await fetch(`/api/admin/invoices/${id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.message || `HTTP ${resp.status}`); }
+    } catch(err) { console.error("[ProjectSetupDrawer] deleteInvoice error:", err.message); return; }
     setInvoices(ivs => ivs.filter(i => i.id !== id));
     onRefresh?.();
   }

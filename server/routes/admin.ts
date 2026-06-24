@@ -568,6 +568,40 @@ router.delete("/documents/:id", requireAuth, async (req: Request, res: Response)
 });
 
 // ---------------------------------------------------------------------------
+// DELETE /api/admin/invoices/:id — delete storage PDF + DB record server-side
+// ---------------------------------------------------------------------------
+router.delete("/invoices/:id", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) { res.status(400).json({ message: "id required" }); return; }
+
+  // Fetch the storage_path so we can delete the file
+  const { data: inv, error: fetchErr } = await (adminSupabase as any)
+    .from("invoices").select("storage_path").eq("id", id).single();
+
+  if (fetchErr && fetchErr.code !== "PGRST116") {
+    console.error("[admin/invoices/delete] fetch:", fetchErr.message);
+    res.status(500).json({ message: fetchErr.message }); return;
+  }
+
+  // Remove from storage (best-effort — don't fail if file missing)
+  if (inv?.storage_path) {
+    const { error: storageErr } = await (adminSupabase as any).storage
+      .from("project-documents").remove([inv.storage_path]);
+    if (storageErr) console.warn("[admin/invoices/delete] storage:", storageErr.message);
+  }
+
+  // Delete the DB record
+  const { error: deleteErr } = await (adminSupabase as any)
+    .from("invoices").delete().eq("id", id);
+  if (deleteErr) {
+    console.error("[admin/invoices/delete] db:", deleteErr.message);
+    res.status(500).json({ message: deleteErr.message }); return;
+  }
+
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/db — generic service-role database write proxy
 // Body: { table, operation: "insert"|"update"|"delete"|"upsert", data, match? }
 // ---------------------------------------------------------------------------
