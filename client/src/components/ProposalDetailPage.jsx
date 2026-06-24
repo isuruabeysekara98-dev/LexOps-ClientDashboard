@@ -450,8 +450,14 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState(null);
   const [duplicating, setDuplicating] = useState(false);
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
 
   useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => {
+    const onResize = () => setMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   async function loadAll() {
     setLoading(true);
@@ -582,13 +588,6 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const hasWorkflows = (proposal.workflows?.length || 0) > 0;
   const stageCount = proposal.workflows?.reduce((acc, wf) => acc + (wf.stages?.length || 0), 0) || 0;
   const workflowsComplete = hasWorkflows && proposal.workflows.every(wf => wf.has_proceeded);
-
-  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
-  useEffect(() => {
-    const onResize = () => setMobile(window.innerWidth < 640);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
