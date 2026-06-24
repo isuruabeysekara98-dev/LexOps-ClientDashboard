@@ -170,7 +170,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
         <div style={{position:"absolute",right:-40,top:-40,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,0.05)",pointerEvents:"none"}}/>
         <div style={{position:"relative",flex:1,minWidth:180}}>
           <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:5}}>
-            {activePhase ? "Active Phase" : "Project Status"}
+            {activePhase ? "Active Milestone" : "Project Status"}
           </div>
           <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,color:"#fff",fontWeight:600,marginBottom:6,lineHeight:1.2}}>
             {activePhase ? activePhase.name : project.phase || "In Progress"}
@@ -1230,7 +1230,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
             {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice # *",{flex:"0 1 110px"})}
             {inlineInput(newForm.description,e=>setNewForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 160px"})}
             <input type="number" min="0" step="0.01" value={newForm.amount} onChange={e=>setNewForm(f=>({...f,amount:e.target.value}))} placeholder="Amount £" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 100px"}}/>
-            {inlineInput(newForm.phase_name,e=>setNewForm(f=>({...f,phase_name:e.target.value})),"Phase",{flex:"0 1 100px"})}
+            {inlineInput(newForm.phase_name,e=>setNewForm(f=>({...f,phase_name:e.target.value})),"Milestone",{flex:"0 1 100px"})}
             <input type="date" value={newForm.due_date} onChange={e=>setNewForm(f=>({...f,due_date:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
             <input ref={r=>{addFileRef.current=r;}} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)setAddFile(f);e.target.value="";}}/>
             <button type="button" onClick={()=>addFileRef.current?.click()} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 12px",fontSize:12,color:addFile?t.text:t.textSub,cursor:"pointer",fontFamily:"inherit",flex:"0 1 160px",textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -1330,7 +1330,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
 
   async function addPhase(e){
     e.preventDefault();
-    if(!newForm.name.trim()){setFormError("Phase name is required.");return;}
+    if(!newForm.name.trim()){setFormError("Milestone name is required.");return;}
     setFormError("");
     setSaving(true);
     const payload={name:newForm.name,start:toNull(newForm.start),end:toNull(newForm.end),status:newForm.status,progress:Number(newForm.progress)||0,project_id:projectId};
@@ -1411,7 +1411,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     <CardPad t={t}>
       <SectionLabel t={t}>Project Timeline</SectionLabel>
       {phases.length===0
-        ?<div style={{color:t.textSub,fontSize:13,textAlign:"center",padding:"24px 0"}}>No phases yet. Add one below.</div>
+        ?<div style={{color:t.textSub,fontSize:13,textAlign:"center",padding:"24px 0"}}>No milestones yet. Add one below.</div>
         :<div style={{position:"relative",marginBottom:32}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
             {MONTHS.slice(0,5).map((m,i)=>(
@@ -2812,7 +2812,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                         style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                     </div>
                     <div>
-                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Phase</div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Milestone</div>
                       <select value={newInv.phase_name} onChange={e => setNewInv(f => ({ ...f, phase_name: e.target.value }))}
                         style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 10px", fontSize: 12, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%", boxSizing: "border-box" }}>
                         <option value="">— None —</option>
@@ -3100,7 +3100,7 @@ function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
                     background: t.text, color: "#fff", borderRadius: 10, padding: "13px 15px", width: 195, zIndex: 50,
                     boxShadow: "0 8px 28px rgba(0,0,0,0.22)", pointerEvents: "none", lineHeight: 1.5,
                   }}>
-                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 5 }}>Phase {i + 1} — {ph.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 5 }}>Milestone {i + 1} — {ph.name}</div>
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
                       {isDone ? "Completed. No further actions required for this phase."
                         : isActive ? `In progress — ${ph.progress || 0}% complete.`
@@ -3962,7 +3962,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
           </select>
           <select value={editDraft.phase_id} onChange={e=>setEditDraft(d=>({...d,phase_id:e.target.value}))}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}>
-            <option value="">— No Phase —</option>
+            <option value="">— No Milestone —</option>
             {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
           </select>
           <input type="date" value={editDraft.due_date} onChange={e=>setEditDraft(d=>({...d,due_date:e.target.value}))}
@@ -4043,7 +4043,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
       {phases.map(ph=><PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id]||[]}/>)}
       {unphased.length>0&&(
         <div>
-          <div style={{ fontSize:11, fontWeight:600, color:t.textSub, textTransform:"uppercase", letterSpacing:"0.07em", padding:"8px 4px", marginBottom:8 }}>No Phase Assigned</div>
+          <div style={{ fontSize:11, fontWeight:600, color:t.textSub, textTransform:"uppercase", letterSpacing:"0.07em", padding:"8px 4px", marginBottom:8 }}>No Milestone Assigned</div>
           {unphased.map(task=><TaskRow key={task.id} task={task}/>)}
         </div>
       )}
@@ -4142,7 +4142,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
           <select value={uploadPhase} onChange={e=>setUploadPhase(e.target.value)}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
-            <option value="">Tag with phase (optional)</option>
+            <option value="">Tag with milestone (optional)</option>
             {phases.map(ph=><option key={ph} value={ph}>{ph}</option>)}
           </select>
         </div>
