@@ -4421,14 +4421,16 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
         }
       }
 
+      // Close edit mode immediately — don't block on data reload
       setEditingId(null);
-      await loadData();
+      setSaving(false);
+      loadData();        // fire-and-forget background refresh
       onRefresh?.();
     } catch(err) {
       console.error("[InternalActionsTab] saveEdit failed:", err.message);
       setSaveError(err.message);
+      setSaving(false);
     }
-    setSaving(false);
   }
   async function deleteTask(taskId) {
     try {
