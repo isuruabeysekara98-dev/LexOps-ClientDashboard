@@ -435,6 +435,9 @@ async function adminFetch(path, options = {}) {
   }
   return resp.json();
 }
+async function dbWrite(table, operation, data, match) {
+  return adminFetch("/db", { method: "POST", body: { table, operation, data: data ?? null, match: match ?? null } });
+}
 
 async function autoCompletePhaseIfDone(projectId, phaseId) {
   if (!phaseId) return;
@@ -497,8 +500,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     setFormError("");
     setSaving(true);
     const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
-    const {error}=await supabase.from("phases").insert(payload);
-    if(error){console.error("[TasksTab] phase insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+    try{await dbWrite("phases","insert",payload);}catch(err){console.error("[TasksTab] phase insert error:",err.message);setFormError(err.message);setSaving(false);return;}
     setNewPhaseForm({name:""});
     setShowAddPhase(false);
     setSaving(false);
@@ -798,16 +800,9 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     if(upErr){setUploadError(upErr.message);setUploading(false);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext=file.name.split(".").pop().toUpperCase();
-    const {error:dbErr}=await supabase.from("documents").insert({
-      project_id:projectId,
-      name:file.name,
-      file_type:ext,
-      file_size:file.size,
-      file_url:publicUrl,
-      storage_path:storagePath,
-      uploaded_at:new Date().toISOString(),
-    });
-    if(dbErr){
+    try{
+      await dbWrite("documents","insert",{project_id:projectId,name:file.name,file_type:ext,file_size:file.size,file_url:publicUrl,storage_path:storagePath,uploaded_at:new Date().toISOString()});
+    }catch(dbErr){
       console.error("[DocumentsTab] insert error:",dbErr.message);
       // Rollback: remove orphaned storage file
       await supabase.storage.from("project-documents").remove([storagePath]);
@@ -822,8 +817,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     setDeletingId(doc.id);
     const {error:storageErr}=await supabase.storage.from("project-documents").remove([doc.storage_path]);
     if(storageErr) console.error("[DocumentsTab] storage delete error:",storageErr.message);
-    const {error}=await supabase.from("documents").delete().eq("id",doc.id);
-    if(error){console.error("[DocumentsTab] delete error:",error.message);setUploadError(error.message);setDeletingId(null);return;}
+    try{await dbWrite("documents","delete",null,{id:doc.id});}catch(error){console.error("[DocumentsTab] delete error:",error.message);setUploadError(error.message);setDeletingId(null);return;}
     setDocs(ds=>ds.filter(d=>d.id!==doc.id));
     setDeletingId(null);
     onRefresh?.();
@@ -835,8 +829,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     e.preventDefault();
     if(!reqForm.title.trim()) return;
     setSavingReq(true);
-    const {error}=await supabase.from("document_requests").insert({project_id:projectId,title:reqForm.title,description:reqForm.description||null});
-    if(error){console.error("[DocumentsTab] doc request insert error:",error.message);setUploadError(error.message);setSavingReq(false);return;}
+    try{await dbWrite("document_requests","insert",{project_id:projectId,title:reqForm.title,description:reqForm.description||null});}catch(error){console.error("[DocumentsTab] doc request insert error:",error.message);setUploadError(error.message);setSavingReq(false);return;}
     // Notify clients via email
     fetch("/api/notify/document-request",{
       method:"POST",headers:{"Content-Type":"application/json"},
@@ -975,7 +968,7 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
     e.preventDefault();
     if(!form.title.trim()) return;
     setSaving(true);
-    await supabase.from("support_tickets").insert({
+    await dbWrite("support_tickets","insert",{
       project_id:projectId,title:form.title.trim(),
       description:form.description.trim()||null,
       priority:form.priority,category:form.category,
@@ -987,17 +980,17 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
 
   async function moveTicket(id,newStatus){
     setMovingId(id);
-    await supabase.from("support_tickets").update({status:newStatus,client_move_requested:null,updated_at:new Date().toISOString()}).eq("id",id);
+    await dbWrite("support_tickets","update",{status:newStatus,client_move_requested:null,updated_at:new Date().toISOString()},{id});
     await loadTickets();setMovingId(null);
   }
 
   async function cancelRequest(id){
-    await supabase.from("support_tickets").update({client_move_requested:null}).eq("id",id);
+    await dbWrite("support_tickets","update",{client_move_requested:null},{id});
     await loadTickets();
   }
 
   async function deleteTicket(id){
-    await supabase.from("support_tickets").delete().eq("id",id);
+    await dbWrite("support_tickets","delete",null,{id});
     setTickets(ts=>ts.filter(tk=>tk.id!==id));
   }
 
@@ -1207,18 +1200,9 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
       if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setSaving(false);return;}
       publicUrl=supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
     }
-    const {error}=await supabase.from("invoices").insert({
-      invoice_number:newForm.invoice_number,
-      due_date:toNull(newForm.due_date),
-      status:"pending",
-      file_url:publicUrl,
-      storage_path:storagePath,
-      project_id:projectId,
-      amount:Number(newForm.amount)||0,
-      description:newForm.description||null,
-      phase_name:newForm.phase_name||null,
-    });
-    if(error){
+    try{
+      await dbWrite("invoices","insert",{invoice_number:newForm.invoice_number,due_date:toNull(newForm.due_date),status:"pending",file_url:publicUrl,storage_path:storagePath,project_id:projectId,amount:Number(newForm.amount)||0,description:newForm.description||null,phase_name:newForm.phase_name||null});
+    }catch(error){
       console.error("[InvoicesTab] insert error:",error.message);
       if(storagePath) await supabase.storage.from("project-documents").remove([storagePath]);
       setFormError(error.message);setSaving(false);return;
@@ -1229,7 +1213,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
 
   async function saveEngValue(){
     const v=Number(engInput)||0;
-    await supabase.from("projects").update({total_engagement_value:v}).eq("id",projectId);
+    await dbWrite("projects","update",{total_engagement_value:v},{id:projectId});
     setEngValue(v);setEditingEng(false);onRefresh?.();
   }
 
@@ -1244,8 +1228,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     setFormError("");
     setSaving(true);
     const payload={...editForm,due_date:toNull(editForm.due_date),amount:Number(editForm.amount)||0};
-    const {error}=await supabase.from("invoices").update(payload).eq("id",id);
-    if(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
+    try{await dbWrite("invoices","update",payload,{id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     setEditingId(null);
     await loadInvoices();
     setSaving(false);
@@ -1253,8 +1236,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
   }
 
   async function deleteInvoice(id){
-    const {error}=await supabase.from("invoices").delete().eq("id",id);
-    if(error){console.error("[InvoicesTab] delete error:",error.message);setFormError(error.message);return;}
+    try{await dbWrite("invoices","delete",null,{id});}catch(error){console.error("[InvoicesTab] delete error:",error.message);setFormError(error.message);return;}
     setInvoices(inv=>inv.filter(x=>x.id!==id));
     onRefresh?.();
   }
@@ -1268,8 +1250,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
     if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setUploadingId(null);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    const {error}=await supabase.from("invoices").update({file_url:publicUrl}).eq("id",inv.id);
-    if(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
+    try{await dbWrite("invoices","update",{file_url:publicUrl},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
     await loadInvoices();
     setUploadingId(null);
     onRefresh?.();
@@ -1457,8 +1438,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     setFormError("");
     setSaving(true);
     const payload={name:newForm.name,start:toNull(newForm.start),end:toNull(newForm.end),status:newForm.status,progress:Number(newForm.progress)||0,project_id:projectId};
-    const {error}=await supabase.from("phases").insert(payload);
-    if(error){console.error("[TimelineTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+    try{await dbWrite("phases","insert",payload);}catch(error){console.error("[TimelineTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewForm(EMPTY_PHASE);
     setShowAdd(false);
     await loadPhases();
@@ -1477,8 +1457,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     setFormError("");
     setSaving(true);
     const payload={...editForm,start:toNull(editForm.start),end:toNull(editForm.end),progress:Number(editForm.progress)||0};
-    const {error}=await supabase.from("phases").update(payload).eq("id",id);
-    if(error){console.error("[TimelineTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
+    try{await dbWrite("phases","update",payload,{id});}catch(error){console.error("[TimelineTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     // Notify clients when phase marked complete
     if(editForm.status==="complete"){
       fetch("/api/notify/phase-complete",{
@@ -1493,8 +1472,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
   }
 
   async function deletePhase(id){
-    const {error}=await supabase.from("phases").delete().eq("id",id);
-    if(error){console.error("[TimelineTab] delete error:",error.message);setFormError(error.message);return;}
+    try{await dbWrite("phases","delete",null,{id});}catch(error){console.error("[TimelineTab] delete error:",error.message);setFormError(error.message);return;}
     setPhases(ps=>ps.filter(ph=>ph.id!==id));
     onRefresh?.();
   }
@@ -1711,8 +1689,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     setFormError("");
     setSaving(true);
     const payload={name:newPhaseForm.name,status:"pending",progress:0,project_id:projectId};
-    const {error}=await supabase.from("phases").insert(payload);
-    if(error){console.error("[KanbanView] phase insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+    try{await dbWrite("phases","insert",payload);}catch(error){console.error("[KanbanView] phase insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     setNewPhaseForm({name:""});
     setShowAddPhase(false);
     setSaving(false);
@@ -1960,11 +1937,9 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
     setSaving(true);
     const payload={...form,category:toNull(form.category),access:toNull(form.access),url:toNull(form.url),note:toNull(form.note)};
     if(editing){
-      const {error}=await supabase.from("software").update(payload).eq("id",editing.id);
-      if(error){console.error("[SoftwareTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
+      try{await dbWrite("software","update",payload,{id:editing.id});}catch(error){console.error("[SoftwareTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     } else {
-      const {error}=await supabase.from("software").insert({...payload,project_id:projectId});
-      if(error){console.error("[SoftwareTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
+      try{await dbWrite("software","insert",{...payload,project_id:projectId});}catch(error){console.error("[SoftwareTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
     }
     setShowModal(false);
     await loadTools();
@@ -1974,8 +1949,7 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
 
   async function deleteTool(id){
     setDeletingId(id);
-    const {error}=await supabase.from("software").delete().eq("id",id);
-    if(error){console.error("[SoftwareTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
+    try{await dbWrite("software","delete",null,{id});}catch(error){console.error("[SoftwareTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
     setTools(ts=>ts.filter(sw=>sw.id!==id));
     setDeletingId(null);
     onRefresh?.();
@@ -2110,15 +2084,8 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
     if(!newForm.title.trim()){setFormError("Title is required.");return;}
     setFormError("");
     setSaving(true);
-    const {error}=await supabase.from("maintenance").insert({
-      ...newForm,
-      notes:toNull(newForm.notes),
-      project_id:projectId,
-      status:"open",
-      reported:new Date().toISOString().slice(0,10)
-    });
+    try{await dbWrite("maintenance","insert",{...newForm,notes:toNull(newForm.notes),project_id:projectId,status:"open",reported:new Date().toISOString().slice(0,10)});}catch(error){console.error("[MaintenanceTab] insert error:",error.message);setSaving(false);setFormError(error.message);return;}
     setSaving(false);
-    if(error){console.error("[MaintenanceTab] insert error:",error.message);setFormError(error.message);return;}
     setNewForm(EMPTY_MNT);setShowNew(false);loadItems();onRefresh?.();
   }
 
@@ -2131,17 +2098,15 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
     setFormError("");
     setSaving(true);
     const payload={...editForm,resolved:toNull(editForm.resolved),notes:toNull(editForm.notes)};
-    const {error}=await supabase.from("maintenance").update(payload).eq("id",id);
+    try{await dbWrite("maintenance","update",payload,{id});}catch(error){console.error("[MaintenanceTab] update error:",error.message);setSaving(false);setFormError(error.message);return;}
     setSaving(false);
-    if(error){console.error("[MaintenanceTab] update error:",error.message);setFormError(error.message);return;}
     setEditingId(null);
     loadItems();
     onRefresh?.();
   }
   async function deleteItem(id){
     setDeletingId(id);
-    const {error}=await supabase.from("maintenance").delete().eq("id",id);
-    if(error){console.error("[MaintenanceTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
+    try{await dbWrite("maintenance","delete",null,{id});}catch(error){console.error("[MaintenanceTab] delete error:",error.message);setFormError(error.message);setDeletingId(null);return;}
     setDeletingId(null);
     setItems(prev=>prev.filter(m=>m.id!==id));
     onRefresh?.();
@@ -2400,7 +2365,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   async function saveDetails(e) {
     e.preventDefault();
     setDetSaving(true);
-    await supabase.from("projects").update({
+    await dbWrite("projects","update",{
       name: det.name,
       client_name: det.client_name,
       manager: det.manager || null,
@@ -2412,7 +2377,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       total_engagement_value: Number(det.total_engagement_value) || 0,
       summary: det.summary || null,
       client_summary: det.client_summary || null,
-    }).eq("id", project.id);
+    },{id: project.id});
     setDetSaving(false);
     setDetOk(true);
     setTimeout(() => setDetOk(false), 2500);
@@ -2424,7 +2389,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     if (!proposal?.stages?.length) return;
     setImportingPh(true);
     for (const st of proposal.stages) {
-      await supabase.from("phases").insert({
+      await dbWrite("phases","insert",{
         project_id: project.id,
         name: st.title || st.name || `Stage ${st.order_index + 1}`,
         status: "pending",
@@ -2442,7 +2407,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newPhase.name.trim()) return;
     setPhSaving(true);
-    await supabase.from("phases").insert({
+    await dbWrite("phases","insert",{
       project_id: project.id,
       name: newPhase.name.trim(),
       status: newPhase.status,
@@ -2458,7 +2423,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   }
 
   async function deletePhase(id) {
-    await supabase.from("phases").delete().eq("id", id);
+    await dbWrite("phases","delete",null,{id});
     setPhases(ps => ps.filter(p => p.id !== id));
     onRefresh?.();
   }
@@ -2501,7 +2466,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
     if (!upErr) {
       const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
-      await supabase.from("documents").insert({
+      await dbWrite("documents","insert",{
         project_id: project.id, name: file.name,
         file_type: file.name.split(".").pop().toUpperCase(),
         file_size: file.size, file_url: publicUrl,
@@ -2524,7 +2489,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, invFile, { upsert: true });
       if (!upErr) publicUrl = supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
     }
-    await supabase.from("invoices").insert({
+    await dbWrite("invoices","insert",{
       project_id: project.id,
       invoice_number: newInv.invoice_number.trim(),
       description: newInv.description || null,
@@ -2543,7 +2508,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   }
 
   async function deleteInvoice(id) {
-    await supabase.from("invoices").delete().eq("id", id);
+    await dbWrite("invoices","delete",null,{id});
     setInvoices(ivs => ivs.filter(i => i.id !== id));
     onRefresh?.();
   }
@@ -2564,7 +2529,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    await supabase.from("project_tools").insert({
+    await dbWrite("project_tools","insert",{
       project_id: project.id,
       name: newTool.name.trim(),
       purpose: newTool.purpose.trim() || null,
@@ -2580,7 +2545,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   }
 
   async function deleteTool(id) {
-    await supabase.from("project_tools").delete().eq("id", id);
+    await dbWrite("project_tools","delete",null,{id});
     setTools(ts => ts.filter(t => t.id !== id));
   }
 
@@ -3869,7 +3834,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
     const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
 
-    const { data: newDoc } = await supabase.from("documents").insert({
+    const insertResult = await dbWrite("documents","insert",{
       project_id: projectId,
       name: file.name,
       file_type: ext,
@@ -3877,13 +3842,14 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
       file_url: publicUrl,
       storage_path: storagePath,
       uploaded_at: new Date().toISOString(),
-    }).select("id").single();
+    });
+    const newDoc = insertResult?.data;
 
     if (newDoc) {
-      await supabase.from("document_requests").update({
+      await dbWrite("document_requests","update",{
         fulfilled_at: new Date().toISOString(),
         fulfilled_document_id: newDoc.id,
-      }).eq("id", req.id);
+      },{id: req.id});
       // Notify admins that document was uploaded
       fetch("/api/notify/document-uploaded",{
         method:"POST",headers:{"Content-Type":"application/json"},
@@ -3907,7 +3873,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
     if (upErr) { setUploadError(upErr.message); setSelfUploading(false); return; }
     const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
-    await supabase.from("documents").insert({
+    await dbWrite("documents","insert",{
       project_id: projectId, name: file.name, file_type: ext,
       file_size: file.size, file_url: publicUrl, storage_path: storagePath,
       uploaded_at: new Date().toISOString(),
@@ -4125,7 +4091,7 @@ function ManagerEditor({ projectId, value, t, onSaved }) {
   const [saving, setSaving] = useState(false);
   async function save() {
     setSaving(true);
-    await supabase.from("projects").update({ manager: draft.trim() || null }).eq("id", projectId);
+    await dbWrite("projects","update",{ manager: draft.trim() || null },{id: projectId});
     setSaving(false);
     setEditing(false);
     onSaved?.(draft.trim());
@@ -4429,7 +4395,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     if (upErr) { setUploading(false); return; }
     const { data:{ publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
-    await supabase.from("documents").insert({ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
+    await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
     await load();
     setUploading(false);
     onRefresh?.();
@@ -4438,7 +4404,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   async function deleteDoc(doc) {
     setDeletingDocId(doc.id);
     if (doc.storage_path) await supabase.storage.from("project-documents").remove([doc.storage_path]);
-    await supabase.from("documents").delete().eq("id", doc.id);
+    await dbWrite("documents","delete",null,{id: doc.id});
     setDocs(ds => ds.filter(d => d.id !== doc.id));
     setDeletingDocId(null);
     onRefresh?.();
@@ -4448,7 +4414,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    await supabase.from("project_tools").insert({ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
+    await dbWrite("project_tools","insert",{ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
     setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
     setShowAddTool(false);
     const { data } = await supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order");
@@ -4458,7 +4424,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   }
 
   async function deleteTool(id) {
-    await supabase.from("project_tools").delete().eq("id", id);
+    await dbWrite("project_tools","delete",null,{id});
     setTools(ts => ts.filter(t => t.id !== id));
   }
 
@@ -4695,7 +4661,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   async function dismissWelcome(){
     setShowWelcome(false);
     if(userProfile?.id){
-      await supabase.from("profiles").update({has_seen_welcome:true}).eq("id",userProfile.id);
+      await dbWrite("profiles","update",{has_seen_welcome:true},{id:userProfile.id});
     }
   }
 

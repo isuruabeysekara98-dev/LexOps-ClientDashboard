@@ -1385,10 +1385,12 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
     if (!newComment.trim()) return;
     const author = userProfile?.full_name || "Client";
     const initial = (author[0] || "C").toUpperCase();
-    const { data, error } = await supabase.from("flowchart_comments").insert({
-      node_id: node.id, author_name: author, author_initial: initial, body: newComment.trim(),
-    }).select().single();
-    if (!error && data) { setComments(c => [...c, data]); setNewComment(""); }
+    try {
+      const result = await import("@/lib/adminFetch.js").then(m => m.dbWrite("flowchart_comments","insert",{
+        node_id: node.id, author_name: author, author_initial: initial, body: newComment.trim(),
+      }));
+      if (result?.data) { setComments(c => [...c, result.data]); setNewComment(""); }
+    } catch(err) { console.error("[FlowchartTab] comment insert failed:", err.message); }
   }
 
   const statusColor = node.status === "done" ? "#1A6666" : node.status === "in_progress" ? "#1A6666" : "#7AA8A8";

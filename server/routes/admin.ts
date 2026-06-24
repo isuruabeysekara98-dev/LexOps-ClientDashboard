@@ -395,4 +395,54 @@ router.post("/phases/:id/auto-complete", requireAuth, async (req: Request, res: 
   res.json({ ok: true });
 });
 
+// ---------------------------------------------------------------------------
+// POST /api/admin/db — generic service-role database write proxy
+// Body: { table, operation: "insert"|"update"|"delete"|"upsert", data, match? }
+// ---------------------------------------------------------------------------
+const ALLOWED_TABLES = [
+  "tasks","phases","projects","documents","document_requests",
+  "support_tickets","invoices","project_tools","software","maintenance",
+  "project_members","proposals","profiles","project_setup_flags",
+  "flowchart_nodes","flowchart_arrows","flowchart_comments","flowchart_templates",
+];
+
+router.post("/db", requireAuth, async (req: Request, res: Response) => {
+  const { table, operation, data, match } = req.body;
+  if (!ALLOWED_TABLES.includes(table)) {
+    res.status(400).json({ message: `Table "${table}" not allowed` }); return;
+  }
+  if (!["insert","update","delete","upsert"].includes(operation)) {
+    res.status(400).json({ message: `Invalid operation "${operation}"` }); return;
+  }
+  try {
+    const tbl = (adminSupabase as any).from(table);
+    let result: any = null;
+    if (operation === "insert") {
+      const q = Array.isArray(data) ? tbl.insert(data) : tbl.insert(data).select().single();
+      const r = await q;
+      if (r.error) throw r.error;
+      result = r.data;
+    } else if (operation === "update") {
+      let q = tbl.update(data);
+      if (match) for (const [k, v] of Object.entries(match as Record<string,any>)) q = q.eq(k, v);
+      const r = await q;
+      if (r.error) throw r.error;
+    } else if (operation === "delete") {
+      let q = tbl.delete();
+      if (match) for (const [k, v] of Object.entries(match as Record<string,any>)) q = q.eq(k, v);
+      const r = await q;
+      if (r.error) throw r.error;
+    } else if (operation === "upsert") {
+      const opts = match ? { onConflict: Object.keys(match).join(",") } : {};
+      const r = await tbl.upsert(data, opts);
+      if (r.error) throw r.error;
+      result = r.data;
+    }
+    res.json({ ok: true, data: result });
+  } catch (err: any) {
+    console.error(`[admin/db] ${operation} ${table}:`, err.message);
+    res.status(500).json({ message: err.message || "Database write failed" });
+  }
+});
+
 export default router;

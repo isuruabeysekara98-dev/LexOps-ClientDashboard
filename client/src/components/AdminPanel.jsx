@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase.js";
+import { adminFetch, dbWrite } from "@/lib/adminFetch.js";
 
 const themes = {
   dark: {
@@ -317,10 +318,10 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
     setError("");
     setSaving(true);
     const payload = { ...form, budget: Number(form.budget) || 0, progress: Number(form.progress) || 0 };
-    const { error: err } = isEdit
-      ? await supabase.from("projects").update(payload).eq("id", project.id)
-      : await supabase.from("projects").insert(payload);
-    if (err) { setError(err.message); setSaving(false); return; }
+    try {
+      if (isEdit) await dbWrite("projects","update",payload,{id: project.id});
+      else await dbWrite("projects","insert",payload);
+    } catch(err) { setError(err.message); setSaving(false); return; }
     onSuccess();
   }
 
@@ -506,9 +507,9 @@ function ClientsTab({ t, mode }) {
   async function assignProject(userId) {
     if (!selectedProjectId) return;
     setAssigning(true);
-    await supabase.from("project_members").upsert(
+    await dbWrite("project_members","upsert",
       { project_id: selectedProjectId, user_id: userId, role: "member" },
-      { onConflict: "project_id,user_id" }
+      { project_id: selectedProjectId, user_id: userId }
     );
     setAssignModal(null);
     setSelectedProjectId("");
@@ -554,13 +555,10 @@ function ClientsTab({ t, mode }) {
     // Create project if project_name is provided
     let projectId = null;
     if (proposalForm.project_name.trim()) {
-      const { data: newProj, error: projErr } = await supabase
-        .from("projects")
-        .insert({ name: proposalForm.project_name.trim(), client_name: proposalForm.client_name.trim(), status: "active", progress: 0 })
-        .select("id")
-        .single();
-      if (projErr) { setProposalError("Failed to create project: " + projErr.message); setProposalSaving(false); return; }
-      projectId = newProj.id;
+      try {
+        const r = await dbWrite("projects","insert",{ name: proposalForm.project_name.trim(), client_name: proposalForm.client_name.trim(), status: "active", progress: 0 });
+        projectId = r.data.id;
+      } catch(projErr) { setProposalError("Failed to create project: " + projErr.message); setProposalSaving(false); return; }
     }
 
     // Upload PDF once if provided, then reuse the URL for each proposal
@@ -569,19 +567,17 @@ function ClientsTab({ t, mode }) {
 
     const createdLinks = [];
     for (const email of emails) {
-      const { data: row, error: insErr } = await supabase
-        .from("proposals")
-        .insert({
+      let row;
+      try {
+        const r = await dbWrite("proposals","insert",{
           project_id: projectId,
           client_name: proposalForm.client_name,
           client_contact_name: proposalForm.client_contact_name || null,
           client_email: email,
           status: "draft",
-        })
-        .select("*")
-        .single();
-
-      if (insErr) { setProposalError(insErr.message); setProposalSaving(false); return; }
+        });
+        row = r.data;
+      } catch(insErr) { setProposalError(insErr.message); setProposalSaving(false); return; }
 
       if (proposalFile && !pdfUrl) {
         storagePath = `proposals/${row.id}/${proposalFile.name}`;
@@ -598,11 +594,9 @@ function ClientsTab({ t, mode }) {
       }
 
       if (pdfUrl) {
-        await supabase.from("proposals")
-          .update({ pdf_url: pdfUrl, storage_path: storagePath, status: "sent" })
-          .eq("id", row.id);
+        await dbWrite("proposals","update",{ pdf_url: pdfUrl, storage_path: storagePath, status: "sent" },{id: row.id});
       } else {
-        await supabase.from("proposals").update({ status: "sent" }).eq("id", row.id);
+        await dbWrite("proposals","update",{ status: "sent" },{id: row.id});
       }
 
       createdLinks.push(`${window.location.origin}/proposal/${row.token}`);
@@ -618,7 +612,7 @@ function ClientsTab({ t, mode }) {
   async function deleteProposal(id) {
     if (!window.confirm("Delete this proposal?")) return;
     setDeletingProposal(id);
-    await supabase.from("proposals").delete().eq("id", id);
+    await dbWrite("proposals","delete",null,{id});
     setProposals(p => p.filter(x => x.id !== id));
     setDeletingProposal(null);
   }
@@ -1064,7 +1058,7 @@ function TeamTab({ t, mode }) {
 
   async function changeRole(userId, newRole) {
     setUsers(u => u.map(x => x.id === userId ? { ...x, role: newRole } : x));
-    await supabase.from("profiles").update({ role: newRole }).eq("id", userId);
+    await dbWrite("profiles","update",{ role: newRole },{id: userId});
   }
 
   async function removeUser(userId) {
@@ -1335,7 +1329,7 @@ function ProjectsTab({ t }) {
   async function deleteProject(id) {
     if (!window.confirm("Delete this project? This cannot be undone.")) return;
     setDeleting(id);
-    await supabase.from("projects").delete().eq("id", id);
+    await dbWrite("projects","delete",null,{id});
     setProjects(p => p.filter(x => x.id !== id));
     setDeleting(null);
   }
@@ -1350,7 +1344,7 @@ function ProjectsTab({ t }) {
 
   async function resolveFlag(flag) {
     setSavingFlag(flag.id);
-    await supabase.from("project_setup_flags").update({ answer: flag.answer, resolved: true }).eq("id", flag.id);
+    await dbWrite("project_setup_flags","update",{ answer: flag.answer, resolved: true },{id: flag.id});
     setFlags(fs => fs.map(f => f.id === flag.id ? { ...f, resolved: true } : f));
     setFlagCounts(fc => ({ ...fc, [flagsProject.id]: Math.max(0, (fc[flagsProject.id] || 1) - 1) }));
     setSavingFlag(null);
