@@ -537,7 +537,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     if(!newForm.title.trim()){setFormError("Title is required.");return;}
     setFormError("");
     setSaving(true);
-    const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
+    const payload={title:newForm.title,assignee:newForm.assignee||null,due_date:toNull(newForm.due),status:newForm.status,is_internal:newForm.is_internal,is_deliverable:newForm.is_deliverable,phase_id:toNull(newForm.phase_id),project_id:projectId};
     try {
       await adminFetch("/tasks", { method: "POST", body: payload });
       setNewForm(EMPTY_TASK);
@@ -550,7 +550,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
 
   function startEdit(task){
     setEditingId(task.id);
-    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id||""});
+    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due_date||task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id?String(task.phase_id):""});
     setFormError("");
   }
 
@@ -558,7 +558,16 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     e.preventDefault();
     setFormError("");
     setSaving(true);
-    const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
+    // Map form key "due" → DB column "due_date"; strip any extra fields not in allowed list
+    const payload={
+      title:editForm.title,
+      assignee:editForm.assignee||null,
+      due_date:toNull(editForm.due),
+      status:editForm.status,
+      is_internal:editForm.is_internal,
+      is_deliverable:editForm.is_deliverable,
+      phase_id:toNull(editForm.phase_id),
+    };
     try {
       await adminFetch(`/tasks/${id}`, { method: "PATCH", body: payload });
       setEditingId(null);
@@ -711,7 +720,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
-              {task.due&&<span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due}</span>}
+              {(task.due_date||task.due)&&<span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due_date||task.due}</span>}
               <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
               <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
               <button onClick={()=>deleteTask(task.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
@@ -1719,7 +1728,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
                             </div>
                             <span style={{color:task.status==="done"?t.textSub:t.text,fontSize:12,fontWeight:400,textDecoration:task.status==="done"?"line-through":"none",flex:1}}>{task.title}</span>
                             {task.assignee&&<span style={{color:t.textDim,fontSize:11}}>{task.assignee}</span>}
-                            {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
+                            {(task.due_date||task.due)&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due_date||task.due}</span>}
                             <span style={{color:c.dot,fontSize:10,fontWeight:600}}>{c.label}</span>
                           </div>
                         );
@@ -1785,7 +1794,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     if(!newForm.title.trim()){setFormError("Title is required.");return;}
     setFormError("");
     setSaving(true);
-    const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
+    const payload={title:newForm.title,assignee:newForm.assignee||null,due_date:toNull(newForm.due),status:newForm.status,is_internal:newForm.is_internal,is_deliverable:newForm.is_deliverable,phase_id:toNull(newForm.phase_id),project_id:projectId};
     try {
       await adminFetch("/tasks", { method: "POST", body: payload });
       setNewForm(EMPTY_TASK);
@@ -1797,7 +1806,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
 
   function openEdit(task){
     setEditingTask(task);
-    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id||""});
+    setEditForm({title:task.title,assignee:task.assignee||"",due:task.due_date||task.due||"",status:task.status,is_internal:task.is_internal??true,is_deliverable:task.is_deliverable??false,phase_id:task.phase_id?String(task.phase_id):""});
     setFormError("");
   }
 
@@ -1806,7 +1815,15 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     if(!editingTask) return;
     setFormError("");
     setSaving(true);
-    const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
+    const payload={
+      title:editForm.title,
+      assignee:editForm.assignee||null,
+      due_date:toNull(editForm.due),
+      status:editForm.status,
+      is_internal:editForm.is_internal,
+      is_deliverable:editForm.is_deliverable,
+      phase_id:toNull(editForm.phase_id),
+    };
     try {
       await adminFetch(`/tasks/${editingTask.id}`, { method: "PATCH", body: payload });
       if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id||editingTask.phase_id);
@@ -1941,7 +1958,7 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
                           {task.assignee.split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase()}
                         </div>
                       )}
-                      {task.due&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due}</span>}
+                      {(task.due_date||task.due)&&<span style={{color:t.textSub,fontSize:11}}>Due {task.due_date||task.due}</span>}
                     </div>
                     <span style={{color:sColor,fontSize:10,fontWeight:600,background:sColor+"14",borderRadius:99,padding:"2px 8px",border:`1px solid ${sColor}25`}}>{statusLabels[task.status]||task.status}</span>
                   </div>
