@@ -418,19 +418,44 @@ function computePhaseStatuses(phases, tasks) {
 // Routes all writes through the Express backend (service-role key, bypasses RLS).
 // ---------------------------------------------------------------------------
 async function adminFetch(path, options = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
+  // Always refresh the session so we get a valid (non-expired) token
+  let session;
+  try {
+    const { data } = await supabase.auth.getSession();
+    session = data?.session;
+    if (!session) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      session = refreshed?.session;
+    }
+  } catch (authErr) {
+    console.error("[adminFetch] session error:", authErr?.message);
+  }
   const token = session?.access_token;
-  const resp = await fetch(`/api/admin${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    body: options.body !== undefined ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
-  });
+  if (!token) console.warn("[adminFetch] no access token — request will be rejected");
+
+  const body = options.body !== undefined
+    ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body))
+    : undefined;
+
+  let resp;
+  try {
+    resp = await fetch(`/api/admin${path}`, {
+      method: options.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+      body,
+    });
+  } catch (netErr) {
+    console.error("[adminFetch] network error:", netErr?.message, "path:", path);
+    throw new Error("Network error — could not reach server");
+  }
+
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
+    console.error("[adminFetch] server error:", resp.status, err.message, "path:", path);
     throw new Error(err.message || `HTTP ${resp.status}`);
   }
   return resp.json();
@@ -962,9 +987,14 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
   async function saveCalendlyUrl(){
     if(!project?.id) return;
     setCalendlySaving(true);
-    await dbWrite("projects","update",{calendly_url:calendlyDraft.trim()||null},{id:project.id});
-    setCalendlyUrl(calendlyDraft.trim());
-    setEditingCalendly(false);
+    try {
+      await dbWrite("projects","update",{calendly_url:calendlyDraft.trim()||null},{id:project.id});
+      setCalendlyUrl(calendlyDraft.trim());
+      setEditingCalendly(false);
+    } catch(err) {
+      console.error("[SupportTab] saveCalendlyUrl failed:", err.message);
+      alert("Could not save booking link: " + err.message);
+    }
     setCalendlySaving(false);
   }
 

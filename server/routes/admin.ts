@@ -334,7 +334,7 @@ router.post("/bulk-rename-phases", requireAdmin, async (req, res) => {
 
 // POST /api/admin/tasks — create a task
 router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
-  const { project_id, title, status, is_internal, is_deliverable, due_date, phase_id, owner, description, assignee } = req.body;
+  const { project_id, title, status, is_internal, is_deliverable, due_date, phase_id, description, assignee } = req.body;
   if (!project_id || !title) { res.status(400).json({ message: "project_id and title are required" }); return; }
   const { data, error } = await adminSupabase.from("tasks").insert({
     project_id, title,
@@ -343,7 +343,6 @@ router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
     is_deliverable: is_deliverable ?? false,
     due_date: due_date || null,
     phase_id: phase_id || null,
-    owner: owner || null,
     description: description || null,
     assignee: assignee || null,
   }).select().single();
@@ -354,7 +353,7 @@ router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
 // PATCH /api/admin/tasks/:id — full task update
 router.patch("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
-  const allowed = ["title", "status", "due_date", "phase_id", "owner", "is_internal", "is_deliverable", "description", "assignee"];
+  const allowed = ["title", "status", "due_date", "phase_id", "is_internal", "is_deliverable", "description", "assignee"];
   const payload = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   if (Object.keys(payload).length === 0) { res.status(400).json({ message: "No valid fields to update" }); return; }
   const { error } = await adminSupabase.from("tasks").update(payload).eq("id", id);

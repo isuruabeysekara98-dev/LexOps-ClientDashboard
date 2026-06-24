@@ -3,3 +3,6 @@
 - [Support tickets + invoice/project schema](portal-schema-additions.md) — three ALTER TABLE + one CREATE TABLE needed before SupportTab and full InvoicesTab work; SQL block provided to user in session.
 - [Project Calendly URL](portal-schema-additions.md) — projects.calendly_url drives BookingTab embed; falls back to generic LexOps URL when null.
 - [Backend write proxy architecture](backend-write-proxy.md) — all DB writes go through Express /api/admin/db with service-role key to bypass RLS; never write directly from frontend.
+- [adminFetch session handling](adminFetch-session.md) — must refresh session before fetch; getSession() alone can return expired tokens causing silent 401s with no server log.
+- [Tasks schema — no owner column](tasks-schema.md) — tasks table has no `owner` column; exclude from PATCH allowed list and INSERT payloads or Supabase throws 500.
+- [Backend server restart required](backend-write-proxy.md) — tsx runs without --watch; any server/**/*.ts change needs workflow restart or the route won't exist (returns 404).
