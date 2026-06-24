@@ -3443,6 +3443,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
     if (task.status === "done" || completing === task.id) return;
     setCompleting(task.id);
     await supabase.from("tasks").update({ status: "done" }).eq("id", task.id);
+    await autoCompletePhaseIfDone(projectId, task.phase_id);
     await loadData();
     setCompleting(null);
     showToast("✅ Marked complete — LexOps will verify shortly.");
@@ -3976,6 +3977,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
       due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
       owner: editDraft.owner || null,
     }).eq("id", taskId);
+    if (editDraft.status === "done") await autoCompletePhaseIfDone(projectId, editDraft.phase_id);
     setEditingId(null);
     await loadData();
     setSaving(false);
