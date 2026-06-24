@@ -3426,7 +3426,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
   const loadData = useCallback(async () => {
     const [{ data: td }, { data: pd }] = await Promise.all([
       supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
-      supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order"),
+      supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
     if (pd) setPhases(pd);
@@ -3959,7 +3959,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   const loadData = useCallback(async () => {
     const [{ data: td }, { data: pd }] = await Promise.all([
       supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
-      supabase.from("phases").select("*").eq("project_id", projectId).order("sort_order"),
+      supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
     if (pd) setPhases(pd);
