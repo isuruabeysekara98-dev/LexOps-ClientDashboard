@@ -14,15 +14,15 @@ import confetti from "canvas-confetti";
 // ─────────────────────────────────────────────────────────────────────────────
 const COLOR = {
   bg: "#FFFFFF",
-  panel: "#F0F4F4",
-  border: "#C5D4D4",
-  text: "#082B2B",
-  muted: "#3A6666",
-  subtle: "#7AA8A8",
-  accent: "#1A6666",
-  arrow: "#7AA8A8",
-  arrowSelected: "#1A6666",
-  dot: "#C5D4D4",
+  panel: "#F4F8FB",
+  border: "#E8E8E8",
+  text: "#232A34",
+  muted: "#616568",
+  subtle: "#9DB5C9",
+  accent: "#375971",
+  arrow: "#9DB5C9",
+  arrowSelected: "#375971",
+  dot: "#E8E8E8",
 };
 const NODE_W = 180;
 const NODE_H = 64;
@@ -63,7 +63,7 @@ function StepNode({ id, data, selected }) {
   const badgeStyle = isDone
     ? { background: COLOR.accent, color: "#FFFFFF", border: "none" }
     : isInProgress
-    ? { background: "rgba(26,102,102,0.10)", color: COLOR.accent, border: `1px solid ${COLOR.accent}` }
+    ? { background: "rgba(55,89,113,0.10)", color: COLOR.accent, border: `1px solid ${COLOR.accent}` }
     : { background: COLOR.panel, color: COLOR.subtle, border: "none" };
   const badgeText = isInternal
     ? STATUS_LABEL_ADMIN[data.status] || "Pending"
@@ -115,9 +115,9 @@ function StepNode({ id, data, selected }) {
         border: `1.5px solid ${borderColor}`,
         borderRadius: 10,
         boxShadow: isConnectSource
-          ? `0 0 0 3px rgba(26,102,102,0.35), 0 4px 14px rgba(8,43,43,0.10)`
+          ? `0 0 0 3px rgba(55,89,113,0.35), 0 4px 14px rgba(8,43,43,0.10)`
           : selected
-          ? "0 0 0 3px rgba(26,102,102,0.18), 0 4px 14px rgba(8,43,43,0.10)"
+          ? "0 0 0 3px rgba(55,89,113,0.18), 0 4px 14px rgba(8,43,43,0.10)"
           : "0 2px 8px rgba(8,43,43,0.08)",
         padding: "10px 14px",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -217,7 +217,7 @@ function ParticleLayer({ enabled }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     let raf;
-    const colors = ["#1A6666", "#1A6666", "rgba(26,102,102,0.6)"];
+    const colors = ["#375971", "#375971", "rgba(55,89,113,0.6)"];
     const particles = Array.from({ length: 18 }, () => spawn(canvas.width, canvas.height));
     function spawn(w, h) {
       return {
@@ -406,7 +406,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
     if (!allDone) return;
     setConfettiFired(true);
     setShowToast(true);
-    const colors = ["#1A6666", "#1A6666", "#1A6666", "#FFFFFF"];
+    const colors = ["#375971", "#375971", "#375971", "#FFFFFF"];
     confetti({ particleCount: 200, spread: 160, origin: { y: 0.5 }, colors });
     setTimeout(() => confetti({ particleCount: 100, spread: 120, origin: { x: 0.2, y: 0.4 }, colors }), 250);
     setTimeout(() => confetti({ particleCount: 100, spread: 120, origin: { x: 0.8, y: 0.4 }, colors }), 500);
@@ -795,7 +795,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
       }}
     >
       <style>{`
-        @keyframes fc-pulse { 0%,100%{transform:scale(1);box-shadow:0 0 14px rgba(26,102,102,0.5);} 50%{transform:scale(1.02);box-shadow:0 0 22px rgba(26,102,102,0.7);} }
+        @keyframes fc-pulse { 0%,100%{transform:scale(1);box-shadow:0 0 14px rgba(55,89,113,0.5);} 50%{transform:scale(1.02);box-shadow:0 0 22px rgba(55,89,113,0.7);} }
         @keyframes fc-shimmer { 0%{background-position:-200% 50%;} 100%{background-position:200% 50%;} }
         @keyframes fc-shine { 0%{transform:translateX(-100%);} 100%{transform:translateX(200%);} }
         @keyframes fc-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
@@ -901,7 +901,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
               {!mobile && <span style={{ color: t.accentLight, fontWeight: 500 }}>{progress}% Complete</span>}
             </span>
             <div style={{ flex: 1, position: "relative", height: 8, background: "rgba(8,43,43,0.08)", borderRadius: 99, overflow: "hidden", minWidth: 60 }}>
-              <div style={{ width: `${progress}%`, height: "100%", background: "#1A6666", boxShadow: "0 0 10px #1A6666", borderRadius: 99, transition: "width 0.6s ease" }}>
+              <div style={{ width: `${progress}%`, height: "100%", background: "#375971", boxShadow: "0 0 10px #375971", borderRadius: 99, transition: "width 0.6s ease" }}>
                 <div className="fc-shine" style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent)", animation: reducedMotion ? "none" : "fc-shine 2.4s linear infinite" }} />
               </div>
             </div>
@@ -945,7 +945,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
         {/* Particles + vignette for client view */}
         {!isInternal && (
           <>
-            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 4, background: "radial-gradient(ellipse at center, rgba(26,102,102,0.10), transparent 65%)" }} />
+            <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 4, background: "radial-gradient(ellipse at center, rgba(55,89,113,0.10), transparent 65%)" }} />
             <ParticleLayer enabled={!reducedMotion} />
           </>
         )}
@@ -1012,7 +1012,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
             fontSize: 13, fontWeight: 500, zIndex: 50,
             pointerEvents: "none", textAlign: "center",
             animation: "fc-slide-up 0.2s ease",
-            boxShadow: "0 4px 18px rgba(26,102,102,0.35)",
+            boxShadow: "0 4px 18px rgba(55,89,113,0.35)",
           }}>
             Tap another step to connect →
           </div>
@@ -1045,8 +1045,8 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
       {showToast && !isInternal && (
         <div style={{
           position: "absolute", top: "40%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 100,
-          background: "rgba(240,244,244,0.95)", border: `1px solid #1A6666`, borderRadius: 14,
-          padding: "22px 36px", boxShadow: "0 12px 48px rgba(8,43,43,0.18), 0 0 40px rgba(26,102,102,0.4)",
+          background: "rgba(244,248,251,0.95)", border: `1px solid #375971`, borderRadius: 14,
+          padding: "22px 36px", boxShadow: "0 12px 48px rgba(8,43,43,0.18), 0 0 40px rgba(55,89,113,0.4)",
           color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em",
           fontFamily: "'Playfair Display', Georgia, serif",
           textAlign: "center",
@@ -1393,7 +1393,7 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
     } catch(err) { console.error("[FlowchartTab] comment insert failed:", err.message); }
   }
 
-  const statusColor = node.status === "done" ? "#1A6666" : node.status === "in_progress" ? "#1A6666" : "#7AA8A8";
+  const statusColor = node.status === "done" ? "#375971" : node.status === "in_progress" ? "#375971" : "#9DB5C9";
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
@@ -1550,7 +1550,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE flowchart_nodes, flowchart_arrows,
       <p style={{ color: t.textSub, fontSize: 14, lineHeight: 1.6, fontWeight: 300, marginBottom: 18 }}>
         The flowchart feature needs a few small tables in Supabase. Open your Supabase project → <strong style={{ color: t.text }}>SQL Editor</strong> → paste the script below → click <strong style={{ color: t.text }}>Run</strong>. Then refresh this page.
       </p>
-      <pre style={{ background: "#F0F4F4", border: `1px solid ${t.border}`, borderRadius: 8, padding: 16, color: t.text, fontSize: 11, fontFamily: "'Geist Mono', monospace", overflowX: "auto", lineHeight: 1.45, maxHeight: 380, overflowY: "auto" }}>{sql}</pre>
+      <pre style={{ background: "#F4F8FB", border: `1px solid ${t.border}`, borderRadius: 8, padding: 16, color: t.text, fontSize: 11, fontFamily: "'Geist Mono', monospace", overflowX: "auto", lineHeight: 1.45, maxHeight: 380, overflowY: "auto" }}>{sql}</pre>
       <button
         onClick={() => { navigator.clipboard?.writeText(sql); }}
         style={{ background: COLOR.accent, color: "#FFFFFF", border: "none", borderRadius: 6, padding: "7px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.04em", marginTop: 12 }}

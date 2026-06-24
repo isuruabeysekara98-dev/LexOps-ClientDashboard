@@ -1,0 +1,76 @@
+/* ============================================================= *
+ *  LexOps Design Tokens — framework-agnostic
+ *
+ *  Plain CSS custom properties. Works anywhere (no Tailwind
+ *  required): import this file once and reference the variables,
+ *  e.g.  color: var(--lex-color-dark-gray);
+ *
+ *  For the Tailwind v4 version (tokens exposed as utilities via
+ *  @theme), use globals.css instead.
+ * ============================================================= */
+
+:root {
+  /* ---- Brand colours ---- */
+  --lex-color-dark-gray:   #232A34;  /* primary text, dark backgrounds */
+  --lex-color-slate-blue:  #375971;  /* primary buttons, links, accents */
+  --lex-color-light-slate: #9DB5C9;  /* captions, eyebrow dots, secondary icons */
+  --lex-color-light-blue:  #E4F1F8;  /* hover tints, light icon-box fills */
+
+  /* ---- Neutrals ---- */
+  --lex-color-off-black:   #0D0F13;  /* deepest backgrounds */
+  --lex-color-mid-gray:    #616568;  /* body copy, labels, nav links */
+  --lex-color-light-gray:  #8D8D99;  /* tertiary text, dividers */
+  --lex-color-white:       #FFFFFF;
+
+  /* ---- Surfaces ---- */
+  --lex-color-page-bg:     #FAFBFC;  /* app body background */
+  --lex-color-section-bg:  #F4F8FB;  /* alternating section bg, icon-box fills */
+  --lex-color-hairline:    #E8E8E8;  /* footer / accordion dividers */
+
+  /* ---- Status / functional ---- */
+  --lex-color-success:     #3C7A52;  /* status pill text + dot */
+  --lex-color-success-bg:  #E7F3EC;  /* status pill background */
+  --lex-color-alert:       #C9542E;  /* break / alert accent */
+
+  /* ---- Typography ---- */
+  --lex-font-family: "Satoshi", sans-serif;
+  --lex-font-weight-regular: 400;
+  --lex-font-weight-medium:  500;
+  --lex-font-weight-bold:    700;
+
+  /* size / line-height pairs */
+  --lex-text-h1: 56px;          --lex-text-h1-line: 60px;   /* weight 500 */
+  --lex-text-h2: 44px;          --lex-text-h2-line: 52px;   /* weight 400 */
+  --lex-text-h3m: 34px;         --lex-text-h3m-line: 39px;  /* weight 500 */
+  --lex-text-h3: 26px;          --lex-text-h3-line: 31px;   /* weight 500 */
+  --lex-text-h4: 20px;          --lex-text-h4-line: 24px;   /* weight 500 */
+  --lex-text-p1: 20px;          --lex-text-p1-line: 30px;   /* weight 400 */
+  --lex-text-p2: 16px;          --lex-text-p2-line: 24px;   /* weight 400 */
+  --lex-text-p3: 14px;          --lex-text-p3-line: 22px;   /* weight 400 */
+  --lex-text-caption: 11px;     --lex-text-caption-line: 16px; /* 500, UPPERCASE, wide tracking */
+
+  /* ---- Layout ---- */
+  --lex-container-site: 1280px;
+  --lex-container-narrow: 1080px;
+  --lex-gutter-mobile: 20px;   /* < 640px  */
+  --lex-gutter-sm:     32px;   /* >= 640px */
+  --lex-gutter-md:     48px;   /* >= 768px */
+  --lex-gutter-lg:     80px;   /* >= 1024px */
+  --lex-header-height: 72px;
+
+  /* ---- Radii ---- */
+  --lex-radius-lg:  8px;   /* buttons, icon boxes */
+  --lex-radius-xl:  12px;  /* cards, pills */
+  --lex-radius-2xl: 16px;  /* frames */
+  --lex-radius-full: 9999px;
+
+  /* ---- Spacing scale (4px base) ---- */
+  --lex-space-section: 96px; /* py-24 */
+  --lex-space-card-gap: 24px;
+  --lex-space-card-pad: 24px; /* p-6 (p-8 = 32px) */
+
+  /* ---- Elevation ---- */
+  --lex-shadow-dropdown: 0 20px 50px -20px rgba(35, 42, 52, 0.4);
+  --lex-shadow-card:     0 24px 50px -24px rgba(35, 42, 52, 0.55);
+  --lex-shadow-detail:   0 40px 90px -40px rgba(55, 89, 113, 0.4);
+}

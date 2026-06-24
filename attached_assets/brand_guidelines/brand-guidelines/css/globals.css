@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-dark-gray: #232A34;
+  --color-slate-blue: #375971;
+  --color-light-slate: #9DB5C9;
+  --color-light-blue: #E4F1F8;
+  --color-off-black: #0D0F13;
+  --color-mid-gray: #616568;
+  --color-light-gray: #8D8D99;
+  --color-white: #FFFFFF;
+
+  /* Font */
+  --font-satoshi: "Satoshi", sans-serif;
+
+  /* Type scale */
+  --text-h1: 56px;
+  --text-h1--line-height: 60px;
+  --text-h2: 44px;
+  --text-h2--line-height: 52px;
+  --text-h3m: 34px;
+  --text-h3m--line-height: 39px;
+  --text-h3: 26px;
+  --text-h3--line-height: 31px;
+  --text-h4: 20px;
+  --text-h4--line-height: 24px;
+  --text-p1: 20px;
+  --text-p1--line-height: 30px;
+  --text-p2: 16px;
+  --text-p2--line-height: 24px;
+  --text-p3: 14px;
+  --text-p3--line-height: 22px;
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+}
+
+@layer base {
+  html {
+    font-family: "Satoshi", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    color: var(--color-dark-gray);
+    background: var(--color-white);
+  }
+}
+
+@layer base {
+  body {
+    background: #FAFBFC;
+  }
+}
+
+@layer utilities {
+  /* Horizontal gutters scale with the viewport so content isn't pinched on
+     phones/tablets but keeps its roomy desktop framing.
+     mobile 20px → sm 32px → tablet 48px → desktop 80px. */
+  .container-site {
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .container-narrow {
+    max-width: 1080px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  @media (min-width: 640px) {
+    .container-site,
+    .container-narrow {
+      padding-left: 32px;
+      padding-right: 32px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .container-site {
+      padding-left: 48px;
+      padding-right: 48px;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container-site {
+      padding-left: 80px;
+      padding-right: 80px;
+    }
+  }
+}
+
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.animate-caret { animation: caret-blink 1.1s step-end infinite; }

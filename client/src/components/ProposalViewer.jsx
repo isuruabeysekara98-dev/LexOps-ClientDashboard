@@ -32,7 +32,7 @@ function StatChip({ value, label }) {
       background: t.accentLight, border: `1px solid ${t.accentBorder}`,
       borderRadius: 8, padding: "10px 18px", minWidth: 80, gap: 3,
     }}>
-      <span style={{ fontSize: 18, fontWeight: 700, color: t.accent, letterSpacing: "-0.02em", fontFamily: "'Playfair Display', Georgia, serif" }}>
+      <span style={{ fontSize: 18, fontWeight: 700, color: t.accent, letterSpacing: "-0.02em", fontFamily: "'Satoshi', sans-serif" }}>
         {value}
       </span>
       <span style={{ fontSize: 11, color: t.textSub, fontWeight: 500, textAlign: "center", letterSpacing: "0.01em" }}>
@@ -102,7 +102,7 @@ function StageCard({ stage, index, globalIndex }) {
             {stage.emoji && <span style={{ fontSize: 20 }}>{stage.emoji}</span>}
             <h3 style={{
               margin: 0, fontSize: 17, fontWeight: 600, color: t.text,
-              letterSpacing: "-0.02em", fontFamily: "'Playfair Display', Georgia, serif",
+              letterSpacing: "-0.02em", fontFamily: "'Satoshi', sans-serif",
             }}>
               {stage.title || "Stage"}
             </h3>
@@ -179,7 +179,7 @@ function WorkflowSection({ workflow, stageOffset }) {
           <span style={{ fontSize: 18 }}>{workflow.emoji || "⚙️"}</span>
           <h2 style={{
             margin: 0, fontSize: 20, fontWeight: 600, color: t.text,
-            letterSpacing: "-0.02em", fontFamily: "'Playfair Display', Georgia, serif",
+            letterSpacing: "-0.02em", fontFamily: "'Satoshi', sans-serif",
           }}>
             {workflow.name}
           </h2>
@@ -229,7 +229,7 @@ export default function ProposalViewer({ proposal, footer }) {
           </div>
           <h1 style={{
             margin: "0 0 16px", fontSize: 38, fontWeight: 700, letterSpacing: "-0.03em",
-            fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.15, color: t.text,
+            fontFamily: "'Satoshi', sans-serif", lineHeight: 1.15, color: t.text,
           }}>
             {proposal.name || "Proposal"}
           </h1>
@@ -243,7 +243,7 @@ export default function ProposalViewer({ proposal, footer }) {
           {allStages.length > 0 && (
             <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 32, flexWrap: "wrap" }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.02em" }}>
+                <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Satoshi', sans-serif", letterSpacing: "-0.02em" }}>
                   {allStages.length}
                 </div>
                 <div style={{ fontSize: 11, color: t.textMeta, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -252,7 +252,7 @@ export default function ProposalViewer({ proposal, footer }) {
               </div>
               {allStages.some(s => s.outputs?.length > 0) && (
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.02em" }}>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Satoshi', sans-serif", letterSpacing: "-0.02em" }}>
                     {allStages.reduce((sum, s) => sum + (s.outputs?.length || 0), 0)}
                   </div>
                   <div style={{ fontSize: 11, color: t.textMeta, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -262,7 +262,7 @@ export default function ProposalViewer({ proposal, footer }) {
               )}
               {(proposal.workflows || []).length > 1 && (
                 <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.02em" }}>
+                  <div style={{ fontSize: 26, fontWeight: 700, color: t.accent, fontFamily: "'Satoshi', sans-serif", letterSpacing: "-0.02em" }}>
                     {(proposal.workflows || []).length}
                   </div>
                   <div style={{ fontSize: 11, color: t.textMeta, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em" }}>

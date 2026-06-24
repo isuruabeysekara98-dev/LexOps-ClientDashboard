@@ -6,3 +6,4 @@
 - [adminFetch session handling](adminFetch-session.md) — must refresh session before fetch; getSession() alone can return expired tokens causing silent 401s with no server log.
 - [Tasks schema — no owner column](tasks-schema.md) — tasks table has no `owner` column; exclude from PATCH allowed list and INSERT payloads or Supabase throws 500.
 - [Backend server restart required](backend-write-proxy.md) — tsx runs without --watch; any server/**/*.ts change needs workflow restart or the route won't exist (returns 404).
+- [LexOps brand rebrand](brand-theme.md) — June 2026: Satoshi (Fontshare) only, slate-blue #375971 accent, dark-gray #232A34 text; warmTheme in Dashboard.jsx is single source of truth; no Playfair Display/Inter anywhere.

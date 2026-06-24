@@ -1,0 +1,11 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 115 36' fill='none'>
+  <g transform='translate(0,6)'>
+    <!-- light-slate: top bar + right vertical (top-right bracket) -->
+    <rect x='3' y='0' width='13' height='4' fill='#9DB5C9'/>
+    <rect x='12' y='0' width='4' height='20' fill='#9DB5C9'/>
+    <!-- dark: left vertical + bottom bar (bottom-left bracket) -->
+    <rect x='0' y='4' width='3' height='20' fill='#232A34'/>
+    <rect x='0' y='20' width='12' height='4' fill='#232A34'/>
+  </g>
+  <text x='28' y='27' font-family="Satoshi, 'Segoe UI', system-ui, sans-serif" font-size='24' font-weight='500' letter-spacing='-0.5' fill='#232A34'>LexOps</text>
+</svg>

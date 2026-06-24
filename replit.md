@@ -13,34 +13,34 @@ Full-stack React + Vite + Express application backed by Supabase. A legal-ops po
 - `client/src/components/Dashboard.jsx` — the main app surface (≈2400 lines). Houses every internal & client tab as inline sub-components.
 - `client/src/components/AdminPanel.jsx` — admin overlay for managing clients, projects, users, packs.
 
-## Theming (April 2026 rebrand)
-The app is now **single-theme** with a light teal palette and a two-font system: **Playfair Display** for headings and **Inter** for everything else.
+## Theming (June 2026 rebrand — official LexOps brand)
+The app uses the **official LexOps brand guidelines** (`attached_assets/brand_guidelines/brand-guidelines/`). Single-theme, single-font.
 
 Theme tokens are defined as a single `warmTheme` object in `Dashboard.jsx` (and mirrored inline in `LoginPage.jsx`, `SetPasswordPage.jsx`, `ProposalPage.jsx`).
 
-Key colors:
-- `bg` `#FFFFFF` — primary background
-- `surface` `#F0F4F4`, `surfaceHigh` `#E5EDED`
-- `border` `#C5D4D4`
-- `accent` `#1A6666` (CTA), `accentLight` `#0F4444` (deep accent / hover)
-- `green` (done) `#1A6666`
-- `text` `#082B2B`, `textSub` `#3A6666`
-- Glass surfaces: `rgba(240,244,244,0.7)` with `backdrop-filter: blur(12px)`
+Key colors (from `css/tokens.css`):
+- `bg` `#FFFFFF` — card surfaces
+- `surface` `#F4F8FB` (section-bg), `surfaceHigh` `#E4F1F8` (light-blue)
+- `border` `#E8E8E8` (hairline)
+- `accent` `#375971` (slate-blue — CTA, links, active states)
+- `accentLight` `#232A34` (dark-gray — hover/deep accent)
+- `green` `#3C7A52` (success), `greenSoft` `#E7F3EC`
+- `red` `#C9542E` (alert)
+- `text` `#232A34` (dark-gray), `textSub` `#616568` (mid-gray)
+- Page background: `#FAFBFC`
+- Glass surfaces: `rgba(244,248,251,0.80)` with `backdrop-filter: blur(12px)`
 
-The legacy light-mode toggle has been removed; `themes.dark` and `themes.light` both alias the same teal theme so existing 2400-line Dashboard.jsx code keeps working without find/replace. The app uses the `LogoDark` SVG variant since the background is light.
+`themes.dark` and `themes.light` both alias the same brand theme. Brand assets (logo SVGs, favicons, icons) live in `client/public/`.
 
 ### Typography
-Both fonts are loaded via Google Fonts in `client/index.html`:
-- **Inter** (300 / 400 / 500 / 600) — global default, applied via `body { font-family: 'Inter', ... }`. Used for sidebar labels, nav, tabs, body text, buttons, badges, status pills, dates, metadata, form inputs, comments, and Builder-mode flowchart node titles. Base size 14px; 13px for secondary/metadata.
-- **Playfair Display** (400 / 500 / 600 / 700) — applied **only** to display headings via inline `fontFamily: "'Playfair Display', Georgia, serif"`. Used for:
-  - Project / page titles ("Estates Automation")
-  - Section headings (`SectionLabel` — "Project Summary", "Project Phases")
-  - Welcome screen ("Welcome, {firstName}.")
-  - Auth page titles ("Sign in to Client Portal", "Set Your Password")
-  - Proposal page h1/h2/h3
-  - Flowchart node titles in **Client View** only (Builder mode keeps Inter)
-  - The "Congratulations" toast at flowchart completion
-  - Convention: `fontWeight: 600`, `letterSpacing: "-0.01em"`
+**Single font: Satoshi** — loaded via Fontshare CDN in `client/index.html`:
+```html
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
+```
+- Weights: **400** (regular), **500** (medium), **700** (bold)
+- Applied globally via `body { font-family: 'Satoshi', sans-serif }`
+- **No Playfair Display. No Inter.** Satoshi only, everywhere.
+- Headings use `fontWeight: 500–700`, `letterSpacing: "-0.01em"` for display feel
 
 ## Flowchart feature (April 2026)
 A new "Flowchart" tab sits between Documents and Invoices for both Internal and Client views. Implemented in `client/src/components/FlowchartTab.jsx`.

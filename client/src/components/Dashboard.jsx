@@ -17,16 +17,16 @@ function useIsMobile(breakpoint=768){
 
 // Light teal palette — single light theme (rebrand 2026)
 const warmTheme = {
-  bg:"#FFFFFF", surface:"#F0F4F4", surfaceHigh:"#E5EDED",
-  border:"#C5D4D4", text:"#082B2B", textSub:"#3A6666", textDim:"rgba(8,43,43,0.38)",
-  accent:"#1A6666", accentLight:"#0F4444", accentSoft:"rgba(26,102,102,0.08)",
-  green:"#1A6666", greenSoft:"rgba(26,102,102,0.08)",
+  bg:"#FFFFFF", surface:"#F4F8FB", surfaceHigh:"#E4F1F8",
+  border:"#E8E8E8", text:"#232A34", textSub:"#616568", textDim:"rgba(35,42,52,0.38)",
+  accent:"#375971", accentLight:"#232A34", accentSoft:"rgba(55,89,113,0.08)",
+  green:"#3C7A52", greenSoft:"#E7F3EC",
   amber:"#D97706", amberSoft:"rgba(217,119,6,0.08)",
-  red:"#DC2626", redSoft:"rgba(220,38,38,0.08)",
+  red:"#C9542E", redSoft:"rgba(201,84,46,0.08)",
   purple:"#7C3AED", purpleSoft:"rgba(124,58,237,0.08)",
-  shadow:"0 1px 3px rgba(8,43,43,0.06)",
+  shadow:"0 1px 4px rgba(35,42,52,0.08)",
   // Flowchart-specific tokens
-  glassSurface:"rgba(240,244,244,0.7)", goldGlow:"#1A6666",
+  glassSurface:"rgba(244,248,251,0.80)", goldGlow:"#375971",
 };
 const themes = { dark: warmTheme, light: warmTheme };
 
@@ -119,7 +119,7 @@ function Thin({value,t,color}) {
   </div>;
 }
 function SectionLabel({children,t}) {
-  return <div style={{color:t.text,fontSize:18,fontWeight:600,letterSpacing:"-0.01em",marginBottom:14,fontFamily:"'Playfair Display', Georgia, serif"}}>{children}</div>;
+  return <div style={{color:t.text,fontSize:18,fontWeight:600,letterSpacing:"-0.01em",marginBottom:14,fontFamily:"'Satoshi', sans-serif"}}>{children}</div>;
 }
 function Card({children,t,style={}}) {
   return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,boxShadow:t.shadow,...style}}>{children}</div>;
@@ -185,7 +185,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",fontWeight:600,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:5}}>
             {activePhase ? "Active Milestone" : "Project Status"}
           </div>
-          <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:18,color:"#fff",fontWeight:600,marginBottom:6,lineHeight:1.2}}>
+          <div style={{fontFamily:"'Satoshi',sans-serif",fontSize:18,color:"#fff",fontWeight:600,marginBottom:6,lineHeight:1.2}}>
             {activePhase ? activePhase.name : project.phase || "In Progress"}
           </div>
           {project.manager && (
@@ -203,7 +203,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
               {i>0&&<div style={{width:1,background:"rgba(255,255,255,0.2)",alignSelf:"stretch"}}/>}
               <div style={{textAlign:"center"}}>
-                <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:mobile?20:26,fontWeight:700,color:"#fff",lineHeight:1}}>{s.val}</div>
+                <div style={{fontFamily:"'Satoshi',sans-serif",fontSize:mobile?20:26,fontWeight:700,color:"#fff",lineHeight:1}}>{s.val}</div>
                 <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",marginTop:4,whiteSpace:"nowrap"}}>{s.label}</div>
               </div>
             </div>
@@ -232,7 +232,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       {phases.length>0&&(
         <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
           <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`}}>
-            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Project Milestones</div>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Satoshi',sans-serif"}}>Project Milestones</div>
           </div>
           <div style={{overflowX:"auto",padding:"16px 22px",display:"flex",gap:0}}>
             {phases.map((ph,i)=>{
@@ -267,14 +267,14 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       {(overdueActions.length > 0 || dueSoonActions.length > 0) && (
         <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontSize:14,fontWeight:600,color:t.text,fontFamily:"'Playfair Display',Georgia,serif",letterSpacing:"-0.01em"}}>Actions Needing Attention</div>
-            <span style={{fontSize:11,fontWeight:600,padding:"2px 10px",borderRadius:99,background:overdueActions.length>0?"#fdf0ee":"#fef6e8",color:overdueActions.length>0?"#c0392b":"#d4881a"}}>
+            <div style={{fontSize:14,fontWeight:600,color:t.text,fontFamily:"'Satoshi',sans-serif",letterSpacing:"-0.01em"}}>Actions Needing Attention</div>
+            <span style={{fontSize:11,fontWeight:600,padding:"2px 10px",borderRadius:99,background:overdueActions.length>0?"#fdf0ee":"#fef6e8",color:overdueActions.length>0?"#C9542E":"#D97706"}}>
               {overdueActions.length+dueSoonActions.length} flagged
             </span>
           </div>
           {overdueActions.length > 0 && (
             <div style={{padding:"10px 20px 6px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#c0392b",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⚠️ Overdue</div>
+              <div style={{fontSize:10,fontWeight:700,color:"#C9542E",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⚠️ Overdue</div>
               {overdueActions.map((tk,i) => {
                 const phaseName = phases.find(p=>p.id===tk.phase_id)?.name;
                 const daysLate = Math.floor((todayMid-new Date(tk.due_date))/86400000);
@@ -285,8 +285,8 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
                       {phaseName&&<div style={{fontSize:11,color:t.textSub,marginTop:1}}>{phaseName}</div>}
                     </div>
                     {tk.owner==="client"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f0fe",color:"#2b5fcc",flexShrink:0}}>Client</span>}
-                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f5ef",color:"#1A6666",flexShrink:0}}>LexOps</span>}
-                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fdf0ee",color:"#c0392b",flexShrink:0}}>
+                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#E7F3EC",color:"#3C7A52",flexShrink:0}}>LexOps</span>}
+                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fdf0ee",color:"#C9542E",flexShrink:0}}>
                       {daysLate===0?"Due today":`${daysLate}d overdue`}
                     </span>
                   </div>
@@ -296,8 +296,8 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           )}
           {dueSoonActions.length > 0 && (
             <div style={{padding:overdueActions.length>0?"4px 20px 12px":"10px 20px 12px"}}>
-              {overdueActions.length>0&&<div style={{height:1,background:"#f0f4f3",marginBottom:10}}/>}
-              <div style={{fontSize:10,fontWeight:700,color:"#d4881a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⏳ Due Within 7 Days</div>
+              {overdueActions.length>0&&<div style={{height:1,background:"#F4F8FB",marginBottom:10}}/>}
+              <div style={{fontSize:10,fontWeight:700,color:"#D97706",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⏳ Due Within 7 Days</div>
               {dueSoonActions.map((tk,i) => {
                 const phaseName = phases.find(p=>p.id===tk.phase_id)?.name;
                 const daysLeft = Math.ceil((new Date(tk.due_date)-todayMid)/86400000);
@@ -308,8 +308,8 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
                       {phaseName&&<div style={{fontSize:11,color:t.textSub,marginTop:1}}>{phaseName}</div>}
                     </div>
                     {tk.owner==="client"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f0fe",color:"#2b5fcc",flexShrink:0}}>Client</span>}
-                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f5ef",color:"#1A6666",flexShrink:0}}>LexOps</span>}
-                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fef6e8",color:"#d4881a",flexShrink:0}}>
+                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#E7F3EC",color:"#3C7A52",flexShrink:0}}>LexOps</span>}
+                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fef6e8",color:"#D97706",flexShrink:0}}>
                       {daysLeft===0?"Due today":`Due in ${daysLeft}d`}
                     </span>
                   </div>
@@ -342,7 +342,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       {pendingDel.length>0&&(
         <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
           <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Pending Deliverables</div>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Satoshi',sans-serif"}}>Pending Deliverables</div>
             <span style={{color:t.textSub,fontSize:12}}>{pendingDel.length} outstanding</span>
           </div>
           <div style={{padding:"8px 0"}}>
@@ -365,7 +365,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       {project.activity?.length>0&&(
         <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
           <div style={{padding:"16px 22px 12px",borderBottom:`1px solid ${t.border}`}}>
-            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Playfair Display',Georgia,serif"}}>Recent Activity</div>
+            <div style={{color:t.text,fontSize:15,fontWeight:600,letterSpacing:"-0.01em",fontFamily:"'Satoshi',sans-serif"}}>Recent Activity</div>
           </div>
           <div style={{padding:"4px 0"}}>
             {project.activity.map((a,i)=>(
@@ -1102,15 +1102,15 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
     }
   }
 
-  const prioBar={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
-  const prioPillBg={high:"#fdf0ee",medium:"#fef6e8",low:"#e8f5ef"};
-  const prioPillColor={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
+  const prioBar={high:"#C9542E",medium:"#D97706",low:"#3C7A52"};
+  const prioPillBg={high:"#fdf0ee",medium:"#fef6e8",low:"#E7F3EC"};
+  const prioPillColor={high:"#C9542E",medium:"#D97706",low:"#3C7A52"};
   const prioEmoji={high:"🔴",medium:"🟡",low:"🟢"};
 
   const colConfig=[
-    {status:"open",label:"Open",countBg:"#fef6e8",countColor:"#d4881a"},
+    {status:"open",label:"Open",countBg:"#fef6e8",countColor:"#D97706"},
     {status:"in_progress",label:"In Progress",countBg:"#e8f2f1",countColor:t.accent},
-    {status:"resolved",label:"Resolved",countBg:"#e8f5ef",countColor:"#2d7a5a"},
+    {status:"resolved",label:"Resolved",countBg:"#E7F3EC",countColor:"#3C7A52"},
   ];
 
   function TicketCard({ticket}){
@@ -1199,7 +1199,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
           </div>
           {isInternal&&hasRequest&&(
             <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-              <span style={{color:"#d4881a",fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
+              <span style={{color:"#D97706",fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
               <div style={{display:"flex",gap:5}}>
                 <button onClick={()=>moveTicket(ticket.id,hasRequest)} disabled={isBusy} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Approve</button>
                 <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:5,padding:"3px 8px",fontSize:11,color:t.textSub,cursor:"pointer"}}>Reject</button>
@@ -1208,7 +1208,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
           )}
           {!isInternal&&hasRequest&&(
             <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-              <span style={{color:"#d4881a",fontSize:11}}>⏳ Pending review</span>
+              <span style={{color:"#D97706",fontSize:11}}>⏳ Pending review</span>
               <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Cancel</button>
             </div>
           )}
@@ -1228,12 +1228,12 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
                       }}>Mark as In Progress →</button>
                     :ticket.status==="in_progress"
                       ?<button onClick={async()=>{await dbWrite("support_tickets","update",{client_move_requested:"resolved"},{id:ticket.id});await loadTickets();}} style={{
-                          fontSize:11,fontWeight:600,color:"#d4881a",background:"#fef6e8",border:"none",
+                          fontSize:11,fontWeight:600,color:"#D97706",background:"#fef6e8",border:"none",
                           borderRadius:99,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit",marginTop:8,display:"block",
                         }}>Request Resolution →</button>
                       :null
                   )
-                :isResolved?<div style={{fontSize:10,color:"#2d7a5a",fontStyle:"italic",marginTop:6}}>✓ Resolved by LexOps</div>
+                :isResolved?<div style={{fontSize:10,color:"#3C7A52",fontStyle:"italic",marginTop:6}}>✓ Resolved by LexOps</div>
                 :null
               )
           }
@@ -1313,7 +1313,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
       {/* New ticket form */}
       {showForm&&(
         <div style={{background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
-          <div style={{fontSize:15,fontWeight:700,color:t.text,marginBottom:14,fontFamily:"'Playfair Display',Georgia,serif"}}>New Support Request</div>
+          <div style={{fontSize:15,fontWeight:700,color:t.text,marginBottom:14,fontFamily:"'Satoshi',sans-serif"}}>New Support Request</div>
           <form onSubmit={createTicket} style={{display:"flex",flexDirection:"column",gap:10}}>
             <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Brief description of the issue or request *" required
               style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}/>
@@ -1530,20 +1530,20 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
         <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Engagement Value</div>
-            <div style={{color:t.text,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{engValue?`$${engValue.toLocaleString()}`:"—"}</div>
+            <div style={{color:t.text,fontSize:28,fontFamily:"'Satoshi',sans-serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{engValue?`$${engValue.toLocaleString()}`:"—"}</div>
             <div style={{color:t.textSub,fontSize:11}}>Total contracted</div>
           </div>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Invoiced to Date</div>
-            <div style={{color:t.accentLight,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:6}}>{`$${(total||0).toLocaleString()}`}</div>
-            {engValue>0&&<div style={{height:4,background:"#f0f4f3",borderRadius:99,overflow:"hidden",marginBottom:4}}>
+            <div style={{color:t.accentLight,fontSize:28,fontFamily:"'Satoshi',sans-serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:6}}>{`$${(total||0).toLocaleString()}`}</div>
+            {engValue>0&&<div style={{height:4,background:"#F4F8FB",borderRadius:99,overflow:"hidden",marginBottom:4}}>
               <div style={{height:"100%",width:`${Math.min(100,Math.round(total/engValue*100))}%`,background:`linear-gradient(90deg,${t.accent},#3d8f88)`,borderRadius:99,transition:"width 0.6s ease"}}/>
             </div>}
             <div style={{color:t.textSub,fontSize:11}}>{engValue>0?`${Math.min(100,Math.round(total/engValue*100))}% of contract · `:""}{invoices.filter(i=>i.status==="paid").length} paid</div>
           </div>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Remaining</div>
-            <div style={{color:engValue&&(engValue-total)>0?t.amber:t.green,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{`$${Math.max(0,engValue-total).toLocaleString()}`}</div>
+            <div style={{color:engValue&&(engValue-total)>0?t.amber:t.green,fontSize:28,fontFamily:"'Satoshi',sans-serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{`$${Math.max(0,engValue-total).toLocaleString()}`}</div>
             <div style={{color:t.textSub,fontSize:11}}>{engValue?"of contract":"pending value"}</div>
           </div>
         </div>
@@ -1637,10 +1637,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                       {label}
                       <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
                     </div>
-                    {mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em",flexShrink:0}}>${(inv.amount||0).toLocaleString()}</span>}
+                    {mobile&&<span style={{color:t.text,fontFamily:"'Satoshi',sans-serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em",flexShrink:0}}>${(inv.amount||0).toLocaleString()}</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
-                    {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
+                    {!mobile&&<span style={{color:t.text,fontFamily:"'Satoshi',sans-serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {inv.file_url&&(
                       <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
@@ -2899,12 +2899,12 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
         {/* Header */}
         <div style={{ padding: "18px 26px", borderBottom: `1px solid ${t.border}`, background: t.surface, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: t.text, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "-0.01em" }}>Project Setup</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: t.text, fontFamily: "'Satoshi', sans-serif", letterSpacing: "-0.01em" }}>Project Setup</div>
             <div style={{ fontSize: 12, color: t.textSub, marginTop: 2 }}>{det.client_name || project.client} · {det.name || project.project}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {proposal && (
-              <div style={{ fontSize: 11, color: t.accentLight, background: t.accentSoft || "#E5EDED", border: `1px solid ${t.accent}30`, borderRadius: 6, padding: "3px 10px", fontWeight: 600 }}>
+              <div style={{ fontSize: 11, color: t.accentLight, background: t.accentSoft || "#E4F1F8", border: `1px solid ${t.accent}30`, borderRadius: 6, padding: "3px 10px", fontWeight: 600 }}>
                 Linked: {proposal.name}
               </div>
             )}
@@ -3339,10 +3339,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                       {toolSaving ? "Saving…" : "Add Tool"}
                     </button>
                   </div>
-                  {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
+                  {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{toolError}</div>}
                 </form>
               )}
-              {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
+              {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{toolError}</div>}
 
               {tools.length === 0 && !showAddTool && (
                 <div style={{ textAlign: "center", padding: "32px 24px", background: t.surface, borderRadius: 10, border: `1px solid ${t.border}` }}>
@@ -3397,7 +3397,7 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
       <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
         <LogoDark h={28}/>
         <div style={{textAlign:"center"}}>
-          <h1 style={{fontSize:36,fontWeight:600,letterSpacing:"-0.01em",margin:"0 0 16px",color:t.text,fontFamily:"'Playfair Display', Georgia, serif"}}>
+          <h1 style={{fontSize:36,fontWeight:600,letterSpacing:"-0.01em",margin:"0 0 16px",color:t.text,fontFamily:"'Satoshi', sans-serif"}}>
             Welcome, {firstName}.
           </h1>
           {project?.client_summary ? (
@@ -3461,7 +3461,7 @@ function ClientStatusBanner({ project, phases, t }) {
       <div style={{ position: "absolute", right: -40, top: -40, width: 180, height: 180, borderRadius: "50%", background: "rgba(255,255,255,0.05)", pointerEvents: "none" }} />
       <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 5 }}>Currently Active</div>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 19, color: "#fff", fontWeight: 600, marginBottom: 6, lineHeight: 1.2 }}>
+        <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 19, color: "#fff", fontWeight: 600, marginBottom: 6, lineHeight: 1.2 }}>
           {activePhase ? activePhase.name : project.phase || "In Progress"}
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
@@ -3485,7 +3485,7 @@ function ClientStatusBanner({ project, phases, t }) {
             {i > 0 && <div style={{ width: 1, background: "rgba(255,255,255,0.2)", alignSelf: "stretch" }} />}
             <div style={{ textAlign: "center" }}>
               <div style={{
-                fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, lineHeight: 1,
+                fontFamily: "'Satoshi', sans-serif", fontSize: 26, fontWeight: 700, lineHeight: 1,
                 color: s.urgent ? "#ffcdd2" : "#fff",
               }}>{s.val}</div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 5, whiteSpace: "nowrap" }}>{s.label}</div>
@@ -3618,7 +3618,7 @@ function WorkflowSnake({ workflow, t, mobile }) {
       <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px 22px", boxShadow: t.shadow }}>
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>Reimagined Workflow</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>{wf?.title || "Proposed Workflow"}</div>
+          <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>{wf?.title || "Proposed Workflow"}</div>
           <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.6 }}>Click any stage to see details, inputs, and outputs.</div>
         </div>
 
@@ -3678,7 +3678,7 @@ function WorkflowSnake({ workflow, t, mobile }) {
             boxShadow: "-4px 0 40px rgba(0,0,0,0.14)",
           }}>
             <div style={{ padding: "22px 24px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: t.text, flex: 1, lineHeight: 1.3, paddingRight: 12 }}>
+              <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 18, fontWeight: 700, color: t.text, flex: 1, lineHeight: 1.3, paddingRight: 12 }}>
                 {openStage.title || openStage.name}
               </div>
               <button onClick={() => setOpenStage(null)} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: t.surface, color: t.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
@@ -3852,14 +3852,14 @@ function ClientOverviewTab({ project, t, mobile }) {
       {(overdueClient.length > 0 || dueSoonClient.length > 0) && (
         <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
           <div style={{ padding: "14px 20px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, fontFamily: "'Playfair Display',Georgia,serif", letterSpacing: "-0.01em" }}>Actions Needing Attention</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: overdueClient.length > 0 ? "#fdf0ee" : "#fef6e8", color: overdueClient.length > 0 ? "#c0392b" : "#d4881a" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, fontFamily: "'Satoshi',sans-serif", letterSpacing: "-0.01em" }}>Actions Needing Attention</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: overdueClient.length > 0 ? "#fdf0ee" : "#fef6e8", color: overdueClient.length > 0 ? "#C9542E" : "#D97706" }}>
               {overdueClient.length + dueSoonClient.length} flagged
             </span>
           </div>
           {overdueClient.length > 0 && (
             <div style={{ padding: "10px 20px 6px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#c0392b", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⚠️ Overdue</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#C9542E", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⚠️ Overdue</div>
               {overdueClient.map((tk, i) => {
                 const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
                 const daysLate = Math.floor((todayMidC - new Date(tk.due_date)) / 86400000);
@@ -3870,8 +3870,8 @@ function ClientOverviewTab({ project, t, mobile }) {
                       {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
                     </div>
                     {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
-                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>LexOps</span>}
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#c0392b", flexShrink: 0 }}>
+                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
                       {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
                     </span>
                   </div>
@@ -3881,8 +3881,8 @@ function ClientOverviewTab({ project, t, mobile }) {
           )}
           {dueSoonClient.length > 0 && (
             <div style={{ padding: overdueClient.length > 0 ? "4px 20px 12px" : "10px 20px 12px" }}>
-              {overdueClient.length > 0 && <div style={{ height: 1, background: "#f0f4f3", marginBottom: 10 }} />}
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#d4881a", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⏳ Due Within 7 Days</div>
+              {overdueClient.length > 0 && <div style={{ height: 1, background: "#F4F8FB", marginBottom: 10 }} />}
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#D97706", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⏳ Due Within 7 Days</div>
               {dueSoonClient.map((tk, i) => {
                 const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
                 const daysLeft = Math.ceil((new Date(tk.due_date) - todayMidC) / 86400000);
@@ -3893,8 +3893,8 @@ function ClientOverviewTab({ project, t, mobile }) {
                       {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
                     </div>
                     {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
-                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>LexOps</span>}
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fef6e8", color: "#d4881a", flexShrink: 0 }}>
+                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fef6e8", color: "#D97706", flexShrink: 0 }}>
                       {daysLeft === 0 ? "Due today" : `Due in ${daysLeft}d`}
                     </span>
                   </div>
@@ -3999,8 +3999,8 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
     if (days <= 7) return "soon";
     return "normal";
   }
-  const dueBg = { overdue: "#fdf0ee", soon: "#fef6e8", normal: "#f0f4f3" };
-  const dueColor = { overdue: "#c0392b", soon: "#d4881a", normal: "#6b7c7a" };
+  const dueBg = { overdue: "#fdf0ee", soon: "#fef6e8", normal: "#F4F8FB" };
+  const dueColor = { overdue: "#C9542E", soon: "#D97706", normal: "#616568" };
 
   function PhaseSection({ phase, phaseTasks }) {
     const isOpen = collapsed[phase.id] === true ? false : (phase.status === "active" || phase.status === "pending" || !phases.length);
@@ -4013,9 +4013,9 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
           onClick={() => setCollapsed(c => ({ ...c, [phase.id]: isOpen }))}
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "#fff", border: `1px solid ${t.border}`, borderRadius: 8, cursor: "pointer", marginBottom: isOpen ? 10 : 0, boxShadow: "0 1px 3px rgba(26,74,71,0.04)" }}
         >
-          <div style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: isDone ? "#2d7a5a" : isActive ? t.accent : t.border }} />
+          <div style={{ width: 10, height: 10, borderRadius: "50%", flexShrink: 0, background: isDone ? "#3C7A52" : isActive ? t.accent : t.border }} />
           <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text }}>{phase.name}</div>
-          <div style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, fontWeight: 500, background: isDone ? "#e8f5ef" : isActive && pendingCount > 0 ? "#fef6e8" : "#f0f4f3", color: isDone ? "#2d7a5a" : isActive && pendingCount > 0 ? "#d4881a" : "#6b7c7a" }}>
+          <div style={{ fontSize: 11, padding: "3px 10px", borderRadius: 99, fontWeight: 500, background: isDone ? "#E7F3EC" : isActive && pendingCount > 0 ? "#fef6e8" : "#F4F8FB", color: isDone ? "#3C7A52" : isActive && pendingCount > 0 ? "#D97706" : "#616568" }}>
             {isDone ? "All complete" : pendingCount > 0 ? `${pendingCount} action${pendingCount !== 1 ? "s" : ""} needed` : "Upcoming"}
           </div>
           <span style={{ fontSize: 11, color: t.textSub, transform: isOpen ? "none" : "rotate(-90deg)", transition: "transform 0.2s", display: "inline-block" }}>▼</span>
@@ -4040,17 +4040,17 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1f1e", marginBottom: 3, textDecoration: isDoneTask ? "line-through" : "none", lineHeight: 1.35 }}>{task.title}</div>
-                    {task.description && <div style={{ fontSize: 12, color: "#6b7c7a", lineHeight: 1.4, marginBottom: 6 }}>{task.description}</div>}
+                    {task.description && <div style={{ fontSize: 12, color: "#616568", lineHeight: 1.4, marginBottom: 6 }}>{task.description}</div>}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {task.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", letterSpacing: "0.03em" }}>Client</span>}
-                      {task.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", letterSpacing: "0.03em" }}>LexOps</span>}
+                      {task.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", letterSpacing: "0.03em" }}>LexOps</span>}
                       {task.due_date && dc && (
                         <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: dueBg[dc], color: dueColor[dc] }}>
                           {dc === "overdue" ? "Overdue — " : dc === "soon" ? "Due soon — " : "Due "}
                           {new Date(task.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                         </span>
                       )}
-                      {isDoneTask && <span style={{ fontSize: 11, color: "#2d7a5a", fontStyle: "italic" }}>Pending LexOps verification</span>}
+                      {isDoneTask && <span style={{ fontSize: 11, color: "#3C7A52", fontStyle: "italic" }}>Pending LexOps verification</span>}
                     </div>
                   </div>
                 </div>
@@ -4076,13 +4076,13 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
           <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Overall Engagement Progress</span>
           <span style={{ fontSize: 13, color: t.textSub }}>{doneDeliverables} of {allDeliverables.length} actions complete</span>
         </div>
-        <div style={{ height: 6, background: "#f0f4f3", borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ height: 6, background: "#F4F8FB", borderRadius: 99, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${progress}%`, background: `linear-gradient(90deg, ${t.accent}, #3d8f88)`, borderRadius: 99, transition: "width 0.6s ease" }} />
         </div>
         {phases.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {phases.map(ph => (
-              <div key={ph.id} onClick={() => setCollapsed(c => ({ ...c, [ph.id]: false }))} style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11, fontWeight: 500, cursor: "pointer", background: ph.status === "complete" ? "#e8f5ef" : ph.status === "active" ? t.accent : "#f0f4f3", color: ph.status === "complete" ? "#2d7a5a" : ph.status === "active" ? "#fff" : "#6b7c7a", border: ph.status === "complete" ? "1.5px solid rgba(45,122,90,0.2)" : "1.5px solid transparent" }}>
+              <div key={ph.id} onClick={() => setCollapsed(c => ({ ...c, [ph.id]: false }))} style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11, fontWeight: 500, cursor: "pointer", background: ph.status === "complete" ? "#E7F3EC" : ph.status === "active" ? t.accent : "#F4F8FB", color: ph.status === "complete" ? "#3C7A52" : ph.status === "active" ? "#fff" : "#616568", border: ph.status === "complete" ? "1.5px solid rgba(45,122,90,0.2)" : "1.5px solid transparent" }}>
                 {ph.status === "complete" ? "✓ " : ph.status === "active" ? "● " : ""}{ph.name}
               </div>
             ))}
@@ -4095,8 +4095,8 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
         <div style={{ background: "#fff8f6", border: "1.5px solid rgba(192,57,43,0.22)", borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
-            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#c0392b", fontFamily: "'Playfair Display', Georgia, serif" }}>Actions on your part that require immediate attention</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#c0392b", flexShrink: 0 }}>
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#C9542E", fontFamily: "'Satoshi', sans-serif" }}>Actions on your part that require immediate attention</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#C9542E", flexShrink: 0 }}>
               {overdueClient.length} overdue
             </span>
           </div>
@@ -4106,7 +4106,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
               <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "1px solid rgba(192,57,43,0.1)" : "1px solid rgba(192,57,43,0.08)" }}>
                 <div onClick={() => markComplete(task)} style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: "2px solid rgba(192,57,43,0.4)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Mark complete" />
                 <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#1a1f1e" }}>{task.title}</div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#c0392b", flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
                   {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
                 </span>
               </div>
@@ -4120,8 +4120,8 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
         <div style={{ background: "#f8fbfb", border: `1.5px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <span style={{ fontSize: 18, lineHeight: 1 }}>⏳</span>
-            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>Pending actions from Lex Ops</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Pending actions from Lex Ops</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>
               {overdueLexops.length} delayed
             </span>
           </div>
@@ -4131,7 +4131,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
               <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? `1px solid ${t.border}` : `1px solid rgba(197,212,212,0.5)` }}>
                 <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${t.border}`, background: "transparent" }} />
                 <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: t.text }}>{task.title}</div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#f0f4f3", color: "#6b7c7a", flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#F4F8FB", color: "#616568", flexShrink: 0 }}>
                   {daysLate === 0 ? "Due today" : `${daysLate}d delayed`}
                 </span>
               </div>
@@ -4585,7 +4585,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   tasks.forEach(tk => { if (tk.phase_id && phaseTaskMap[tk.phase_id] !== undefined) phaseTaskMap[tk.phase_id].push(tk); else unphased.push(tk); });
 
   const statusOpts = [["pending","Pending"],["in_progress","In Progress"],["done","Done"]];
-  const stStyle = { pending: { bg:"#f0f4f3", color:"#6b7c7a" }, in_progress: { bg:"#fef6e8", color:"#d4881a" }, done: { bg:"#e8f5ef", color:"#2d7a5a" } };
+  const stStyle = { pending: { bg:"#F4F8FB", color:"#616568" }, in_progress: { bg:"#fef6e8", color:"#D97706" }, done: { bg:"#E7F3EC", color:"#3C7A52" } };
 
   function TaskRow({ task }) {
     const isEd = editingId === task.id;
@@ -4617,10 +4617,10 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
             <button onClick={()=>saveEdit(task.id)} disabled={saving} style={{ background:t.accent, border:"none", borderRadius:6, padding:"5px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#fff", fontFamily:"inherit" }}>{saving?"Saving…":"Save"}</button>
           </div>
         </div>
-        {saveError&&<div style={{marginTop:8,color:"#c0392b",fontSize:11,background:"rgba(192,57,43,0.08)",borderRadius:5,padding:"5px 10px"}}>{saveError}</div>}
+        {saveError&&<div style={{marginTop:8,color:"#C9542E",fontSize:11,background:"rgba(192,57,43,0.08)",borderRadius:5,padding:"5px 10px"}}>{saveError}</div>}
       </div>
     );
-    const ownerStyle = { client:{bg:"#e8f0fe",color:"#2b5fcc",label:"Client"}, lexops:{bg:"#e8f5ef",color:"#1A6666",label:"LexOps"} };
+    const ownerStyle = { client:{bg:"#e8f0fe",color:"#2b5fcc",label:"Client"}, lexops:{bg:"#E7F3EC",color:"#3C7A52",label:"LexOps"} };
     const ow = ownerStyle[task.owner];
     return (
       <div style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:8, padding:"12px 16px", marginBottom:8, display:"flex", alignItems:"flex-start", gap:12, boxShadow:"0 1px 3px rgba(26,74,71,0.04)" }}>
@@ -4649,7 +4649,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
       <div style={{ marginBottom:14 }}>
         <div onClick={()=>setCollapsed(c=>({...c,[phase.id]:isOpen}))}
           style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 16px", background:"#fff", border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", boxShadow:"0 1px 3px rgba(26,74,71,0.04)" }}>
-          <div style={{ width:10, height:10, borderRadius:"50%", flexShrink:0, background:isDone?"#2d7a5a":isActive?t.accent:t.border }}/>
+          <div style={{ width:10, height:10, borderRadius:"50%", flexShrink:0, background:isDone?"#3C7A52":isActive?t.accent:t.border }}/>
           <div style={{ flex:1, fontSize:13, fontWeight:700, color:t.text }}>{phase.name}</div>
           <div style={{ fontSize:11, color:t.textSub }}>{doneC}/{phaseTasks.length} done</div>
           <span style={{ fontSize:11, color:t.textSub, transform:isOpen?"none":"rotate(-90deg)", transition:"transform 0.2s", display:"inline-block" }}>▼</span>
@@ -4716,7 +4716,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
             <div style={{ height:"100%", width:`${totalT>0?Math.round(doneT/totalT*100):0}%`, background:`linear-gradient(90deg,${t.accent},#3d8f88)`, borderRadius:99, transition:"width 0.6s ease" }}/>
           </div>
         </div>
-        <span style={{ fontSize:22, fontFamily:"'Playfair Display',Georgia,serif", fontWeight:400, color:t.text }}>{totalT>0?`${Math.round(doneT/totalT*100)}%`:"—"}</span>
+        <span style={{ fontSize:22, fontFamily:"'Satoshi',sans-serif", fontWeight:400, color:t.text }}>{totalT>0?`${Math.round(doneT/totalT*100)}%`:"—"}</span>
       </div>
 
       {/* ── Client overdue ── */}
@@ -4724,15 +4724,15 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
         <div style={{ background:"#fff8f6", border:"1.5px solid rgba(192,57,43,0.22)", borderRadius:12, padding:"16px 20px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
             <span style={{ fontSize:16, lineHeight:1 }}>⚠️</span>
-            <div style={{ flex:1, fontSize:13, fontWeight:700, color:"#c0392b", fontFamily:"'Playfair Display',Georgia,serif" }}>Client actions overdue — awaiting their response</div>
-            <span style={{ fontSize:11, fontWeight:600, padding:"2px 10px", borderRadius:99, background:"rgba(192,57,43,0.1)", color:"#c0392b", flexShrink:0 }}>{intOverdueClient.length} overdue</span>
+            <div style={{ flex:1, fontSize:13, fontWeight:700, color:"#C9542E", fontFamily:"'Satoshi',sans-serif" }}>Client actions overdue — awaiting their response</div>
+            <span style={{ fontSize:11, fontWeight:600, padding:"2px 10px", borderRadius:99, background:"rgba(192,57,43,0.1)", color:"#C9542E", flexShrink:0 }}>{intOverdueClient.length} overdue</span>
           </div>
           {intOverdueClient.map((task, i) => {
             const daysLate = Math.floor((todayMid - new Date(task.due_date)) / 86400000);
             return (
               <div key={task.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 0", borderTop: i===0?"1px solid rgba(192,57,43,0.1)":"1px solid rgba(192,57,43,0.07)" }}>
                 <div style={{ flex:1, fontSize:13, fontWeight:500, color:"#1a1f1e" }}>{task.title}</div>
-                <span style={{ fontSize:11, fontWeight:600, padding:"2px 9px", borderRadius:99, background:"#fdf0ee", color:"#c0392b", flexShrink:0 }}>
+                <span style={{ fontSize:11, fontWeight:600, padding:"2px 9px", borderRadius:99, background:"#fdf0ee", color:"#C9542E", flexShrink:0 }}>
                   {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
                 </span>
                 <button onClick={()=>startEdit(task)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", color:t.textSub, fontFamily:"inherit", flexShrink:0 }}>Edit</button>
@@ -4747,15 +4747,15 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
         <div style={{ background:"#fffbf0", border:"1.5px solid rgba(212,136,26,0.25)", borderRadius:12, padding:"16px 20px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
             <span style={{ fontSize:16, lineHeight:1 }}>⏳</span>
-            <div style={{ flex:1, fontSize:13, fontWeight:700, color:"#d4881a", fontFamily:"'Playfair Display',Georgia,serif" }}>LexOps actions overdue — action required from your team</div>
-            <span style={{ fontSize:11, fontWeight:600, padding:"2px 10px", borderRadius:99, background:"rgba(212,136,26,0.12)", color:"#d4881a", flexShrink:0 }}>{intOverdueLexops.length} delayed</span>
+            <div style={{ flex:1, fontSize:13, fontWeight:700, color:"#D97706", fontFamily:"'Satoshi',sans-serif" }}>LexOps actions overdue — action required from your team</div>
+            <span style={{ fontSize:11, fontWeight:600, padding:"2px 10px", borderRadius:99, background:"rgba(212,136,26,0.12)", color:"#D97706", flexShrink:0 }}>{intOverdueLexops.length} delayed</span>
           </div>
           {intOverdueLexops.map((task, i) => {
             const daysLate = Math.floor((todayMid - new Date(task.due_date)) / 86400000);
             return (
               <div key={task.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 0", borderTop: i===0?"1px solid rgba(212,136,26,0.12)":"1px solid rgba(212,136,26,0.08)" }}>
                 <div style={{ flex:1, fontSize:13, fontWeight:500, color:"#1a1f1e" }}>{task.title}</div>
-                <span style={{ fontSize:11, fontWeight:600, padding:"2px 9px", borderRadius:99, background:"#fef6e8", color:"#d4881a", flexShrink:0 }}>
+                <span style={{ fontSize:11, fontWeight:600, padding:"2px 9px", borderRadius:99, background:"#fef6e8", color:"#D97706", flexShrink:0 }}>
                   {daysLate === 0 ? "Due today" : `${daysLate}d delayed`}
                 </span>
                 <button onClick={()=>startEdit(task)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px", fontSize:11, cursor:"pointer", color:t.textSub, fontFamily:"inherit", flexShrink:0 }}>Edit</button>
@@ -4988,7 +4988,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
             <input type="file" style={{ display:"none" }} onChange={handleUpload} disabled={uploading}/>
           </label>
         </div>
-        {uploadError&&<div style={{marginBottom:8,padding:"7px 12px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{uploadError}</div>}
+        {uploadError&&<div style={{marginBottom:8,padding:"7px 12px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{uploadError}</div>}
         <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
           <select value={uploadPhase} onChange={e=>setUploadPhase(e.target.value)}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
@@ -5038,7 +5038,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
                   </div>
                 </div>
                 {docSaveError && docSaveError !== "__phase_missing__" && (
-                  <div style={{ fontSize:11, color:"#c0392b", background:"#fdf3f2", border:"1px solid #f5c6c6", borderRadius:6, padding:"6px 10px" }}>
+                  <div style={{ fontSize:11, color:"#C9542E", background:"#fdf3f2", border:"1px solid #f5c6c6", borderRadius:6, padding:"6px 10px" }}>
                     Could not save: {docSaveError}
                   </div>
                 )}
@@ -5088,10 +5088,10 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
                 {toolSaving?"Saving…":"Add"}
               </button>
             </div>
-            {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
+            {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{toolError}</div>}
           </form>
         )}
-        {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
+        {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{toolError}</div>}
         {tools.length===0&&!showAddTool?(
           <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
             <div style={{ fontSize:24, marginBottom:8 }}>🔧</div>
@@ -5377,7 +5377,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:mobile?16:24,gap:8}}>
                 <div style={{minWidth:0}}>
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
-                  <h1 style={{margin:"0 0 7px",fontSize:mobile?22:28,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Playfair Display', Georgia, serif"}}>{selected.project}</h1>
+                  <h1 style={{margin:"0 0 7px",fontSize:mobile?22:28,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Satoshi', sans-serif"}}>{selected.project}</h1>
                   <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
                     {!isClientView&&<ManagerEditor projectId={selected.id} value={selected.manager} t={t} onSaved={()=>refreshProject(selected.id)}/>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>

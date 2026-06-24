@@ -3,16 +3,16 @@ import { supabase } from "@/lib/supabase";
 import ProposalViewer, { Logo } from "./ProposalViewer.jsx";
 
 const t = {
-  bg: "#F9F8F5", card: "#FFFFFF",
-  border: "#E5E3DC", surface: "#F4F2ED", surfaceHigh: "#ECEAE4",
-  text: "#1A1A18", textSub: "#6B6B5F", textMeta: "#9B9B8F",
-  accent: "#0B4F4F", accentLight: "rgba(11,79,79,0.07)", accentBorder: "rgba(11,79,79,0.18)",
-  green: "#059669", greenSoft: "rgba(5,150,105,0.07)", greenBorder: "rgba(5,150,105,0.22)",
+  bg: "#FAFBFC", card: "#FFFFFF",
+  border: "#E8E8E8", surface: "#F4F8FB", surfaceHigh: "#E4F1F8",
+  text: "#232A34", textSub: "#616568", textMeta: "#9DB5C9",
+  accent: "#375971", accentLight: "rgba(55,89,113,0.07)", accentBorder: "rgba(55,89,113,0.18)",
+  green: "#3C7A52", greenSoft: "#E7F3EC", greenBorder: "rgba(60,122,82,0.22)",
   amber: "#B45309", amberSoft: "rgba(180,83,9,0.07)", amberBorder: "rgba(180,83,9,0.2)",
-  red: "#DC2626", redSoft: "rgba(220,38,38,0.08)",
-  shadow: "0 1px 4px rgba(0,0,0,0.06)",
-  shadowMd: "0 4px 16px rgba(0,0,0,0.09)",
-  shadowLg: "0 12px 40px rgba(0,0,0,0.14)",
+  red: "#C9542E", redSoft: "rgba(201,84,46,0.08)",
+  shadow: "0 1px 4px rgba(35,42,52,0.08)",
+  shadowMd: "0 4px 16px rgba(35,42,52,0.10)",
+  shadowLg: "0 12px 40px rgba(35,42,52,0.14)",
 };
 
 const inp = {
@@ -61,7 +61,7 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
       <div style={{ background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 14, padding: "24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: "#fff", border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✓</div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: t.green, marginBottom: 5, fontFamily: "'Playfair Display', Georgia, serif" }}>Proposal Accepted</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: t.green, marginBottom: 5, fontFamily: "'Satoshi', sans-serif" }}>Proposal Accepted</div>
           <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>Thank you — your acceptance has been sent to the LexOps team. We'll be in touch shortly.</div>
         </div>
       </div>
@@ -72,7 +72,7 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
       <div style={{ background: t.amberSoft, border: `1px solid ${t.amberBorder}`, borderRadius: 14, padding: "24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: "#fff", border: `1px solid ${t.amberBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>↩</div>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: t.amber, marginBottom: 5, fontFamily: "'Playfair Display', Georgia, serif" }}>Change request sent</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: t.amber, marginBottom: 5, fontFamily: "'Satoshi', sans-serif" }}>Change request sent</div>
           <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>The LexOps team has been notified and will reach out to discuss your feedback.</div>
         </div>
       </div>
@@ -105,7 +105,7 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, background: t.accentLight, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: t.card, border: `1px solid ${t.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>📋</div>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>Ready to respond?</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Ready to respond?</div>
           <div style={{ fontSize: 12, color: t.textSub, marginTop: 1 }}>Accept this proposal or let us know what you'd like changed.</div>
         </div>
       </div>
@@ -230,7 +230,7 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
               <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${t.border}`, background: t.surface, cursor: "pointer", color: t.textSub, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
           </div>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: t.text, margin: 0, lineHeight: 1.2 }}>
+          <h2 style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 22, fontWeight: 700, color: t.text, margin: 0, lineHeight: 1.2 }}>
             {stage.title || <span style={{ color: t.textMeta, fontStyle: "italic", fontWeight: 400 }}>Stage title to be completed</span>}
           </h2>
         </div>
@@ -317,7 +317,7 @@ function RunningAnimation({ stages }) {
         {[0, 1, 2].map(i => <div key={i} style={{ width: 10, height: 10, borderRadius: "50%", background: t.amber, animation: `dotBounce 1.2s ${i * 0.2}s ease-in-out infinite` }} />)}
       </div>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, fontWeight: 700, color: t.text, marginBottom: 6 }}>Running your matter through the workflow</div>
+        <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 20, fontWeight: 700, color: t.text, marginBottom: 6 }}>Running your matter through the workflow</div>
         <div style={{ fontSize: 13, color: t.textMeta }}>Finalizing…</div>
       </div>
       <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 24px", width: "100%", maxWidth: 360 }}>
@@ -561,7 +561,7 @@ function TryMatterWizard({ wf, token, proposal }) {
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "flex-start", gap: 14 }}>
         <div style={{ width: 32, height: 32, borderRadius: 7, background: t.amber, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, flexShrink: 0, letterSpacing: "-0.05em" }}>B</div>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>Try your own matter</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Try your own matter</div>
           <div style={{ fontSize: 12, color: t.textSub, marginTop: 2, lineHeight: 1.5 }}>Run a matter through the workflow — then review each stage and submit your feedback</div>
         </div>
         {runCount > 0 && (
@@ -901,7 +901,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: t.textMeta, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 2 }}>Workflow {index + 1}</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", color: wf.name ? t.text : t.textMeta, fontStyle: wf.name ? "normal" : "italic" }}>
+          <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: "-0.01em", color: wf.name ? t.text : t.textMeta, fontStyle: wf.name ? "normal" : "italic" }}>
             {wf.name || "Workflow name to be completed"}
           </div>
           {stages.length > 0 && <div style={{ fontSize: 11, color: t.textMeta, marginTop: 2 }}>{stages.length} stage{stages.length !== 1 ? "s" : ""}</div>}
@@ -974,7 +974,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
 
         {/* Hero */}
         <div style={{ marginBottom: 36, animation: "fadeUp 0.35s ease-out" }}>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(24px,4vw,34px)", fontWeight: 700, margin: "0 0 10px", letterSpacing: "-0.02em", lineHeight: 1.2, color: proposal.name ? t.text : t.textMeta, fontStyle: proposal.name ? "normal" : "italic" }}>
+          <h1 style={{ fontFamily: "'Satoshi', sans-serif", fontSize: "clamp(24px,4vw,34px)", fontWeight: 700, margin: "0 0 10px", letterSpacing: "-0.02em", lineHeight: 1.2, color: proposal.name ? t.text : t.textMeta, fontStyle: proposal.name ? "normal" : "italic" }}>
             {proposal.name || "Proposal title to be completed"}
           </h1>
           {proposal.description && (
@@ -1009,7 +1009,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
           <div style={{ background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 14, padding: "22px", marginBottom: 28, display: "flex", gap: 16, alignItems: "flex-start" }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>✓</div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: t.green, marginBottom: 4, fontFamily: "'Playfair Display', Georgia, serif" }}>Proposal Submitted</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: t.green, marginBottom: 4, fontFamily: "'Satoshi', sans-serif" }}>Proposal Submitted</div>
               <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>Thank you — your review has been submitted to Lex Ops. We'll be in touch shortly with next steps.</div>
             </div>
           </div>
@@ -1091,7 +1091,7 @@ export default function ProposalPage({ token, previewMode = false }) {
         <Logo />
         <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow }}>
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
-          <h2 style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Playfair Display', Georgia, serif" }}>Link Invalid or Expired</h2>
+          <h2 style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Satoshi', sans-serif" }}>Link Invalid or Expired</h2>
           <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>This proposal link is no longer valid. Please contact your LexOps representative for a new link.</p>
         </div>
         <div style={{ color: t.textMeta, fontSize: 11 }}>© 2026 LexOps · A Teams Squared Company</div>
