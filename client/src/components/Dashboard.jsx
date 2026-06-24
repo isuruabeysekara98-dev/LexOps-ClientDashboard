@@ -386,6 +386,17 @@ const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Don
 // Rules: if all tasks in a phase are done → complete; first non-complete → active; rest → pending.
 // Phases with zero tasks keep their stored status so admin overrides are respected.
 function computePhaseStatuses(phases, tasks) {
+  // Sort phases by the first number found in their name (e.g. "Milestone 3 - ..."),
+  // falling back to created_at then id so order is always deterministic.
+  const phaseNum = name => { const m = (name || "").match(/\d+/); return m ? parseInt(m[0]) : 9999; };
+  const sorted = [...(phases || [])].sort((a, b) => {
+    const nd = phaseNum(a.name) - phaseNum(b.name);
+    if (nd !== 0) return nd;
+    const td = new Date(a.created_at) - new Date(b.created_at);
+    if (td !== 0) return td;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
   const hasTasks = {};
   const allDone = {};
   for (const t of (tasks || [])) {
@@ -394,7 +405,7 @@ function computePhaseStatuses(phases, tasks) {
     if (t.status !== "done") allDone[t.phase_id] = false;
   }
   let activeAssigned = false;
-  return (phases || []).map(ph => {
+  return sorted.map(ph => {
     if (!hasTasks[ph.id]) return ph;                     // no tasks → keep stored status
     if (allDone[ph.id]) return { ...ph, status: "complete", progress: 100 };
     if (!activeAssigned) { activeAssigned = true; return { ...ph, status: "active" }; }
