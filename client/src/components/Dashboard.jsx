@@ -413,16 +413,35 @@ function computePhaseStatuses(phases, tasks) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// adminFetch — wraps fetch with the current user's Bearer token.
+// Routes all writes through the Express backend (service-role key, bypasses RLS).
+// ---------------------------------------------------------------------------
+async function adminFetch(path, options = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const resp = await fetch(`/api/admin${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+    body: options.body !== undefined ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body)) : undefined,
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
 async function autoCompletePhaseIfDone(projectId, phaseId) {
   if (!phaseId) return;
-  const { data: phaseTasks } = await supabase
-    .from("tasks")
-    .select("status")
-    .eq("project_id", projectId)
-    .eq("phase_id", phaseId);
-  if (!phaseTasks || phaseTasks.length === 0) return;
-  if (phaseTasks.every(tk => tk.status === "done")) {
-    await supabase.from("phases").update({ status: "complete", progress: 100 }).eq("id", phaseId);
+  try {
+    await adminFetch(`/phases/${phaseId}/auto-complete`, { method: "POST", body: { project_id: projectId } });
+  } catch (e) {
+    console.error("[autoCompletePhaseIfDone] failed:", e.message);
   }
 }
 const EMPTY_TASK={title:"",assignee:"",due:"",status:"todo",is_internal:true,is_deliverable:false,phase_id:null};
@@ -492,10 +511,11 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     setFormError("");
     setSaving(true);
     const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
-    const {error}=await supabase.from("tasks").insert(payload);
-    if(error){console.error("[TasksTab] insert error:",error.message);setFormError(error.message);setSaving(false);return;}
-    setNewForm(EMPTY_TASK);
-    setShowAddForPhase(null);
+    try {
+      await adminFetch("/tasks", { method: "POST", body: payload });
+      setNewForm(EMPTY_TASK);
+      setShowAddForPhase(null);
+    } catch(err) { console.error("[TasksTab] insert error:", err.message); setFormError(err.message); setSaving(false); return; }
     await loadTasks();
     setSaving(false);
     onRefresh?.();
@@ -512,29 +532,38 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
     setFormError("");
     setSaving(true);
     const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
-    const {error}=await supabase.from("tasks").update(payload).eq("id",id);
-    if(error){console.error("[TasksTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
-    setEditingId(null);
-    await loadTasks();
-    if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id);
+    try {
+      await adminFetch(`/tasks/${id}`, { method: "PATCH", body: payload });
+      setEditingId(null);
+      await loadTasks();
+      if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id);
+      onRefresh?.();
+    } catch(err) {
+      console.error("[TasksTab] update error:", err.message);
+      setFormError(err.message);
+    }
     setSaving(false);
-    onRefresh?.();
   }
 
   async function toggleTask(task){
     const newStatus=task.status==="done"?"todo":"done";
-    const {error}=await supabase.from("tasks").update({status:newStatus}).eq("id",task.id);
-    if(error){console.error("[TasksTab] toggle error:",error.message);return;}
-    await loadTasks();
-    if(newStatus==="done") await autoCompletePhaseIfDone(projectId, task.phase_id);
-    onRefresh?.();
+    try {
+      await adminFetch(`/tasks/${task.id}/status`, { method: "PATCH", body: { status: newStatus } });
+      await loadTasks();
+      if(newStatus==="done") await autoCompletePhaseIfDone(projectId, task.phase_id);
+      onRefresh?.();
+    } catch(err) { console.error("[TasksTab] toggle error:", err.message); }
   }
 
   async function deleteTask(id){
-    const {error}=await supabase.from("tasks").delete().eq("id",id);
-    if(error){console.error("[TasksTab] delete error:",error.message);setFormError(error.message);return;}
-    setTasks(ts=>ts.filter(tk=>tk.id!==id));
-    onRefresh?.();
+    try {
+      await adminFetch(`/tasks/${id}`, { method: "DELETE" });
+      setTasks(ts=>ts.filter(tk=>tk.id!==id));
+      onRefresh?.();
+    } catch(err) {
+      console.error("[TasksTab] delete error:", err.message);
+      setFormError(err.message);
+    }
   }
 
   const tc={done:{dot:t.green,label:"Done",lc:t.green},"in-progress":{dot:t.accent,label:"Active",lc:t.accentLight},todo:{dot:t.textDim,label:"To Do",lc:t.textSub}};
@@ -1696,12 +1725,13 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     setFormError("");
     setSaving(true);
     const payload={...newForm,due:toNull(newForm.due),phase_id:toNull(newForm.phase_id),project_id:projectId};
-    const {error}=await supabase.from("tasks").insert(payload);
-    if(error){setFormError(error.message);setSaving(false);return;}
-    setNewForm(EMPTY_TASK);
-    setShowAddForPhase(null);
+    try {
+      await adminFetch("/tasks", { method: "POST", body: payload });
+      setNewForm(EMPTY_TASK);
+      setShowAddForPhase(null);
+      onRefresh?.();
+    } catch(err) { setFormError(err.message); }
     setSaving(false);
-    onRefresh?.();
   }
 
   function openEdit(task){
@@ -1716,12 +1746,13 @@ function KanbanView({projectId,phases,tasks,teamMembers,isInternal,onRefresh,t,m
     setFormError("");
     setSaving(true);
     const payload={...editForm,due:toNull(editForm.due),phase_id:toNull(editForm.phase_id)};
-    const {error}=await supabase.from("tasks").update(payload).eq("id",editingTask.id);
-    if(error){setFormError(error.message);setSaving(false);return;}
-    if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id||editingTask.phase_id);
-    setEditingTask(null);
+    try {
+      await adminFetch(`/tasks/${editingTask.id}`, { method: "PATCH", body: payload });
+      if(editForm.status==="done") await autoCompletePhaseIfDone(projectId, editForm.phase_id||editingTask.phase_id);
+      setEditingTask(null);
+      onRefresh?.();
+    } catch(err) { setFormError(err.message); }
     setSaving(false);
-    onRefresh?.();
   }
 
   const statusColors={done:t.green,"in-progress":t.accent,todo:t.textDim};
@@ -2436,24 +2467,28 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   async function addTask(e) {
     e.preventDefault();
     if (!newTask.title.trim()) return;
-    await supabase.from("tasks").insert({
-      project_id: project.id,
-      title: newTask.title.trim(),
-      due_date: newTask.due_date || null,
-      is_deliverable: newTask.is_deliverable,
-      is_internal: newTask.is_internal,
-      status: "todo",
-    });
-    setNewTask({ title: "", due_date: "", is_deliverable: true, is_internal: false, status: "todo" });
-    setShowAddTask(false);
-    await loadAll();
-    onRefresh?.();
+    try {
+      await adminFetch("/tasks", { method: "POST", body: {
+        project_id: project.id,
+        title: newTask.title.trim(),
+        due_date: newTask.due_date || null,
+        is_deliverable: newTask.is_deliverable,
+        is_internal: newTask.is_internal,
+        status: "todo",
+      }});
+      setNewTask({ title: "", due_date: "", is_deliverable: true, is_internal: false, status: "todo" });
+      setShowAddTask(false);
+      await loadAll();
+      onRefresh?.();
+    } catch(err) { console.error("[ProjectTab] addTask failed:", err.message); }
   }
 
   async function deleteTask(id) {
-    await supabase.from("tasks").delete().eq("id", id);
-    setTasks(ts => ts.filter(t => t.id !== id));
-    onRefresh?.();
+    try {
+      await adminFetch(`/tasks/${id}`, { method: "DELETE" });
+      setTasks(ts => ts.filter(t => t.id !== id));
+      onRefresh?.();
+    } catch(err) { console.error("[ProjectTab] deleteTask failed:", err.message); }
   }
 
   // ── Upload document ──
@@ -4145,31 +4180,37 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   }
   async function saveEdit(taskId) {
     setSaving(true);
-    await supabase.from("tasks").update({
-      title: editDraft.title, status: editDraft.status,
-      due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
-      owner: editDraft.owner || null,
-    }).eq("id", taskId);
-    if (editDraft.status === "done") await autoCompletePhaseIfDone(projectId, editDraft.phase_id);
-    setEditingId(null);
-    await loadData();
+    try {
+      await adminFetch(`/tasks/${taskId}`, { method: "PATCH", body: {
+        title: editDraft.title, status: editDraft.status,
+        due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
+        owner: editDraft.owner || null,
+      }});
+      if (editDraft.status === "done") await autoCompletePhaseIfDone(projectId, editDraft.phase_id);
+      setEditingId(null);
+      await loadData();
+      onRefresh?.();
+    } catch(err) { console.error("[InternalActionsTab] saveEdit failed:", err.message); }
     setSaving(false);
-    onRefresh?.();
   }
   async function deleteTask(taskId) {
-    await supabase.from("tasks").delete().eq("id", taskId);
-    setTasks(ts => ts.filter(t => t.id !== taskId));
-    onRefresh?.();
+    try {
+      await adminFetch(`/tasks/${taskId}`, { method: "DELETE" });
+      setTasks(ts => ts.filter(t => t.id !== taskId));
+      onRefresh?.();
+    } catch(err) { console.error("[InternalActionsTab] deleteTask failed:", err.message); }
   }
   async function addTask(phaseId) {
     if (!newTask.title.trim()) return;
     setSaving(true);
-    await supabase.from("tasks").insert({ project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null, owner: newTask.owner || null });
-    setNewTask({ title: "", due_date: "" });
-    setShowAddIn(null);
-    await loadData();
+    try {
+      await adminFetch("/tasks", { method: "POST", body: { project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null, owner: newTask.owner || null }});
+      setNewTask({ title: "", due_date: "" });
+      setShowAddIn(null);
+      await loadData();
+      onRefresh?.();
+    } catch(err) { console.error("[InternalActionsTab] addTask failed:", err.message); }
     setSaving(false);
-    onRefresh?.();
   }
 
   const phaseTaskMap = {};

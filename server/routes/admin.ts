@@ -329,15 +329,69 @@ router.post("/bulk-rename-phases", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/admin/tasks/:id/status — update task status (bypasses RLS via service role)
+// Task CRUD — all bypass RLS via service-role key
 // ---------------------------------------------------------------------------
+
+// POST /api/admin/tasks — create a task
+router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
+  const { project_id, title, status, is_internal, is_deliverable, due_date, phase_id, owner, description, assignee } = req.body;
+  if (!project_id || !title) { res.status(400).json({ message: "project_id and title are required" }); return; }
+  const { data, error } = await adminSupabase.from("tasks").insert({
+    project_id, title,
+    status: status || "pending",
+    is_internal: is_internal ?? false,
+    is_deliverable: is_deliverable ?? false,
+    due_date: due_date || null,
+    phase_id: phase_id || null,
+    owner: owner || null,
+    description: description || null,
+    assignee: assignee || null,
+  }).select().single();
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true, data });
+});
+
+// PATCH /api/admin/tasks/:id — full task update
+router.patch("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const allowed = ["title", "status", "due_date", "phase_id", "owner", "is_internal", "is_deliverable", "description", "assignee"];
+  const payload = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+  if (Object.keys(payload).length === 0) { res.status(400).json({ message: "No valid fields to update" }); return; }
+  const { error } = await adminSupabase.from("tasks").update(payload).eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// PATCH /api/admin/tasks/:id/status — update status only (kept for compatibility)
 router.patch("/tasks/:id/status", requireAuth, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
-  const valid = ["pending", "in_progress", "done"];
+  const valid = ["pending", "in_progress", "done", "todo", "in-progress"];
   if (!valid.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
   const { error } = await adminSupabase.from("tasks").update({ status }).eq("id", id);
   if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// DELETE /api/admin/tasks/:id — delete a task
+router.delete("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { error } = await adminSupabase.from("tasks").delete().eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// POST /api/admin/phases/:id/auto-complete — mark phase complete if all tasks done
+router.post("/phases/:id/auto-complete", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { project_id } = req.body;
+  if (!project_id) { res.status(400).json({ message: "project_id required" }); return; }
+  const { data: phaseTasks, error: fetchErr } = await adminSupabase
+    .from("tasks").select("status").eq("project_id", project_id).eq("phase_id", id);
+  if (fetchErr) { res.status(500).json({ message: fetchErr.message }); return; }
+  if (phaseTasks && phaseTasks.length > 0 && phaseTasks.every((t: any) => t.status === "done")) {
+    await adminSupabase.from("phases").update({ status: "complete", progress: 100 }).eq("id", id);
+  }
   res.json({ ok: true });
 });
 
