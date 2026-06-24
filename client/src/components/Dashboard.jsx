@@ -191,7 +191,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           {[
             {val:`${project.progress??0}%`, label:"Progress"},
             {val:doneDel+"/"+deliverables.length, label:"Actions"},
-            ...(daysLeft!==null?[{val:daysLeft<=0?"Past due":String(daysLeft), label:"Days Left"}]:[]),
+            ...(daysLeft!==null?[{val:daysLeft===0?"Today":String(Math.abs(daysLeft)), label:daysLeft<0?"Days Overdue":"Days Left"}]:[]),
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
               {i>0&&<div style={{width:1,background:"rgba(255,255,255,0.2)",alignSelf:"stretch"}}/>}
@@ -1431,11 +1431,12 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     setSaving(true);
     try{
       const payload={...editForm,due_date:toNull(editForm.due_date),amount:Number(editForm.amount)||0};
-      try{await dbWrite("invoices","update",payload,{id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);return;}
+      try{await dbWrite("invoices","update",payload,{id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
       setEditingId(null);
-      await loadInvoices();
+      setSaving(false);
+      loadInvoices().catch(()=>{});
       onRefresh?.();
-    }finally{setSaving(false);}
+    }catch{setSaving(false);}
   }
 
   async function deleteInvoice(id){
@@ -1612,17 +1613,6 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
                     {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
-                    {isInternal&&inv.status!=="paid"&&(
-                      <button onClick={async()=>{
-                        setInvoices(list=>list.map(x=>x.id===inv.id?{...x,status:"paid"}:x));
-                        try{await dbWrite("invoices","update",{status:"paid"},{id:inv.id});}
-                        catch(err){
-                          console.error("[InvoicesTab] markPaid error:",err.message);
-                          setInvoices(list=>list.map(x=>x.id===inv.id?{...x,status:inv.status}:x));
-                        }
-                        onRefresh?.();
-                      }} title="Mark as paid" style={{background:t.green,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>✓ Paid</button>
-                    )}
                     {inv.file_url&&(
                       <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
                     )}
