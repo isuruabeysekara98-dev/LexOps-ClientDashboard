@@ -3470,7 +3470,7 @@ function ClientOverviewTab({ project, t, mobile }) {
 
   const phases = project.phases || [];
   const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable && tk.status !== "done");
-  const clientTasks = (project.tasks || []).filter(tk => !tk.is_internal);
+  const clientTasks = (project.tasks || []).filter(tk => !tk.is_internal && tk.owner === "client");
   const todayMidC = new Date(); todayMidC.setHours(0,0,0,0);
   const in7C = new Date(todayMidC.getTime() + 7*86400000);
   const overdueClient = clientTasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) < todayMidC);
