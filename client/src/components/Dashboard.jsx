@@ -951,10 +951,22 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
   const [saving,setSaving]=useState(false);
   const [movingId,setMovingId]=useState(null);
   const [loading,setLoading]=useState(true);
+  const [calendlyUrl,setCalendlyUrl]=useState(project?.calendly_url||"");
+  const [editingCalendly,setEditingCalendly]=useState(false);
+  const [calendlyDraft,setCalendlyDraft]=useState(project?.calendly_url||"");
+  const [calendlySaving,setCalendlySaving]=useState(false);
 
-  const calendlyUrl=project?.calendly_url||"";
   const managerName=project?.manager||"your LexOps manager";
   const managerInitial=(managerName||"L").charAt(0).toUpperCase();
+
+  async function saveCalendlyUrl(){
+    if(!project?.id) return;
+    setCalendlySaving(true);
+    await dbWrite("projects","update",{calendly_url:calendlyDraft.trim()||null},{id:project.id});
+    setCalendlyUrl(calendlyDraft.trim());
+    setEditingCalendly(false);
+    setCalendlySaving(false);
+  }
 
   const loadTickets=useCallback(async()=>{
     const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
@@ -1075,24 +1087,66 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
       {/* Calendly booking card */}
       <div style={{
         background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,
-        padding:"18px 22px",display:"flex",alignItems:"center",gap:16,
-        boxShadow:"0 1px 3px rgba(26,74,71,0.06)",
+        padding:"18px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)",
       }}>
-        <div style={{width:44,height:44,borderRadius:"50%",background:t.accent,color:"#fff",fontSize:16,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-          {managerInitial}
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:44,height:44,borderRadius:"50%",background:t.accent,color:"#fff",fontSize:16,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            {managerInitial}
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:t.text,marginBottom:2}}>Book a call with {managerName}</div>
+            <div style={{fontSize:12,color:t.textSub}}>30 min · Video call · {project?.name||"this engagement"} · Typically responds within 2 hours</div>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+            {isInternal&&!editingCalendly&&(
+              <button onClick={()=>{setCalendlyDraft(calendlyUrl);setEditingCalendly(true);}}
+                style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 13px",fontSize:12,fontWeight:600,color:t.textSub,cursor:"pointer",fontFamily:"inherit"}}>
+                {calendlyUrl?"✏️ Edit Link":"+ Add Booking Link"}
+              </button>
+            )}
+            {!isInternal&&calendlyUrl&&(
+              <a href={calendlyUrl} target="_blank" rel="noreferrer"
+                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>
+                📅 Book a Call
+              </a>
+            )}
+            {!isInternal&&!calendlyUrl&&(
+              <span style={{fontSize:12,color:t.textSub,fontStyle:"italic"}}>Booking link coming soon</span>
+            )}
+            {isInternal&&calendlyUrl&&!editingCalendly&&(
+              <a href={calendlyUrl} target="_blank" rel="noreferrer"
+                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>
+                📅 Preview
+              </a>
+            )}
+          </div>
         </div>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:14,fontWeight:700,color:t.text,marginBottom:2}}>Book a call with {managerName}</div>
-          <div style={{fontSize:12,color:t.textSub}}>30 min · Video call · {project?.name||project?.project||"this engagement"} · Typically responds within 2 hours</div>
-        </div>
-        {calendlyUrl
-          ?<a href={calendlyUrl} target="_blank" rel="noreferrer" style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>
-              📅 Open Booking Page
-            </a>
-          :<span style={{fontSize:12,color:t.textSub,fontStyle:"italic",flexShrink:0,textAlign:"right"}}>
-              {isInternal?"Set Calendly URL in Project Setup →":"Booking link coming soon"}
-            </span>
-        }
+
+        {/* Inline URL editor — internal only */}
+        {isInternal&&editingCalendly&&(
+          <div style={{marginTop:16,borderTop:`1px solid ${t.border}`,paddingTop:16}}>
+            <label style={{display:"block",fontSize:11,fontWeight:700,color:t.textSub,letterSpacing:"0.05em",marginBottom:6,textTransform:"uppercase"}}>Calendly Booking URL</label>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input
+                autoFocus
+                value={calendlyDraft}
+                onChange={e=>setCalendlyDraft(e.target.value)}
+                placeholder="https://calendly.com/your-name/30min"
+                onKeyDown={e=>{if(e.key==="Enter")saveCalendlyUrl();if(e.key==="Escape"){setEditingCalendly(false);setCalendlyDraft(calendlyUrl);}}}
+                style={{flex:1,background:"#f7fafa",border:`1.5px solid ${t.accent}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}
+              />
+              <button onClick={saveCalendlyUrl} disabled={calendlySaving}
+                style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"9px 16px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:calendlySaving?0.6:1,whiteSpace:"nowrap"}}>
+                {calendlySaving?"Saving…":"Save"}
+              </button>
+              <button onClick={()=>{setEditingCalendly(false);setCalendlyDraft(calendlyUrl);}}
+                style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:8,padding:"9px 13px",fontSize:13,color:t.textSub,cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel
+              </button>
+            </div>
+            <div style={{fontSize:11,color:t.textSub,marginTop:6}}>Paste your Calendly event link. Clients will be redirected here when they click "Book a Call".</div>
+          </div>
+        )}
       </div>
 
       {/* New ticket form */}
