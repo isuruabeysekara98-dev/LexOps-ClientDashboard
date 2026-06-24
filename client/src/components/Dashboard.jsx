@@ -1401,12 +1401,14 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
       if(!resp.ok){ const err=await resp.json().catch(()=>({})); throw new Error(err.message||`HTTP ${resp.status}`); }
 
       setNewForm(EMPTY_INVOICE);setAddFile(null);setShowAdd(false);
-      await loadInvoices();
+      setSaving(false);
+      loadInvoices().catch(()=>{});
       onRefresh?.();
     }catch(error){
       console.error("[InvoicesTab] addInvoice error:",error.message);
       setFormError(error.message);
-    }finally{setSaving(false);}
+      setSaving(false);
+    }
   }
 
   async function saveEngValue(){
@@ -1612,8 +1614,12 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {isInternal&&inv.status!=="paid"&&(
                       <button onClick={async()=>{
-                        try{await dbWrite("invoices","update",{status:"paid"},{id:inv.id});}catch(err){console.error("[InvoicesTab] markPaid error:",err.message);return;}
                         setInvoices(list=>list.map(x=>x.id===inv.id?{...x,status:"paid"}:x));
+                        try{await dbWrite("invoices","update",{status:"paid"},{id:inv.id});}
+                        catch(err){
+                          console.error("[InvoicesTab] markPaid error:",err.message);
+                          setInvoices(list=>list.map(x=>x.id===inv.id?{...x,status:inv.status}:x));
+                        }
                         onRefresh?.();
                       }} title="Mark as paid" style={{background:t.green,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>✓ Paid</button>
                     )}
@@ -2762,11 +2768,11 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
 
       setNewInv({ invoice_number: "", description: "", amount: "", phase_name: "", due_date: "" });
       setInvFile(null);
-      await loadAll();
+      setInvSaving(false);
+      loadAll().catch(() => {});
       onRefresh?.();
     } catch(err) {
       console.error("[ProjectSetupDrawer] addInvoice error:", err.message);
-    } finally {
       setInvSaving(false);
     }
   }
