@@ -3505,6 +3505,8 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1f1e", marginBottom: 3, textDecoration: isDoneTask ? "line-through" : "none", lineHeight: 1.35 }}>{task.title}</div>
                     {task.description && <div style={{ fontSize: 12, color: "#6b7c7a", lineHeight: 1.4, marginBottom: 6 }}>{task.description}</div>}
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {task.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", letterSpacing: "0.03em" }}>Client</span>}
+                      {task.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", letterSpacing: "0.03em" }}>LexOps</span>}
                       {task.due_date && dc && (
                         <span style={{ fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99, background: dueBg[dc], color: dueColor[dc] }}>
                           {dc === "overdue" ? "Overdue — " : dc === "soon" ? "Due soon — " : "Due "}
@@ -3897,7 +3899,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   const [editDraft, setEditDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [showAddIn, setShowAddIn] = useState(null);
-  const [newTask, setNewTask] = useState({ title: "", due_date: "" });
+  const [newTask, setNewTask] = useState({ title: "", due_date: "", owner: "" });
 
   const loadData = useCallback(async () => {
     const [{ data: td }, { data: pd }] = await Promise.all([
@@ -3911,13 +3913,14 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
 
   function startEdit(task) {
     setEditingId(task.id);
-    setEditDraft({ title: task.title || "", status: task.status || "pending", due_date: task.due_date || "", phase_id: task.phase_id || "" });
+    setEditDraft({ title: task.title || "", status: task.status || "pending", due_date: task.due_date || "", phase_id: task.phase_id || "", owner: task.owner || "" });
   }
   async function saveEdit(taskId) {
     setSaving(true);
     await supabase.from("tasks").update({
       title: editDraft.title, status: editDraft.status,
       due_date: editDraft.due_date || null, phase_id: editDraft.phase_id || null,
+      owner: editDraft.owner || null,
     }).eq("id", taskId);
     setEditingId(null);
     await loadData();
@@ -3932,7 +3935,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
   async function addTask(phaseId) {
     if (!newTask.title.trim()) return;
     setSaving(true);
-    await supabase.from("tasks").insert({ project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null });
+    await supabase.from("tasks").insert({ project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null, owner: newTask.owner || null });
     setNewTask({ title: "", due_date: "" });
     setShowAddIn(null);
     await loadData();
@@ -3965,6 +3968,12 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
             <option value="">— No Milestone —</option>
             {phases.map(ph=><option key={ph.id} value={ph.id}>{ph.name}</option>)}
           </select>
+          <select value={editDraft.owner} onChange={e=>setEditDraft(d=>({...d,owner:e.target.value}))}
+            style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}>
+            <option value="">— No Owner —</option>
+            <option value="client">Client</option>
+            <option value="lexops">LexOps</option>
+          </select>
           <input type="date" value={editDraft.due_date} onChange={e=>setEditDraft(d=>({...d,due_date:e.target.value}))}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}/>
           <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
@@ -3974,11 +3983,16 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
         </div>
       </div>
     );
+    const ownerStyle = { client:{bg:"#e8f0fe",color:"#2b5fcc",label:"Client"}, lexops:{bg:"#e8f5ef",color:"#1A6666",label:"LexOps"} };
+    const ow = ownerStyle[task.owner];
     return (
       <div style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:8, padding:"12px 16px", marginBottom:8, display:"flex", alignItems:"flex-start", gap:12, boxShadow:"0 1px 3px rgba(26,74,71,0.04)" }}>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:13, fontWeight:500, color:task.status==="done"?t.textSub:t.text, textDecoration:task.status==="done"?"line-through":"none", marginBottom:task.due_date?4:0 }}>{task.title}</div>
-          {task.due_date&&<div style={{ fontSize:11, color:t.textSub }}>{new Date(task.due_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>}
+          <div style={{ fontSize:13, fontWeight:500, color:task.status==="done"?t.textSub:t.text, textDecoration:task.status==="done"?"line-through":"none", marginBottom:4 }}>{task.title}</div>
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            {ow && <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:99, background:ow.bg, color:ow.color, letterSpacing:"0.03em" }}>{ow.label}</span>}
+            {task.due_date&&<span style={{ fontSize:11, color:t.textSub }}>{new Date(task.due_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</span>}
+          </div>
         </div>
         <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:99, background:st.bg, color:st.color, flexShrink:0 }}>
           {task.status==="done"?"✓ Done":task.status==="in_progress"?"In Progress":"Pending"}
@@ -4011,13 +4025,19 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
                 <input autoFocus value={newTask.title} onChange={e=>setNewTask(n=>({...n,title:e.target.value}))} placeholder="Task title…"
                   onKeyDown={e=>{ if(e.key==="Enter") addTask(phase.id); if(e.key==="Escape") setShowAddIn(null); }}
                   style={{ flex:1, minWidth:120, background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 10px", fontSize:13, fontFamily:"inherit", color:t.text }}/>
+                <select value={newTask.owner} onChange={e=>setNewTask(n=>({...n,owner:e.target.value}))}
+                  style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 8px", fontSize:12, fontFamily:"inherit", color:t.text }}>
+                  <option value="">— Owner —</option>
+                  <option value="client">Client</option>
+                  <option value="lexops">LexOps</option>
+                </select>
                 <input type="date" value={newTask.due_date} onChange={e=>setNewTask(n=>({...n,due_date:e.target.value}))}
                   style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 8px", fontSize:12, fontFamily:"inherit" }}/>
                 <button onClick={()=>addTask(phase.id)} disabled={saving||!newTask.title.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"6px 14px", fontSize:12, fontWeight:600, color:"#fff", cursor:"pointer", fontFamily:"inherit" }}>Add</button>
                 <button onClick={()=>setShowAddIn(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 12px", fontSize:12, color:t.textSub, cursor:"pointer" }}>Cancel</button>
               </div>
             ):(
-              <button onClick={()=>{ setShowAddIn(phase.id); setNewTask({title:"",due_date:""}); }}
+              <button onClick={()=>{ setShowAddIn(phase.id); setNewTask({title:"",due_date:"",owner:""}); }}
                 style={{ background:"transparent", border:`1px dashed ${t.border}`, borderRadius:8, padding:"8px 16px", fontSize:12, color:t.textSub, cursor:"pointer", width:"100%", textAlign:"left", fontFamily:"inherit" }}>
                 + Add action to {phase.name}
               </button>
