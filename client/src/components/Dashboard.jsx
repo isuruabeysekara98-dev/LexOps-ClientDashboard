@@ -1379,22 +1379,25 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     if(!newForm.invoice_number.trim()){setFormError("Invoice number is required.");return;}
     setFormError("");
     setSaving(true);
-    let publicUrl=null,storagePath=null;
-    if(addFile){
-      storagePath=`${projectId}/invoices/${addFile.name}`;
-      const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
-      if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setSaving(false);return;}
-      publicUrl=supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
-    }
     try{
-      await dbWrite("invoices","insert",{invoice_number:newForm.invoice_number,due_date:toNull(newForm.due_date),status:"pending",file_url:publicUrl,storage_path:storagePath,project_id:projectId,amount:Number(newForm.amount)||0,description:newForm.description||null,phase_name:newForm.phase_name||null});
-    }catch(error){
-      console.error("[InvoicesTab] insert error:",error.message);
-      if(storagePath) await supabase.storage.from("project-documents").remove([storagePath]);
-      setFormError(error.message);setSaving(false);return;
-    }
-    setNewForm(EMPTY_INVOICE);setAddFile(null);setShowAdd(false);
-    await loadInvoices();setSaving(false);onRefresh?.();
+      let publicUrl=null,storagePath=null;
+      if(addFile){
+        storagePath=`${projectId}/invoices/${addFile.name}`;
+        const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
+        if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);return;}
+        publicUrl=supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
+      }
+      try{
+        await dbWrite("invoices","insert",{invoice_number:newForm.invoice_number,due_date:toNull(newForm.due_date),status:"pending",file_url:publicUrl,storage_path:storagePath,project_id:projectId,amount:Number(newForm.amount)||0,description:newForm.description||null,phase_name:newForm.phase_name||null});
+      }catch(error){
+        console.error("[InvoicesTab] insert error:",error.message);
+        if(storagePath) await supabase.storage.from("project-documents").remove([storagePath]);
+        setFormError(error.message);return;
+      }
+      setNewForm(EMPTY_INVOICE);setAddFile(null);setShowAdd(false);
+      await loadInvoices();
+      onRefresh?.();
+    }finally{setSaving(false);}
   }
 
   async function saveEngValue(){
@@ -1415,12 +1418,13 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     e.preventDefault();
     setFormError("");
     setSaving(true);
-    const payload={...editForm,due_date:toNull(editForm.due_date),amount:Number(editForm.amount)||0};
-    try{await dbWrite("invoices","update",payload,{id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
-    setEditingId(null);
-    await loadInvoices();
-    setSaving(false);
-    onRefresh?.();
+    try{
+      const payload={...editForm,due_date:toNull(editForm.due_date),amount:Number(editForm.amount)||0};
+      try{await dbWrite("invoices","update",payload,{id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);return;}
+      setEditingId(null);
+      await loadInvoices();
+      onRefresh?.();
+    }finally{setSaving(false);}
   }
 
   async function deleteInvoice(id){
@@ -1442,14 +1446,15 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     if(!file) return;
     e.target.value="";
     setUploadingId(inv.id);
-    const storagePath=`${projectId}/invoices/${file.name}`;
-    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
-    if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);setUploadingId(null);return;}
-    const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    try{await dbWrite("invoices","update",{file_url:publicUrl,storage_path:storagePath},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
-    await loadInvoices();
-    setUploadingId(null);
-    onRefresh?.();
+    try{
+      const storagePath=`${projectId}/invoices/${file.name}`;
+      const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
+      if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);return;}
+      const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
+      try{await dbWrite("invoices","update",{file_url:publicUrl,storage_path:storagePath},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
+      await loadInvoices();
+      onRefresh?.();
+    }finally{setUploadingId(null);}
   }
 
   const total=invoices.reduce((s,i)=>s+(i.amount||0),0);
