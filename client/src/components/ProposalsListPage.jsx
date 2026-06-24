@@ -268,7 +268,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-    fontSize: 13, borderRadius: 8, padding: "10px 24px", transition: "background 0.2s",
+    fontSize: 13, borderRadius: 8, padding: "8px 12px", transition: "background 0.2s",
   };
 
   return (
@@ -322,8 +322,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
               style={{
                 ...btnBase,
                 background: newMenuOpen ? t.accentHover : hovBtn === "new" ? t.accentHover : t.accent,
-                color: "#fff", fontWeight: 500, paddingLeft: 24, paddingRight: 24,
-                fontSize: 16,
+                color: "#fff", fontWeight: 500, padding: "8px 16px",
                 gap: 8,
               }}
             >
