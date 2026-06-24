@@ -197,7 +197,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
         <div style={{display:"flex",gap:mobile?12:20,alignItems:"center",position:"relative",flexShrink:0,flexWrap:"wrap"}}>
           {[
             {val:`${project.progress??0}%`, label:"Progress"},
-            {val:String(tasks.filter(tk=>!tk.is_internal&&tk.status!=="done"&&tk.assignee).length), label:"Pending Actions"},
+            {val:(()=>{const mt=activePhase?tasks.filter(tk=>tk.phase_id===activePhase.id):[];return mt.length>0?`${mt.filter(tk=>tk.status==="done").length}/${mt.length}`:"—";})(), label:"Milestone Actions"},
             ...(nextActionVal!==null?[{val:nextDaysDiff===0?"Today":nextActionVal, label:nextActionLabel}]:[]),
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
@@ -212,7 +212,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       </div>
 
       {/* ── Stat cards ── */}
-      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         {[
           {label:"Tasks Done",value:`${done}/${tasks.length}`,sub:`${tasks.length-done} remaining`,bar:tasks.length?Math.round(done/tasks.length*100):0},
           {label:"Engagement Value",value:project.total_engagement_value?`$${Number(project.total_engagement_value).toLocaleString()}`:"—",sub:"Total contracted"},
