@@ -568,6 +568,72 @@ router.delete("/documents/:id", requireAuth, async (req: Request, res: Response)
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/admin/upload-invoice — upload PDF + create/update invoice row via service-role key
+// Accepts: multipart/form-data with optional field "file", plus body fields:
+//   project_id (required for create), invoice_id (present = update existing row's PDF)
+//   invoice_number, amount, description, phase_name, due_date, status
+// ---------------------------------------------------------------------------
+router.post("/upload-invoice", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
+  const file = req.file;
+  const { project_id, invoice_id, invoice_number, amount, description, phase_name, due_date, status } = req.body as Record<string, string>;
+
+  if (!project_id && !invoice_id) { res.status(400).json({ message: "project_id or invoice_id required" }); return; }
+
+  let publicUrl: string | null = null;
+  let storagePath: string | null = null;
+
+  if (file) {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._\-]/g, "_");
+    storagePath = `${project_id || "inv"}/invoices/${Date.now()}_${safeName}`;
+
+    const { error: storageErr } = await (adminSupabase as any).storage
+      .from("project-documents")
+      .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: true });
+
+    if (storageErr) {
+      console.error("[admin/upload-invoice] storage error:", storageErr.message);
+      res.status(500).json({ message: `Storage upload failed: ${storageErr.message}` }); return;
+    }
+
+    ({ data: { publicUrl } } = (adminSupabase as any).storage.from("project-documents").getPublicUrl(storagePath));
+  }
+
+  // UPDATE existing row (just attaching a PDF to an existing invoice)
+  if (invoice_id) {
+    const update: Record<string, any> = {};
+    if (publicUrl) { update.file_url = publicUrl; update.storage_path = storagePath; }
+    if (Object.keys(update).length === 0) { res.json({ ok: true }); return; }
+    const { data, error } = await (adminSupabase as any).from("invoices").update(update).eq("id", invoice_id).select().single();
+    if (error) { console.error("[admin/upload-invoice] update error:", error.message); res.status(500).json({ message: error.message }); return; }
+    res.json({ ok: true, data }); return;
+  }
+
+  // INSERT new invoice row
+  if (!invoice_number) { res.status(400).json({ message: "invoice_number required" }); return; }
+
+  const payload: Record<string, any> = {
+    project_id,
+    invoice_number,
+    status: status || "pending",
+    amount: Number(amount) || 0,
+    description: description || null,
+    phase_name: phase_name || null,
+    due_date: due_date || null,
+    file_url: publicUrl,
+    storage_path: storagePath,
+  };
+
+  const { data, error } = await (adminSupabase as any).from("invoices").insert(payload).select().single();
+  if (error) {
+    if (storagePath) await (adminSupabase as any).storage.from("project-documents").remove([storagePath]).catch(() => {});
+    console.error("[admin/upload-invoice] insert error:", error.message);
+    res.status(500).json({ message: error.message }); return;
+  }
+
+  res.json({ ok: true, data });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/admin/invoices/:id — delete storage PDF + DB record server-side
 // ---------------------------------------------------------------------------
 router.delete("/invoices/:id", requireAuth, async (req: Request, res: Response) => {

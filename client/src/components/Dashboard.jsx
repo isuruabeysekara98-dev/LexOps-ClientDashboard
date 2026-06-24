@@ -1380,23 +1380,32 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     setFormError("");
     setSaving(true);
     try{
-      let publicUrl=null,storagePath=null;
-      if(addFile){
-        storagePath=`${projectId}/invoices/${addFile.name}`;
-        const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,addFile,{upsert:true});
-        if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);return;}
-        publicUrl=supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
-      }
-      try{
-        await dbWrite("invoices","insert",{invoice_number:newForm.invoice_number,due_date:toNull(newForm.due_date),status:"pending",file_url:publicUrl,storage_path:storagePath,project_id:projectId,amount:Number(newForm.amount)||0,description:newForm.description||null,phase_name:newForm.phase_name||null});
-      }catch(error){
-        console.error("[InvoicesTab] insert error:",error.message);
-        if(storagePath) await supabase.storage.from("project-documents").remove([storagePath]);
-        setFormError(error.message);return;
-      }
+      let token;
+      try{ const {data:{session}}=await supabase.auth.getSession(); token=session?.access_token; }catch{ token=null; }
+
+      const formData=new FormData();
+      formData.append("project_id",projectId);
+      formData.append("invoice_number",newForm.invoice_number);
+      formData.append("amount",String(Number(newForm.amount)||0));
+      if(newForm.description) formData.append("description",newForm.description);
+      if(newForm.phase_name)  formData.append("phase_name",newForm.phase_name);
+      if(newForm.due_date)    formData.append("due_date",newForm.due_date);
+      formData.append("status","pending");
+      if(addFile) formData.append("file",addFile);
+
+      const resp=await fetch("/api/admin/upload-invoice",{
+        method:"POST",
+        headers:token?{Authorization:`Bearer ${token}`}:{},
+        body:formData,
+      });
+      if(!resp.ok){ const err=await resp.json().catch(()=>({})); throw new Error(err.message||`HTTP ${resp.status}`); }
+
       setNewForm(EMPTY_INVOICE);setAddFile(null);setShowAdd(false);
       await loadInvoices();
       onRefresh?.();
+    }catch(error){
+      console.error("[InvoicesTab] addInvoice error:",error.message);
+      setFormError(error.message);
     }finally{setSaving(false);}
   }
 
@@ -1447,13 +1456,26 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     e.target.value="";
     setUploadingId(inv.id);
     try{
-      const storagePath=`${projectId}/invoices/${file.name}`;
-      const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
-      if(upErr){console.error("[InvoicesTab] upload error:",upErr.message);setFormError(upErr.message);return;}
-      const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
-      try{await dbWrite("invoices","update",{file_url:publicUrl,storage_path:storagePath},{id:inv.id});}catch(error){console.error("[InvoicesTab] update error:",error.message);setFormError(error.message);}
+      let token;
+      try{ const {data:{session}}=await supabase.auth.getSession(); token=session?.access_token; }catch{ token=null; }
+
+      const formData=new FormData();
+      formData.append("project_id",projectId);
+      formData.append("invoice_id",inv.id);
+      formData.append("file",file);
+
+      const resp=await fetch("/api/admin/upload-invoice",{
+        method:"POST",
+        headers:token?{Authorization:`Bearer ${token}`}:{},
+        body:formData,
+      });
+      if(!resp.ok){ const err=await resp.json().catch(()=>({})); throw new Error(err.message||`HTTP ${resp.status}`); }
+
       await loadInvoices();
       onRefresh?.();
+    }catch(error){
+      console.error("[InvoicesTab] handlePdfUpload error:",error.message);
+      setFormError(error.message);
     }finally{setUploadingId(null);}
   }
 
