@@ -994,7 +994,7 @@ const TICKET_PRIORITIES=["high","medium","low"];
 const TICKET_CATEGORIES=["general","technical","billing","documents","other"];
 const EMPTY_TICKET={title:"",description:"",priority:"medium",category:"general"};
 
-function SupportTab({projectId,isInternal,project,t,mobile}){
+function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
   const [tickets,setTickets]=useState([]);
   const [editingTicketId,setEditingTicketId]=useState(null);
   const [editTicketForm,setEditTicketForm]=useState({});
@@ -1019,6 +1019,7 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
       await dbWrite("projects","update",{calendly_url:calendlyDraft.trim()||null},{id:project.id});
       setCalendlyUrl(calendlyDraft.trim());
       setEditingCalendly(false);
+      onRefresh?.();
     } catch(err) {
       console.error("[SupportTab] saveCalendlyUrl failed:", err.message);
       alert("Could not save booking link: " + err.message);
@@ -1205,13 +1206,19 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
                ))}
              </div>
             :(!isResolved&&!hasRequest
-                ?<button onClick={()=>moveTicket(ticket.id,ticket.status==="open"?"in_progress":"resolved")} style={{
-                    fontSize:11,fontWeight:600,color:t.accent,background:"#e8f2f1",border:"none",
-                    borderRadius:99,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit",marginTop:8,display:"block",
-                  }}>
-                    {ticket.status==="open"?"Mark as In Progress →":"Mark as Resolved ✓"}
-                  </button>
-                :isResolved?<div style={{fontSize:10,color:"#2d7a5a",fontStyle:"italic",marginTop:6}}>✓ Submitted to LexOps — verified</div>
+                ?(ticket.status==="open"
+                    ?<button onClick={()=>moveTicket(ticket.id,"in_progress")} style={{
+                        fontSize:11,fontWeight:600,color:t.accent,background:"#e8f2f1",border:"none",
+                        borderRadius:99,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit",marginTop:8,display:"block",
+                      }}>Mark as In Progress →</button>
+                    :ticket.status==="in_progress"
+                      ?<button onClick={async()=>{await dbWrite("support_tickets","update",{client_move_requested:"resolved"},{id:ticket.id});await loadTickets();}} style={{
+                          fontSize:11,fontWeight:600,color:"#d4881a",background:"#fef6e8",border:"none",
+                          borderRadius:99,padding:"4px 12px",cursor:"pointer",fontFamily:"inherit",marginTop:8,display:"block",
+                        }}>Request Resolution →</button>
+                      :null
+                  )
+                :isResolved?<div style={{fontSize:10,color:"#2d7a5a",fontStyle:"italic",marginTop:6}}>✓ Resolved by LexOps</div>
                 :null
               )
           }
@@ -5379,7 +5386,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
               {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
               {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
               {tab==="invoices"    && <InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
-              {tab==="support"     && <SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile}/>}
+              {tab==="support"     && <SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
             </>
           )}
         </div>
