@@ -849,12 +849,21 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
 
   async function deleteDoc(doc){
     setDeletingId(doc.id);
-    const {error:storageErr}=await supabase.storage.from("project-documents").remove([doc.storage_path]);
-    if(storageErr) console.error("[DocumentsTab] storage delete error:",storageErr.message);
-    try{await dbWrite("documents","delete",null,{id:doc.id});}catch(error){console.error("[DocumentsTab] delete error:",error.message);setUploadError(error.message);setDeletingId(null);return;}
-    setDocs(ds=>ds.filter(d=>d.id!==doc.id));
+    let token;
+    try { const { data:{ session } } = await supabase.auth.getSession(); token = session?.access_token; } catch { token = null; }
+    try {
+      const resp = await fetch(`/api/admin/documents/${doc.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.message || `HTTP ${resp.status}`); }
+      setDocs(ds=>ds.filter(d=>d.id!==doc.id));
+      onRefresh?.();
+    } catch(error) {
+      console.error("[DocumentsTab] delete error:", error.message);
+      setUploadError(error.message);
+    }
     setDeletingId(null);
-    onRefresh?.();
   }
 
   const tc={PDF:t.red,DOCX:t.accent,XLSX:t.green,PNG:t.green,JPG:t.green,CSV:t.amber};
@@ -4743,11 +4752,20 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
 
   async function deleteDoc(doc) {
     setDeletingDocId(doc.id);
-    if (doc.storage_path) await supabase.storage.from("project-documents").remove([doc.storage_path]);
-    await dbWrite("documents","delete",null,{id: doc.id});
-    setDocs(ds => ds.filter(d => d.id !== doc.id));
+    let token;
+    try { const { data:{ session } } = await supabase.auth.getSession(); token = session?.access_token; } catch { token = null; }
+    try {
+      const resp = await fetch(`/api/admin/documents/${doc.id}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) { const e = await resp.json().catch(()=>({})); throw new Error(e.message || `HTTP ${resp.status}`); }
+      setDocs(ds => ds.filter(d => d.id !== doc.id));
+      onRefresh?.();
+    } catch(err) {
+      console.error("[InternalResourcesTab] delete error:", err.message);
+    }
     setDeletingDocId(null);
-    onRefresh?.();
   }
 
   async function updateDoc(e) {
