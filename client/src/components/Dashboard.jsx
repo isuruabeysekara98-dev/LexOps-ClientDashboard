@@ -3931,7 +3931,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
 
   const loadData = useCallback(async () => {
     const [{ data: td }, { data: pd }] = await Promise.all([
-      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).eq("owner", "client").order("id"),
+      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
       supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
@@ -4027,7 +4027,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
               const isBusy = completing === task.id;
               return (
                 <div key={task.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14, opacity: isDoneTask ? 0.55 : 1, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
-                  <div onClick={() => !isDoneTask && markComplete(task)} style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1, border: `2px solid ${isDoneTask ? t.accent : "#b8c4c2"}`, background: isDoneTask || isBusy ? t.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: isDoneTask ? "default" : "pointer", transition: "all 0.2s" }}>
+                  <div onClick={() => !isDoneTask && task.owner!=="lexops" && markComplete(task)} style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1, border: `2px solid ${isDoneTask ? t.accent : task.owner==="lexops" ? t.border : "#b8c4c2"}`, background: isDoneTask || isBusy ? t.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: isDoneTask||task.owner==="lexops" ? "default" : "pointer", transition: "all 0.2s", opacity: task.owner==="lexops"&&!isDoneTask ? 0.4 : 1 }}>
                     {(isDoneTask || isBusy) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>✓</span>}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -5391,7 +5391,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
               )}
-              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal && tk.owner==="client")} initialPhases={selected.phases} t={t} mobile={mobile}/>}
+              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
               {tab==="actions"     && !isClientView && <InternalActionsTab  projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
               {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
               {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
