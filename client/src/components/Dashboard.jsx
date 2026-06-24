@@ -2566,23 +2566,27 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   async function saveDetails(e) {
     e.preventDefault();
     setDetSaving(true);
-    await dbWrite("projects","update",{
-      name: det.name,
-      client_name: det.client_name,
-      manager: det.manager || null,
-      calendly_url: det.calendly_url || null,
-      due_date: det.due_date || null,
-      status: det.status,
-      progress: Number(det.progress) || 0,
-      budget: Number(det.budget) || 0,
-      total_engagement_value: Number(det.total_engagement_value) || 0,
-      summary: det.summary || null,
-      client_summary: det.client_summary || null,
-    },{id: project.id});
+    try {
+      await dbWrite("projects","update",{
+        name: det.name,
+        client_name: det.client_name,
+        manager: det.manager || null,
+        calendly_url: det.calendly_url || null,
+        due_date: det.due_date || null,
+        status: det.status,
+        progress: Number(det.progress) || 0,
+        budget: Number(det.budget) || 0,
+        total_engagement_value: Number(det.total_engagement_value) || 0,
+        summary: det.summary || null,
+        client_summary: det.client_summary || null,
+      },{id: project.id});
+      setDetOk(true);
+      setTimeout(() => setDetOk(false), 2500);
+      onRefresh?.();
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] saveDetails error:", err.message);
+    }
     setDetSaving(false);
-    setDetOk(true);
-    setTimeout(() => setDetOk(false), 2500);
-    onRefresh?.();
   }
 
   // ── Import phases from proposal workflow stages ──
@@ -2608,19 +2612,23 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newPhase.name.trim()) return;
     setPhSaving(true);
-    await dbWrite("phases","insert",{
-      project_id: project.id,
-      name: newPhase.name.trim(),
-      status: newPhase.status,
-      progress: Number(newPhase.progress) || 0,
-      start_date: newPhase.start_date || null,
-      end_date: newPhase.end_date || null,
-    });
-    setNewPhase({ name: "", status: "pending", progress: "0", start_date: "", end_date: "" });
-    setShowAddPhase(false);
-    await loadAll();
+    try {
+      await dbWrite("phases","insert",{
+        project_id: project.id,
+        name: newPhase.name.trim(),
+        status: newPhase.status,
+        progress: Number(newPhase.progress) || 0,
+        start_date: newPhase.start_date || null,
+        end_date: newPhase.end_date || null,
+      });
+      setNewPhase({ name: "", status: "pending", progress: "0", start_date: "", end_date: "" });
+      setShowAddPhase(false);
+      await loadAll();
+      onRefresh?.();
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] addPhase error:", err.message);
+    }
     setPhSaving(false);
-    onRefresh?.();
   }
 
   async function deletePhase(id) {
@@ -4709,10 +4717,11 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
 
-  // Phase names: prefer project phases; fall back to names embedded in existing docs
-  const phaseNames = projectPhases.length > 0
-    ? projectPhases.map(p => p.name)
-    : [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
+  // Phase names: merge project phases + any names already embedded in docs (preserves old tags)
+  const phaseNames = [...new Set([
+    ...projectPhases.map(p => p.name),
+    ...docs.map(d => d.phase_name).filter(Boolean),
+  ])];
   const filteredDocs = phaseFilter === "all" ? docs : docs.filter(d => d.phase_name === phaseFilter);
 
   async function handleUpload(e) {
