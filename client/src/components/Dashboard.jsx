@@ -2512,7 +2512,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
 
   // ── Tools ──
   const [tools, setTools] = useState([]);
-  const [toolsError, setToolsError] = useState(null);
   const [showAddTool, setShowAddTool] = useState(false);
   const [editingToolId, setEditingToolId] = useState(null);
   const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
@@ -2537,9 +2536,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     if (invRes.data) setInvoices(invRes.data);
     if (tlRes?.data) {
       setTools(tlRes.data);
-      setToolsError(null);
-    } else if (tlRes?.error) {
-      setToolsError(tlRes.error.message);
     }
     if (prRes.data?.[0]) {
       const pr = prRes.data[0];
@@ -2722,7 +2718,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    setToolsError(null);
     try {
       await dbWrite("project_tools","insert",{
         project_id: project.id,
@@ -2737,7 +2732,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       await loadAll();
     } catch(err) {
       console.error("[ProjectSetupDrawer] addTool failed:", err.message);
-      setToolsError(err.message);
     }
     setToolSaving(false);
   }
@@ -2746,7 +2740,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!editToolForm.name.trim()) return;
     setToolSaving(true);
-    setToolsError(null);
     try {
       await dbWrite("project_tools", "update", {
         name: editToolForm.name.trim(),
@@ -2758,19 +2751,16 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       await loadAll();
     } catch(err) {
       console.error("[ProjectSetupDrawer] updateTool failed:", err.message);
-      setToolsError(err.message);
     }
     setToolSaving(false);
   }
 
   async function deleteTool(id) {
-    setToolsError(null);
     try {
       await dbWrite("project_tools","delete",null,{id});
       setTools(ts => ts.filter(t => t.id !== id));
     } catch(err) {
       console.error("[ProjectSetupDrawer] deleteTool failed:", err.message);
-      setToolsError(err.message);
     }
   }
 
@@ -4665,7 +4655,6 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const [docs, setDocs] = useState(initialDocuments || []);
   const [tools, setTools] = useState([]);
   const [projectPhases, setProjectPhases] = useState([]);
-  const [toolsError, setToolsError] = useState(null);
   const [uploadError, setUploadError] = useState(null);
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
@@ -4689,11 +4678,8 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     ]);
     if (d) setDocs(d);
     if (ph) setProjectPhases(ph);
-    if (tl?.error) {
-      setToolsError(tl.error.message);
-    } else if (tl?.data) {
+    if (tl?.data) {
       setTools(tl.data);
-      setToolsError(null);
     }
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
@@ -4778,7 +4764,6 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    setToolsError(null);
     const payload = { project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length };
     try {
       const res = await dbWrite("project_tools","insert", payload);
@@ -4789,7 +4774,6 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] addTool failed:", err.message);
-      setToolsError(err.message);
     }
     setToolSaving(false);
   }
@@ -4798,7 +4782,6 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!editToolForm.name.trim()) return;
     setToolSaving(true);
-    setToolsError(null);
     const updates = { name: editToolForm.name.trim(), purpose: editToolForm.purpose.trim()||null, url: editToolForm.url.trim()||null, logo_emoji: editToolForm.logo_emoji||"🔧" };
     try {
       await dbWrite("project_tools", "update", updates, { id: editingToolId });
@@ -4807,19 +4790,16 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] updateTool failed:", err.message);
-      setToolsError(err.message);
     }
     setToolSaving(false);
   }
 
   async function deleteTool(id) {
-    setToolsError(null);
     try {
       await dbWrite("project_tools","delete",null,{id});
       setTools(ts => ts.filter(t => t.id !== id));
     } catch(err) {
       console.error("[InternalResourcesTab] deleteTool failed:", err.message);
-      setToolsError(err.message);
     }
   }
 
@@ -4922,21 +4902,6 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
           <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>🔧 Tools</span>
           <button onClick={()=>setShowAddTool(s=>!s)} style={{ background:t.accent, color:"#fff", border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>+ Add Tool</button>
         </div>
-
-        {toolsError && (
-          <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"12px 16px", marginBottom:16, display:"flex", gap:12, alignItems:"center" }}>
-            <span style={{ fontSize:16, lineHeight:1, flexShrink:0 }}>⚙️</span>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:2 }}>Tools setup required</div>
-              <div style={{ fontSize:12, color:"#7a5f00" }}>Copy the setup script and run it once in Supabase → SQL Editor, then refresh.</div>
-            </div>
-            <button
-              onClick={()=>navigator.clipboard.writeText(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;\n\nCREATE TABLE IF NOT EXISTS project_tools (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,\n  name text NOT NULL, purpose text, url text,\n  logo_emoji text DEFAULT '\uD83D\uDD27', sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now()\n);\nALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (\n  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN ('lexops_admin','lexops_member'))\n);\nCREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (\n  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()\n    AND (pr.role IN ('lexops_admin','lexops_member') OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))\n);`).catch(()=>{})}
-              style={{ flexShrink:0, background:"#f5c542", border:"none", borderRadius:6, padding:"7px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#3a3000", fontFamily:"inherit", whiteSpace:"nowrap" }}>
-              Copy setup script
-            </button>
-          </div>
-        )}
 
         {showAddTool&&(
           <form onSubmit={addTool} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:14, display:"flex", flexDirection:"column", gap:10 }}>
