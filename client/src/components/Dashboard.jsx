@@ -1610,6 +1610,13 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
                     {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
+                    {isInternal&&inv.status!=="paid"&&(
+                      <button onClick={async()=>{
+                        try{await dbWrite("invoices","update",{status:"paid"},{id:inv.id});}catch(err){console.error("[InvoicesTab] markPaid error:",err.message);return;}
+                        setInvoices(list=>list.map(x=>x.id===inv.id?{...x,status:"paid"}:x));
+                        onRefresh?.();
+                      }} title="Mark as paid" style={{background:t.green,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0,fontFamily:"inherit"}}>✓ Paid</button>
+                    )}
                     {inv.file_url&&(
                       <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
                     )}
@@ -2732,28 +2739,36 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newInv.invoice_number.trim()) return;
     setInvSaving(true);
-    let publicUrl = null, storagePath = null;
-    if (invFile) {
-      storagePath = `${project.id}/invoices/${Date.now()}_${invFile.name}`;
-      const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, invFile, { upsert: true });
-      if (!upErr) publicUrl = supabase.storage.from("project-documents").getPublicUrl(storagePath).data.publicUrl;
+    try {
+      let token;
+      try { const { data:{ session } } = await supabase.auth.getSession(); token = session?.access_token; } catch { token = null; }
+
+      const formData = new FormData();
+      formData.append("project_id", project.id);
+      formData.append("invoice_number", newInv.invoice_number.trim());
+      formData.append("amount", String(Number(newInv.amount) || 0));
+      if (newInv.description)  formData.append("description", newInv.description);
+      if (newInv.phase_name)   formData.append("phase_name", newInv.phase_name);
+      if (newInv.due_date)     formData.append("due_date", newInv.due_date);
+      formData.append("status", "upcoming");
+      if (invFile) formData.append("file", invFile);
+
+      const resp = await fetch("/api/admin/upload-invoice", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!resp.ok) { const err = await resp.json().catch(() => ({})); throw new Error(err.message || `HTTP ${resp.status}`); }
+
+      setNewInv({ invoice_number: "", description: "", amount: "", phase_name: "", due_date: "" });
+      setInvFile(null);
+      await loadAll();
+      onRefresh?.();
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] addInvoice error:", err.message);
+    } finally {
+      setInvSaving(false);
     }
-    await dbWrite("invoices","insert",{
-      project_id: project.id,
-      invoice_number: newInv.invoice_number.trim(),
-      description: newInv.description || null,
-      amount: Number(newInv.amount) || 0,
-      phase_name: newInv.phase_name || null,
-      due_date: newInv.due_date || null,
-      status: "upcoming",
-      file_url: publicUrl,
-      storage_path: storagePath,
-    });
-    setNewInv({ invoice_number: "", description: "", amount: "", phase_name: "", due_date: "" });
-    setInvFile(null);
-    await loadAll();
-    setInvSaving(false);
-    onRefresh?.();
   }
 
   async function deleteInvoice(id) {
