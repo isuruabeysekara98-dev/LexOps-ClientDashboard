@@ -980,6 +980,9 @@ const EMPTY_TICKET={title:"",description:"",priority:"medium",category:"general"
 
 function SupportTab({projectId,isInternal,project,t,mobile}){
   const [tickets,setTickets]=useState([]);
+  const [editingTicketId,setEditingTicketId]=useState(null);
+  const [editTicketForm,setEditTicketForm]=useState({});
+  const [updateSaving,setUpdateSaving]=useState(false);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState(EMPTY_TICKET);
   const [saving,setSaving]=useState(false);
@@ -1045,6 +1048,28 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
     setTickets(ts=>ts.filter(tk=>tk.id!==id));
   }
 
+  async function updateTicket(e){
+    e.preventDefault();
+    if(!editTicketForm.title?.trim()) return;
+    setUpdateSaving(true);
+    try {
+      const payload = {
+        title: editTicketForm.title.trim(),
+        description: editTicketForm.description?.trim() || null,
+        priority: editTicketForm.priority,
+        category: editTicketForm.category,
+        updated_at: new Date().toISOString()
+      };
+      await dbWrite("support_tickets", "update", payload, {id: editingTicketId});
+      await loadTickets();
+      setEditingTicketId(null);
+    } catch(err) {
+      console.error("[SupportTab] updateTicket failed:", err.message);
+      alert("Could not update ticket: " + err.message);
+    }
+    setUpdateSaving(false);
+  }
+
   const prioBar={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
   const prioPillBg={high:"#fdf0ee",medium:"#fef6e8",low:"#e8f5ef"};
   const prioPillColor={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
@@ -1060,6 +1085,60 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
     const isBusy=movingId===ticket.id;
     const hasRequest=ticket.client_move_requested;
     const isResolved=ticket.status==="resolved";
+    const isEditing=editingTicketId===ticket.id;
+
+    if(isEditing) {
+      return (
+        <div style={{
+          background:"#fff",borderRadius:8,border:`1px solid ${t.accent}`,
+          padding:"14px",marginBottom:10,boxShadow:"0 2px 8px rgba(26,102,102,0.12)",
+          position:"relative"
+        }}>
+          <form onSubmit={updateTicket} style={{display:"flex",flexDirection:"column",gap:10}}>
+            <input 
+              value={editTicketForm.title} 
+              onChange={e=>setEditTicketForm(f=>({...f,title:e.target.value}))} 
+              placeholder="Title *" required
+              autoFocus
+              style={{background:"#f7fafa",border:`1px solid ${t.border}`,borderRadius:6,padding:"7px 10px",fontSize:13,color:t.text,outline:"none",fontFamily:"inherit"}}
+            />
+            <textarea 
+              value={editTicketForm.description||""} 
+              onChange={e=>setEditTicketForm(f=>({...f,description:e.target.value}))} 
+              placeholder="Description" rows={3}
+              style={{background:"#f7fafa",border:`1px solid ${t.border}`,borderRadius:6,padding:"7px 10px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",resize:"vertical"}}
+            />
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <select 
+                value={editTicketForm.priority} 
+                onChange={e=>setEditTicketForm(f=>({...f,priority:e.target.value}))}
+                style={{background:"#f7fafa",border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 8px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}
+              >
+                <option value="high">🔴 High</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="low">🟢 Low</option>
+              </select>
+              <select 
+                value={editTicketForm.category} 
+                onChange={e=>setEditTicketForm(f=>({...f,category:e.target.value}))}
+                style={{background:"#f7fafa",border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 8px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}
+              >
+                {TICKET_CATEGORIES.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:4}}>
+              <button type="submit" disabled={updateSaving||!editTicketForm.title?.trim()} style={{flex:1,padding:"7px",background:t.accent,color:"#fff",border:"none",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",opacity:updateSaving?0.6:1}}>
+                {updateSaving?"Saving…":"Save"}
+              </button>
+              <button type="button" onClick={()=>setEditingTicketId(null)} style={{flex:1,padding:"7px",background:"transparent",color:t.textSub,border:`1px solid ${t.border}`,borderRadius:6,fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
     return(
       <div style={{
         background:"#fff",borderRadius:8,border:`1px solid ${t.border}`,
@@ -1079,7 +1158,12 @@ function SupportTab({projectId,isInternal,project,t,mobile}){
                 {new Date(ticket.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
               </span>
             </div>
-            {isInternal&&<button onClick={()=>deleteTicket(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:14,padding:0,opacity:0.4}}>×</button>}
+            {isInternal&& (
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setEditTicketForm({...ticket}); setEditingTicketId(ticket.id);}} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:13,padding:0,opacity:0.4}}>✏️</button>
+                <button onClick={()=>deleteTicket(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:14,padding:0,opacity:0.4}}>×</button>
+              </div>
+            )}
           </div>
           {isInternal&&hasRequest&&(
             <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
@@ -2428,7 +2512,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
 
   // ── Tools ──
   const [tools, setTools] = useState([]);
+  const [toolsError, setToolsError] = useState(null);
   const [showAddTool, setShowAddTool] = useState(false);
+  const [editingToolId, setEditingToolId] = useState(null);
+  const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [newTool, setNewTool] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [toolSaving, setToolSaving] = useState(false);
 
@@ -2442,13 +2529,18 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       supabase.from("documents").select("*").eq("project_id", project.id).order("uploaded_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("project_id", project.id).order("id"),
       supabase.from("proposals").select("id, name, description, client_summary").eq("project_id", project.id).limit(1),
-      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").then(r => r.error ? { data: [] } : r),
+      supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order").catch(e => ({ error: e, data: [] })),
     ]);
     if (phRes.data) setPhases(phRes.data);
     if (tkRes.data) setTasks(tkRes.data);
     if (docRes.data) setDocs(docRes.data);
     if (invRes.data) setInvoices(invRes.data);
-    if (tlRes.data) setTools(tlRes.data);
+    if (tlRes?.data) {
+      setTools(tlRes.data);
+      setToolsError(null);
+    } else if (tlRes?.error) {
+      setToolsError(tlRes.error.message);
+    }
     if (prRes.data?.[0]) {
       const pr = prRes.data[0];
       // Also fetch workflow stages for this proposal
@@ -2630,24 +2722,56 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    await dbWrite("project_tools","insert",{
-      project_id: project.id,
-      name: newTool.name.trim(),
-      purpose: newTool.purpose.trim() || null,
-      url: newTool.url.trim() || null,
-      logo_emoji: newTool.logo_emoji || "🔧",
-      sort_order: tools.length,
-    });
-    setNewTool({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
-    setShowAddTool(false);
-    const { data } = await supabase.from("project_tools").select("*").eq("project_id", project.id).order("sort_order");
-    if (data) setTools(data);
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools","insert",{
+        project_id: project.id,
+        name: newTool.name.trim(),
+        purpose: newTool.purpose.trim() || null,
+        url: newTool.url.trim() || null,
+        logo_emoji: newTool.logo_emoji || "🔧",
+        sort_order: tools.length,
+      });
+      setNewTool({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
+      setShowAddTool(false);
+      await loadAll();
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] addTool failed:", err.message);
+      setToolsError(err.message);
+    }
+    setToolSaving(false);
+  }
+
+  async function updateTool(e) {
+    e.preventDefault();
+    if (!editToolForm.name.trim()) return;
+    setToolSaving(true);
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools", "update", {
+        name: editToolForm.name.trim(),
+        purpose: editToolForm.purpose.trim() || null,
+        url: editToolForm.url.trim() || null,
+        logo_emoji: editToolForm.logo_emoji || "🔧"
+      }, { id: editingToolId });
+      setEditingToolId(null);
+      await loadAll();
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] updateTool failed:", err.message);
+      setToolsError(err.message);
+    }
     setToolSaving(false);
   }
 
   async function deleteTool(id) {
-    await dbWrite("project_tools","delete",null,{id});
-    setTools(ts => ts.filter(t => t.id !== id));
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools","delete",null,{id});
+      setTools(ts => ts.filter(t => t.id !== id));
+    } catch(err) {
+      console.error("[ProjectSetupDrawer] deleteTool failed:", err.message);
+      setToolsError(err.message);
+    }
   }
 
   const SECTIONS = [
@@ -4492,21 +4616,32 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
 function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefresh }) {
   const [docs, setDocs] = useState(initialDocuments || []);
   const [tools, setTools] = useState([]);
+  const [toolsError, setToolsError] = useState(null);
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [uploadPhase, setUploadPhase] = useState("");
   const [deletingDocId, setDeletingDocId] = useState(null);
+  const [editingDocId, setEditingDocId] = useState(null);
+  const [editDocForm, setEditDocForm] = useState({ name: "", phase_name: "" });
+  const [docSaving, setDocSaving] = useState(false);
   const [showAddTool, setShowAddTool] = useState(false);
+  const [editingToolId, setEditingToolId] = useState(null);
+  const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [newTool, setNewTool] = useState({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
   const [toolSaving, setToolSaving] = useState(false);
 
   const load = useCallback(async () => {
     const [{ data:d }, tl] = await Promise.all([
       supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at",{ascending:false}),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r=>r.error?{data:[]}:r),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").catch(e => ({ error: e, data: [] })),
     ]);
     if (d) setDocs(d);
-    if (tl.data) setTools(tl.data);
+    if (tl?.data) {
+      setTools(tl.data);
+      setToolsError(null);
+    } else if (tl?.error) {
+      setToolsError(tl.error.message);
+    }
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
 
@@ -4538,22 +4673,69 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     onRefresh?.();
   }
 
+  async function updateDoc(e) {
+    e.preventDefault();
+    if (!editDocForm.name.trim()) return;
+    setDocSaving(true);
+    await dbWrite("documents", "update", {
+      name: editDocForm.name.trim(),
+      phase_name: editDocForm.phase_name || null
+    }, { id: editingDocId });
+    setEditingDocId(null);
+    setDocSaving(false);
+    await load();
+    onRefresh?.();
+  }
+
   async function addTool(e) {
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
-    await dbWrite("project_tools","insert",{ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
-    setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
-    setShowAddTool(false);
-    const { data } = await supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order");
-    if (data) setTools(data);
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools","insert",{ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
+      setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
+      setShowAddTool(false);
+      await load();
+      onRefresh?.();
+    } catch(err) {
+      console.error("[InternalResourcesTab] addTool failed:", err.message);
+      setToolsError(err.message);
+    }
     setToolSaving(false);
-    onRefresh?.();
+  }
+
+  async function updateTool(e) {
+    e.preventDefault();
+    if (!editToolForm.name.trim()) return;
+    setToolSaving(true);
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools", "update", {
+        name: editToolForm.name.trim(),
+        purpose: editToolForm.purpose.trim() || null,
+        url: editToolForm.url.trim() || null,
+        logo_emoji: editToolForm.logo_emoji || "🔧"
+      }, { id: editingToolId });
+      setEditingToolId(null);
+      await load();
+      onRefresh?.();
+    } catch(err) {
+      console.error("[InternalResourcesTab] updateTool failed:", err.message);
+      setToolsError(err.message);
+    }
+    setToolSaving(false);
   }
 
   async function deleteTool(id) {
-    await dbWrite("project_tools","delete",null,{id});
-    setTools(ts => ts.filter(t => t.id !== id));
+    setToolsError(null);
+    try {
+      await dbWrite("project_tools","delete",null,{id});
+      setTools(ts => ts.filter(t => t.id !== id));
+    } catch(err) {
+      console.error("[InternalResourcesTab] deleteTool failed:", err.message);
+      setToolsError(err.message);
+    }
   }
 
   function docIcon(ft) {
@@ -4599,6 +4781,33 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         ):filteredDocs.map(doc=>{
           const ext=doc.file_type||doc.name?.split(".").pop()?.toUpperCase()||"FILE";
           const icon=docIcon(ext);
+          const isEditing = editingDocId === doc.id;
+
+          if (isEditing) {
+            return (
+              <form key={doc.id} onSubmit={updateDoc} style={{ background:"#fff", borderRadius:8, border:`2px solid ${t.accent}`, padding:"12px 14px", marginBottom:8, display:"flex", flexDirection:"column", gap:10, boxShadow:t.shadow }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
+                  <input autoFocus value={editDocForm.name} onChange={e=>setEditDocForm(f=>({...f,name:e.target.value}))}
+                    style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 10px", fontSize:13, fontFamily:"inherit", color:t.text, flex:1 }}/>
+                </div>
+                <div style={{ display:"flex", gap:8, alignItems:"center", justifyContent:"space-between" }}>
+                  <select value={editDocForm.phase_name || ""} onChange={e=>setEditDocForm(f=>({...f,phase_name:e.target.value}))}
+                    style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
+                    <option value="">No milestone</option>
+                    {phases.map(ph=><option key={ph} value={ph}>{ph}</option>)}
+                  </select>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button type="button" onClick={()=>setEditingDocId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, color:t.textSub, cursor:"pointer" }}>Cancel</button>
+                    <button type="submit" disabled={docSaving || !editDocForm.name.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, color:"#fff", cursor:"pointer" }}>
+                      {docSaving?"...":"Save"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            );
+          }
+
           return(
             <div key={doc.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#fff", borderRadius:8, border:`1px solid ${t.border}`, padding:"12px 14px", marginBottom:8, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
               <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
@@ -4607,7 +4816,10 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
                 <div style={{ fontSize:11, color:t.textSub }}>{doc.uploaded_at?new Date(doc.uploaded_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):""}{doc.file_type?` · ${doc.file_type}`:""}</div>
               </div>
               {doc.phase_name&&<span style={{ fontSize:10, padding:"2px 8px", background:"#e8f2f1", color:t.accent, borderRadius:99, fontWeight:500, flexShrink:0 }}>{doc.phase_name}</span>}
-              <button onClick={()=>deleteDoc(doc)} disabled={deletingDocId===doc.id} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:deletingDocId===doc.id?0.3:0.5, lineHeight:1, flexShrink:0 }}>×</button>
+              <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                <button onClick={() => { setEditingDocId(doc.id); setEditDocForm({ name: doc.name, phase_name: doc.phase_name || "" }); }} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px", opacity:0.5 }}>✏️</button>
+                <button onClick={()=>deleteDoc(doc)} disabled={deletingDocId===doc.id} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:deletingDocId===doc.id?0.3:0.5, lineHeight:1, flexShrink:0 }}>×</button>
+              </div>
             </div>
           );
         })}
@@ -4619,6 +4831,37 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
           <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>🔧 Tools</span>
           <button onClick={()=>setShowAddTool(s=>!s)} style={{ background:t.accent, color:"#fff", border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>+ Add Tool</button>
         </div>
+
+        {toolsError && (
+          <div style={{ background:"#fef6e8", border:"1.5px solid rgba(212,136,26,0.3)", borderRadius:10, padding:14, marginBottom:16 }}>
+            <div style={{ color:"#d4881a", fontSize:13, fontWeight:700, marginBottom:4 }}>⚠️ Table Missing or Access Error</div>
+            <div style={{ color:t.text, fontSize:12, lineHeight:1.5, marginBottom:10 }}>The <code>project_tools</code> table may be missing from Supabase. Please run the following SQL in your Supabase SQL Editor:</div>
+            <pre style={{ background:"#fff", border:`1px solid ${t.border}`, padding:10, fontSize:11, borderRadius:6, overflowX:"auto", maxHeight:120 }}>{`CREATE TABLE IF NOT EXISTS project_tools (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  name         text NOT NULL,
+  purpose      text,
+  url          text,
+  logo_emoji   text DEFAULT '🔧',
+  sort_order   int  DEFAULT 0,
+  created_at   timestamptz DEFAULT now()
+);
+ALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
+);
+CREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM profiles pr
+    JOIN projects p ON p.id = project_id
+    WHERE pr.id = auth.uid()
+      AND (pr.role IN ('lexops_admin','lexops_member')
+           OR p.client_id = (SELECT client_id FROM profiles WHERE id = auth.uid()))
+  )
+);`}</pre>
+          </div>
+        )}
+
         {showAddTool&&(
           <form onSubmit={addTool} style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:14, display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 60px", gap:8 }}>
@@ -4645,17 +4888,46 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
             <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:4 }}>No tools yet</div>
             <div style={{ fontSize:12, color:t.textSub }}>Add platforms and tools set up for this client.</div>
           </div>
-        ):tools.map(tool=>(
-          <div key={tool.id} style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", alignItems:"center", gap:14, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
-            <div style={{ width:38, height:38, borderRadius:8, background:t.surface, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{tool.logo_emoji||"🔧"}</div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:2 }}>{tool.name}</div>
-              {tool.purpose&&<div style={{ fontSize:12, color:t.textSub, lineHeight:1.4 }}>{tool.purpose}</div>}
+        ):tools.map(tool=>{
+          const isEditing = editingToolId === tool.id;
+          if (isEditing) {
+            return (
+              <form key={tool.id} onSubmit={updateTool} style={{ background:t.surface, border:`1px solid ${t.accent}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", flexDirection:"column", gap:10 }}>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 60px", gap:8 }}>
+                  <input autoFocus value={editToolForm.name} onChange={e=>setEditToolForm(f=>({...f,name:e.target.value}))} placeholder="Tool name *" required
+                    style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+                  <input value={editToolForm.logo_emoji} onChange={e=>setEditToolForm(f=>({...f,logo_emoji:e.target.value}))} placeholder="🔧"
+                    style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 8px", fontSize:16, textAlign:"center", width:"100%", boxSizing:"border-box" }}/>
+                </div>
+                <input value={editToolForm.purpose} onChange={e=>setEditToolForm(f=>({...f,purpose:e.target.value}))} placeholder="Purpose / description"
+                  style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+                <input value={editToolForm.url} onChange={e=>setEditToolForm(f=>({...f,url:e.target.value}))} placeholder="https://…"
+                  style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"7px 10px", fontSize:12, fontFamily:"inherit", color:t.text, width:"100%", boxSizing:"border-box" }}/>
+                <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                  <button type="button" onClick={()=>setEditingToolId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 14px", fontSize:12, color:t.textSub, cursor:"pointer" }}>Cancel</button>
+                  <button type="submit" disabled={toolSaving||!editToolForm.name.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"6px 16px", fontSize:12, fontWeight:600, color:"#fff", cursor:"pointer" }}>
+                    {toolSaving?"Saving…":"Save"}
+                  </button>
+                </div>
+              </form>
+            );
+          }
+          return (
+            <div key={tool.id} style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:10, padding:"14px 16px", marginBottom:10, display:"flex", alignItems:"center", gap:14, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
+              <div style={{ width:38, height:38, borderRadius:8, background:t.surface, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>{tool.logo_emoji||"🔧"}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:2 }}>{tool.name}</div>
+                {tool.purpose&&<div style={{ fontSize:12, color:t.textSub, lineHeight:1.4 }}>{tool.purpose}</div>}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                {tool.url&&<a href={tool.url} target="_blank" rel="noreferrer" style={{ padding:"6px 14px", borderRadius:8, background:t.accent, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0 }}>Launch ↗</a>}
+                <button onClick={() => { setEditingToolId(tool.id); setEditToolForm({ name: tool.name, purpose: tool.purpose || "", url: tool.url || "", logo_emoji: tool.logo_emoji || "🔧" }); }}
+                  style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px 4px", opacity:0.5 }}>✏️</button>
+                <button onClick={()=>deleteTool(tool.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
+              </div>
             </div>
-            {tool.url&&<a href={tool.url} target="_blank" rel="noreferrer" style={{ padding:"6px 14px", borderRadius:8, background:t.accent, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0 }}>Launch ↗</a>}
-            <button onClick={()=>deleteTool(tool.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
