@@ -4674,6 +4674,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const [editingDocId, setEditingDocId] = useState(null);
   const [editDocForm, setEditDocForm] = useState({ name: "", phase_name: "" });
   const [docSaving, setDocSaving] = useState(false);
+  const [docSaveError, setDocSaveError] = useState("");
   const [showAddTool, setShowAddTool] = useState(false);
   const [editingToolId, setEditingToolId] = useState(null);
   const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
@@ -4745,15 +4746,30 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!editDocForm.name.trim()) return;
     setDocSaving(true);
+    setDocSaveError("");
     const updatedName = editDocForm.name.trim();
     const updatedPhase = editDocForm.phase_name || null;
     try {
+      // Try saving name + phase together
       await dbWrite("documents", "update", { name: updatedName, phase_name: updatedPhase }, { id: editingDocId });
       setDocs(ds => ds.map(d => d.id === editingDocId ? { ...d, name: updatedName, phase_name: updatedPhase } : d));
       setEditingDocId(null);
       onRefresh?.();
     } catch(err) {
-      console.error("[InternalResourcesTab] updateDoc failed:", err.message);
+      if (err.message?.toLowerCase().includes("phase_name")) {
+        // phase_name column missing — save name only and show setup notice
+        try {
+          await dbWrite("documents", "update", { name: updatedName }, { id: editingDocId });
+          setDocs(ds => ds.map(d => d.id === editingDocId ? { ...d, name: updatedName } : d));
+          setEditingDocId(null);
+          onRefresh?.();
+          setDocSaveError("__phase_missing__");
+        } catch(e2) {
+          setDocSaveError(e2.message);
+        }
+      } else {
+        setDocSaveError(err.message);
+      }
     }
     setDocSaving(false);
   }
@@ -4858,22 +4874,27 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
               <form key={doc.id} onSubmit={updateDoc} style={{ background:"#fff", borderRadius:8, border:`2px solid ${t.accent}`, padding:"12px 14px", marginBottom:8, display:"flex", flexDirection:"column", gap:10, boxShadow:t.shadow }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
-                  <input autoFocus value={editDocForm.name} onChange={e=>setEditDocForm(f=>({...f,name:e.target.value}))}
+                  <input autoFocus value={editDocForm.name} onChange={e=>{setEditDocForm(f=>({...f,name:e.target.value}));setDocSaveError("");}}
                     style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 10px", fontSize:13, fontFamily:"inherit", color:t.text, flex:1 }}/>
                 </div>
                 <div style={{ display:"flex", gap:8, alignItems:"center", justifyContent:"space-between" }}>
-                  <select value={editDocForm.phase_name || ""} onChange={e=>setEditDocForm(f=>({...f,phase_name:e.target.value}))}
+                  <select value={editDocForm.phase_name || ""} onChange={e=>{setEditDocForm(f=>({...f,phase_name:e.target.value}));setDocSaveError("");}}
                     style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
                     <option value="">No milestone</option>
                     {phaseNames.map(ph=><option key={ph} value={ph}>{ph}</option>)}
                   </select>
                   <div style={{ display:"flex", gap:6 }}>
-                    <button type="button" onClick={()=>setEditingDocId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, color:t.textSub, cursor:"pointer" }}>Cancel</button>
+                    <button type="button" onClick={()=>{setEditingDocId(null);setDocSaveError("");}} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, color:t.textSub, cursor:"pointer" }}>Cancel</button>
                     <button type="submit" disabled={docSaving || !editDocForm.name.trim()} style={{ background:t.accent, border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, color:"#fff", cursor:"pointer" }}>
-                      {docSaving?"...":"Save"}
+                      {docSaving?"Saving…":"Save"}
                     </button>
                   </div>
                 </div>
+                {docSaveError && docSaveError !== "__phase_missing__" && (
+                  <div style={{ fontSize:11, color:"#c0392b", background:"#fdf3f2", border:"1px solid #f5c6c6", borderRadius:6, padding:"6px 10px" }}>
+                    Could not save: {docSaveError}
+                  </div>
+                )}
               </form>
             );
           }
@@ -4903,34 +4924,17 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         </div>
 
         {toolsError && (
-          <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"14px 18px", marginBottom:16, display:"flex", gap:14, alignItems:"flex-start" }}>
-            <span style={{ fontSize:18, lineHeight:1, flexShrink:0 }}>⚙️</span>
+          <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"12px 16px", marginBottom:16, display:"flex", gap:12, alignItems:"center" }}>
+            <span style={{ fontSize:16, lineHeight:1, flexShrink:0 }}>⚙️</span>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:4 }}>One-time database setup needed for Tools</div>
-              <div style={{ fontSize:12, color:"#7a5f00", marginBottom:8 }}>Run this SQL in <strong>Supabase → SQL Editor → New query</strong>, then refresh:</div>
-              <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
-                <pre style={{ background:"rgba(0,0,0,0.06)", border:"none", borderRadius:6, padding:"8px 12px", fontSize:11, flex:1, fontFamily:"monospace", color:"#3a3000", overflowX:"auto", margin:0, whiteSpace:"pre-wrap" }}>{`-- Run supabase_resources_tools_setup.sql
-ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;
-
-CREATE TABLE IF NOT EXISTS project_tools (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
-  name text NOT NULL, purpose text, url text,
-  logo_emoji text DEFAULT '🔧', sort_order int DEFAULT 0,
-  created_at timestamptz DEFAULT now()
-);
-ALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN ('lexops_admin','lexops_member'))
-);
-CREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (
-  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()
-    AND (pr.role IN ('lexops_admin','lexops_member') OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))
-);`}</pre>
-                <button onClick={()=>navigator.clipboard.writeText(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;\n\nCREATE TABLE IF NOT EXISTS project_tools (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,\n  name text NOT NULL, purpose text, url text,\n  logo_emoji text DEFAULT \u2019\uD83D\uDD27\u2019, sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now()\n);\nALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (\n  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN (\u2019lexops_admin\u2019,\u2019lexops_member\u2019))\n);\nCREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (\n  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()\n    AND (pr.role IN (\u2019lexops_admin\u2019,\u2019lexops_member\u2019) OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))\n);`).catch(()=>{})}
-                  style={{ flexShrink:0, background:"#f5c542", border:"none", borderRadius:6, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", color:"#3a3000", fontFamily:"inherit", alignSelf:"flex-start" }}>Copy SQL</button>
-              </div>
+              <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:2 }}>Tools setup required</div>
+              <div style={{ fontSize:12, color:"#7a5f00" }}>Copy the setup script and run it once in Supabase → SQL Editor, then refresh.</div>
             </div>
+            <button
+              onClick={()=>navigator.clipboard.writeText(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;\n\nCREATE TABLE IF NOT EXISTS project_tools (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,\n  name text NOT NULL, purpose text, url text,\n  logo_emoji text DEFAULT '\uD83D\uDD27', sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now()\n);\nALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (\n  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN ('lexops_admin','lexops_member'))\n);\nCREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (\n  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()\n    AND (pr.role IN ('lexops_admin','lexops_member') OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))\n);`).catch(()=>{})}
+              style={{ flexShrink:0, background:"#f5c542", border:"none", borderRadius:6, padding:"7px 14px", fontSize:12, fontWeight:600, cursor:"pointer", color:"#3a3000", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              Copy setup script
+            </button>
           </div>
         )}
 
