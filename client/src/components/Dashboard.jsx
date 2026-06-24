@@ -3154,10 +3154,27 @@ function WelcomeScreen({ userProfile, project, t, onDismiss }) {
 // ---------------------------------------------------------------------------
 function ClientStatusBanner({ project, phases, t }) {
   const activePhase = phases.find(p => p.status === "active") || phases.find(p => p.status !== "complete") || phases[phases.length - 1];
-  const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable);
-  const doneDel = deliverables.filter(d => d.status === "done").length;
-  const daysLeft = project.dueDate ? Math.max(0, Math.ceil((new Date(project.dueDate) - new Date()) / 86400000)) : null;
-  const pendingActions = (project.tasks || []).filter(tk => !tk.is_internal && tk.status !== "done" && tk.assignee).length;
+  const allTasks = project.tasks || [];
+
+  // Actions completed in current milestone
+  const milestoneTasks = activePhase ? allTasks.filter(tk => tk.phase_id === activePhase.id) : [];
+  const milestoneDone = milestoneTasks.filter(tk => tk.status === "done").length;
+  const milestoneTotal = milestoneTasks.length;
+
+  // Next upcoming action timing
+  const todayMs = new Date(); todayMs.setHours(0,0,0,0);
+  const pendingWithDate = allTasks
+    .filter(tk => tk.status !== "done" && tk.due_date)
+    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+  const nextAction = pendingWithDate[0] || null;
+  const nextDaysDiff = nextAction ? Math.ceil((new Date(nextAction.due_date) - todayMs) / 86400000) : null;
+  const nextActionLabel = nextDaysDiff === null ? "—"
+    : nextDaysDiff < 0 ? `${Math.abs(nextDaysDiff)}d overdue`
+    : nextDaysDiff === 0 ? "Due today"
+    : `${nextDaysDiff}d left`;
+  const nextActionUrgent = nextDaysDiff !== null && nextDaysDiff < 0;
+
+  const pendingActions = allTasks.filter(tk => !tk.is_internal && tk.status !== "done" && tk.assignee).length;
 
   return (
     <div style={{
@@ -3178,16 +3195,26 @@ function ClientStatusBanner({ project, phases, t }) {
             : <><strong style={{ color: "#fff" }}>All caught up!</strong> LexOps is progressing the next deliverable.</>}
         </div>
       </div>
-      <div style={{ display: "flex", gap: 20, alignItems: "center", position: "relative", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 20, alignItems: "center", position: "relative", flexShrink: 0, flexWrap: "wrap" }}>
         {[
           { val: `${project.progress ?? 0}%`, label: "Overall Progress" },
-          { val: `${doneDel}/${deliverables.length || 0}`, label: "Actions Done" },
-          { val: daysLeft !== null ? String(daysLeft) : "—", label: "Days Remaining" },
+          {
+            val: milestoneTotal > 0 ? `${milestoneDone}/${milestoneTotal}` : "—",
+            label: "Milestone Actions",
+          },
+          {
+            val: nextActionLabel,
+            label: nextAction ? "Next Action" : "Next Action",
+            urgent: nextActionUrgent,
+          },
         ].map((s, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 20 }}>
             {i > 0 && <div style={{ width: 1, background: "rgba(255,255,255,0.2)", alignSelf: "stretch" }} />}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#fff", lineHeight: 1 }}>{s.val}</div>
+              <div style={{
+                fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, lineHeight: 1,
+                color: s.urgent ? "#ffcdd2" : "#fff",
+              }}>{s.val}</div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", marginTop: 5, whiteSpace: "nowrap" }}>{s.label}</div>
             </div>
           </div>
