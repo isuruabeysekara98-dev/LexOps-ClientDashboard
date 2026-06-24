@@ -197,7 +197,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
         <div style={{display:"flex",gap:mobile?12:20,alignItems:"center",position:"relative",flexShrink:0,flexWrap:"wrap"}}>
           {[
             {val:`${project.progress??0}%`, label:"Progress"},
-            {val:(()=>{const mt=activePhase?tasks.filter(tk=>tk.phase_id===activePhase.id):[];return mt.length>0?`${mt.filter(tk=>tk.status==="done").length}/${mt.length}`:"—";})(), label:"Milestone Actions"},
+            {val:String(tasks.filter(tk=>!tk.is_internal&&tk.status!=="done"&&(activePhase?tk.phase_id===activePhase.id:true)).length), label:"Client Pending"},
             ...(nextActionVal!==null?[{val:nextDaysDiff===0?"Today":nextActionVal, label:nextActionLabel}]:[]),
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
