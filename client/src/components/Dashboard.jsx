@@ -4696,27 +4696,49 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.target.value = "";
     setUploading(true);
     setUploadError(null);
-    const storagePath = `${projectId}/${Date.now()}_${file.name}`;
-    const { error:upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert:true });
-    if (upErr) {
-      setUploadError(`Upload failed: ${upErr.message}`);
-      setUploading(false);
-      return;
-    }
-    const { data:{ publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
-    const ext = file.name.split(".").pop().toUpperCase();
-    let newDoc;
+
+    // Get auth token
+    let token;
     try {
-      const res = await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
-      newDoc = res?.data || { project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null };
-    } catch(err) {
-      setUploadError(`Could not save document record: ${err.message}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token;
+    } catch { token = null; }
+
+    if (!token) {
+      setUploadError("Not authenticated — please refresh and sign in again.");
       setUploading(false);
       return;
     }
-    setDocs(ds => [newDoc, ...ds]);
+
+    // Send file to backend via multipart — backend uses service-role key for storage + DB
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("project_id", projectId);
+    if (uploadPhase) formData.append("phase_name", uploadPhase);
+
+    try {
+      const resp = await fetch("/api/admin/upload-document", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || `Upload failed (HTTP ${resp.status})`);
+      }
+      const result = await resp.json();
+      const newDoc = result?.data || {
+        id: Date.now().toString(), project_id:projectId, name:file.name,
+        file_type: file.name.split(".").pop()?.toUpperCase() || "FILE",
+        file_size: file.size, uploaded_at: new Date().toISOString(),
+        phase_name: uploadPhase || null,
+      };
+      setDocs(ds => [newDoc, ...ds]);
+      onRefresh?.();
+    } catch(err) {
+      setUploadError(err.message || "Upload failed");
+    }
     setUploading(false);
-    onRefresh?.();
   }
 
   async function deleteDoc(doc) {
@@ -4735,27 +4757,29 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     setDocSaveError("");
     const updatedName = editDocForm.name.trim();
     const updatedPhase = editDocForm.phase_name || null;
+
+    // Use the dedicated phase endpoint which auto-falls-back if phase_name column missing
+    let token;
     try {
-      // Try saving name + phase together
-      await dbWrite("documents", "update", { name: updatedName, phase_name: updatedPhase }, { id: editingDocId });
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token;
+    } catch { token = null; }
+
+    try {
+      const resp = await fetch(`/api/admin/documents/${editingDocId}/phase`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ name: updatedName, phase_name: updatedPhase }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || `Save failed (HTTP ${resp.status})`);
+      }
       setDocs(ds => ds.map(d => d.id === editingDocId ? { ...d, name: updatedName, phase_name: updatedPhase } : d));
       setEditingDocId(null);
       onRefresh?.();
     } catch(err) {
-      if (err.message?.toLowerCase().includes("phase_name")) {
-        // phase_name column missing — save name only and show setup notice
-        try {
-          await dbWrite("documents", "update", { name: updatedName }, { id: editingDocId });
-          setDocs(ds => ds.map(d => d.id === editingDocId ? { ...d, name: updatedName } : d));
-          setEditingDocId(null);
-          onRefresh?.();
-          setDocSaveError("__phase_missing__");
-        } catch(e2) {
-          setDocSaveError(e2.message);
-        }
-      } else {
-        setDocSaveError(err.message);
-      }
+      setDocSaveError(err.message || "Could not save changes");
     }
     setDocSaving(false);
   }

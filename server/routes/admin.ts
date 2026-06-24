@@ -414,6 +414,109 @@ router.post("/phases/:id/auto-complete", requireAuth, async (req: Request, res: 
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/admin/upload-document — upload a file via service-role key
+// Accepts: multipart/form-data with field "file", plus body fields:
+//   project_id (required), phase_name (optional)
+// Uploads to Supabase Storage using service-role key (bypasses RLS).
+// Inserts a documents row; auto-falls-back without phase_name if column missing.
+// ---------------------------------------------------------------------------
+router.post("/upload-document", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
+  const file = req.file;
+  const { project_id, phase_name } = req.body as { project_id?: string; phase_name?: string };
+
+  if (!file) { res.status(400).json({ message: "No file provided" }); return; }
+  if (!project_id) { res.status(400).json({ message: "project_id required" }); return; }
+
+  const safeName = file.originalname.replace(/[^a-zA-Z0-9._\-]/g, "_");
+  const storagePath = `${project_id}/${Date.now()}_${safeName}`;
+
+  // Upload to storage using service-role key (no RLS restrictions)
+  const { error: storageErr } = await (adminSupabase as any).storage
+    .from("project-documents")
+    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: true });
+
+  if (storageErr) {
+    console.error("[admin/upload-document] storage error:", storageErr.message);
+    res.status(500).json({ message: `Storage upload failed: ${storageErr.message}` });
+    return;
+  }
+
+  const { data: { publicUrl } } = (adminSupabase as any).storage
+    .from("project-documents").getPublicUrl(storagePath);
+
+  const ext = (file.originalname.split(".").pop() || "FILE").toUpperCase();
+  const docBase: Record<string, any> = {
+    project_id,
+    name: file.originalname,
+    file_type: ext,
+    file_size: file.size,
+    file_url: publicUrl,
+    storage_path: storagePath,
+    uploaded_at: new Date().toISOString(),
+  };
+
+  // Try with phase_name first; if that column is missing, fall back without it
+  const payloads = phase_name
+    ? [{ ...docBase, phase_name }, docBase]
+    : [docBase];
+
+  let doc: any = null;
+  let lastErr: any = null;
+  for (const payload of payloads) {
+    const { data, error } = await (adminSupabase as any)
+      .from("documents").insert(payload).select().single();
+    if (!error) { doc = data; break; }
+    lastErr = error;
+    const msg = (error.message || "").toLowerCase();
+    if (!msg.includes("phase_name") && !msg.includes("column")) break; // not a schema issue — stop
+  }
+
+  if (!doc) {
+    // Clean up the stored file so we don't leave orphans
+    await (adminSupabase as any).storage.from("project-documents").remove([storagePath]).catch(() => {});
+    console.error("[admin/upload-document] insert error:", lastErr?.message);
+    res.status(500).json({ message: lastErr?.message || "Failed to create document record" });
+    return;
+  }
+
+  res.json({ ok: true, data: doc });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/admin/documents/:id/phase — update phase_name with auto-fallback
+// ---------------------------------------------------------------------------
+router.patch("/documents/:id/phase", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { phase_name, name } = req.body as { phase_name?: string | null; name?: string };
+  if (!id) { res.status(400).json({ message: "id required" }); return; }
+
+  // Build update payload
+  const updateData: Record<string, any> = {};
+  if (name !== undefined) updateData.name = name;
+  if (phase_name !== undefined) updateData.phase_name = phase_name;
+
+  // Try full update; if phase_name column missing, retry with only name
+  let err: any = null;
+  const { error: e1 } = await (adminSupabase as any).from("documents").update(updateData).eq("id", id);
+  if (e1) {
+    err = e1;
+    const msg = (e1.message || "").toLowerCase();
+    if ((msg.includes("phase_name") || msg.includes("column")) && name !== undefined) {
+      const { error: e2 } = await (adminSupabase as any).from("documents").update({ name }).eq("id", id);
+      if (!e2) {
+        res.json({ ok: true, phase_saved: false }); // name saved, phase skipped
+        return;
+      }
+      err = e2;
+    }
+    console.error("[admin/documents/phase]", err.message);
+    res.status(500).json({ message: err.message });
+    return;
+  }
+  res.json({ ok: true, phase_saved: true });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/db — generic service-role database write proxy
 // Body: { table, operation: "insert"|"update"|"delete"|"upsert", data, match? }
 // ---------------------------------------------------------------------------
