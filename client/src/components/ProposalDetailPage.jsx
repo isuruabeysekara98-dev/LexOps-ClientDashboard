@@ -348,7 +348,6 @@ function ProjectStarterScreen({ proposal, navigate }) {
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center" }}>
         <div style={{ fontSize: 56, marginBottom: 24 }}>🚀</div>
         <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif",
           fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em",
           color: t.text, marginBottom: 12,
         }}>
@@ -624,8 +623,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
               <h1 style={{
-                margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em",
-                fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.2,
+                margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2,
               }}>
                 {proposal.name || "Untitled Proposal"}
               </h1>

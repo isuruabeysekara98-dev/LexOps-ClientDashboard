@@ -303,7 +303,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           ← Back to proposals
         </button>
 
-        <h1 style={{ margin: "0 0 28px", fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", fontFamily: "'Playfair Display', Georgia, serif" }}>
+        <h1 style={{ margin: "0 0 28px", fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>
           {editId ? "Edit proposal" : "New proposal"}
         </h1>
 
@@ -415,7 +415,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           return (
             <div key={wi} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif" }}>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
                   Workflow stages
                 </h2>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

@@ -381,7 +381,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
           <div>
             <h1 style={{
               margin: 0, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em",
-              fontFamily: "'Playfair Display', Georgia, serif", color: t.text,
+              color: t.text,
               lineHeight: 1.15,
             }}>
               Proposals

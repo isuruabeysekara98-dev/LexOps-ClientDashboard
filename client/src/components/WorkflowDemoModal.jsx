@@ -328,7 +328,7 @@ export default function WorkflowDemoModal({ workflow, token, onClose }) {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, color: t.textMeta, marginBottom: 1 }}>Workflow Demo</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>
               {workflow.name}
             </div>
           </div>

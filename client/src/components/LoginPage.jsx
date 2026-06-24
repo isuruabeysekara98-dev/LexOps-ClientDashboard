@@ -82,11 +82,11 @@ export default function LoginPage({ authError: externalError } = {}) {
 
   const inputStyle = {
     width: "100%",
-    background: t.surfaceHigh,
-    border: `1px solid ${t.border}`,
+    background: "#FFFFFF",
+    border: "1px solid rgba(0,0,0,0.12)",
     borderRadius: 8,
     padding: "10px 14px",
-    fontSize: 13,
+    fontSize: 14,
     color: t.text,
     outline: "none",
     boxSizing: "border-box",
@@ -101,7 +101,7 @@ export default function LoginPage({ authError: externalError } = {}) {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      fontFamily: "'Inter', sans-serif",
+      fontFamily: "'Satoshi', sans-serif",
       color: t.text,
       padding: 24,
     }}>
@@ -116,7 +116,7 @@ export default function LoginPage({ authError: externalError } = {}) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <LogoLight h={24} />
           <div style={{ textAlign: "center" }}>
-            <div style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 4, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            <div style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 4 }}>
               {forgotMode ? "Reset your password" : "Sign in to Client Portal"}
             </div>
             <div style={{ color: t.textSub, fontSize: 13 }}>
@@ -128,7 +128,7 @@ export default function LoginPage({ authError: externalError } = {}) {
         <div style={{
           background: t.surface,
           border: `1px solid ${t.border}`,
-          borderRadius: 14,
+          borderRadius: 12,
           padding: "28px 28px",
           boxShadow: t.shadow,
         }}>
@@ -185,15 +185,16 @@ export default function LoginPage({ authError: externalError } = {}) {
                   disabled={resetLoading}
                   style={{
                     marginTop: 4,
+                    width: "100%",
                     background: resetLoading ? t.surfaceHigh : t.accent,
                     color: resetLoading ? t.textSub : "#fff",
                     border: "none",
                     borderRadius: 8,
-                    padding: "11px 0",
-                    fontSize: 13,
-                    fontWeight: 600,
+                    padding: "10px 24px",
+                    fontSize: 16,
+                    fontWeight: 500,
                     cursor: resetLoading ? "not-allowed" : "pointer",
-                    transition: "background 0.15s",
+                    transition: "background 0.2s",
                     fontFamily: "inherit",
                   }}
                 >
@@ -275,15 +276,16 @@ export default function LoginPage({ authError: externalError } = {}) {
                 disabled={loading}
                 style={{
                   marginTop: 4,
+                  width: "100%",
                   background: loading ? t.surfaceHigh : t.accent,
                   color: loading ? t.textSub : "#fff",
                   border: "none",
                   borderRadius: 8,
-                  padding: "11px 0",
-                  fontSize: 13,
-                  fontWeight: 600,
+                  padding: "10px 24px",
+                  fontSize: 16,
+                  fontWeight: 500,
                   cursor: loading ? "not-allowed" : "pointer",
-                  transition: "background 0.15s",
+                  transition: "background 0.2s",
                   fontFamily: "inherit",
                 }}
               >

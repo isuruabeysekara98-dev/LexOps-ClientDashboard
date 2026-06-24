@@ -66,7 +66,6 @@ export default function LandingPage({ navigate, userProfile, onLogout }) {
         <div style={{ marginBottom: 40 }}>
           <div style={{
             fontSize: 28, fontWeight: 600, letterSpacing: "-0.02em",
-            fontFamily: "'Playfair Display', Georgia, serif",
             color: t.text, marginBottom: 6,
           }}>
             {firstName ? `Welcome back, ${firstName}.` : "Welcome back."}
@@ -105,7 +104,6 @@ export default function LandingPage({ navigate, userProfile, onLogout }) {
                   <div style={{
                     fontSize: 17, fontWeight: 600, color: t.text,
                     letterSpacing: "-0.01em",
-                    fontFamily: "'Playfair Display', Georgia, serif",
                     marginBottom: 5,
                   }}>
                     {tile.title}

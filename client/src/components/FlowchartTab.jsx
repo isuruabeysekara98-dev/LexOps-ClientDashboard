@@ -145,7 +145,7 @@ function StepNode({ id, data, selected }) {
             width: "100%", textAlign: "center", background: "transparent",
             border: `1px solid ${COLOR.accent}`, borderRadius: 4,
             color: COLOR.text, fontSize: mobile ? 15 : 14, padding: "4px 6px",
-            fontFamily: "Inter, sans-serif", outline: "none",
+            fontFamily: "'Satoshi', sans-serif", outline: "none",
           }}
         />
       ) : (
@@ -1048,7 +1048,6 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
           background: "rgba(244,248,251,0.95)", border: `1px solid #375971`, borderRadius: 14,
           padding: "22px 36px", boxShadow: "0 12px 48px rgba(8,43,43,0.18), 0 0 40px rgba(55,89,113,0.4)",
           color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em",
-          fontFamily: "'Playfair Display', Georgia, serif",
           textAlign: "center",
         }}>
           🎉 Congratulations — Your Matter is Complete!
@@ -1251,7 +1250,7 @@ function TemplatesPanel({ t, mobile, onClose, onSave, onApply, onDelete, canSave
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
-      <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>Templates</h2>
+      <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", color: t.text }}>Templates</h2>
       <p style={{ margin: "0 0 20px", color: t.textSub, fontSize: 12, letterSpacing: "0.02em" }}>
         Save and reuse flowchart layouts.
       </p>
@@ -1338,7 +1337,7 @@ function TemplatesPanel({ t, mobile, onClose, onSave, onApply, onDelete, canSave
                 flex: 1, background: "#FFFFFF",
                 border: `0.5px solid ${COLOR.border}`, borderRadius: 6,
                 padding: "8px 10px", fontSize: 13, color: COLOR.text,
-                fontFamily: "Inter, sans-serif", outline: "none",
+                fontFamily: "'Satoshi', sans-serif", outline: "none",
               }}
             />
             <button
@@ -1397,7 +1396,7 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
-      <h2 style={{ margin: "0 0 8px", fontSize: 26, fontWeight: 600, letterSpacing: "-0.01em", color: t.text, lineHeight: 1.2, fontFamily: "'Playfair Display', Georgia, serif" }}>{node.title}</h2>
+      <h2 style={{ margin: "0 0 8px", fontSize: 26, fontWeight: 600, letterSpacing: "-0.01em", color: t.text, lineHeight: 1.2 }}>{node.title}</h2>
       <span style={{ display: "inline-block", background: `${statusColor}1F`, border: `1px solid ${statusColor}55`, borderRadius: 99, color: statusColor, fontSize: 11, fontWeight: 500, padding: "4px 12px", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 18 }}>
         {STATUS_LABEL_CLIENT[node.status]}
       </span>

@@ -92,7 +92,7 @@ export default function SetPasswordPage() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <LogoLight h={24} />
           <div style={{ textAlign: "center" }}>
-            <div style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 4, fontFamily: "'Playfair Display', Georgia, serif" }}>
+            <div style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.01em", marginBottom: 4 }}>
               Set Your Password
             </div>
             <div style={{ color: t.textSub, fontSize: 13 }}>

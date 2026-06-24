@@ -5283,7 +5283,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
       {/* Mobile sidebar overlay */}
       {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}}/>}
       {/* Nav bar */}
-      <div style={{background:t.surface,borderBottom:`1px solid ${t.border}`,padding:mobile?"0 14px":"0 28px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100,boxShadow:t.shadow}}>
+      <div style={{background:"rgba(250,251,252,0.85)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,0.06)",padding:mobile?"0 14px":"0 28px",height:72,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
           {mobile&&view==="internal"&&(
             <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:20,cursor:"pointer",padding:4,lineHeight:1,display:"flex",alignItems:"center"}}>
@@ -5343,11 +5343,11 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
           </div>
         </div>
       </div>
-      <div style={{display:"flex",flex:1,overflow:"visible",...(mobile?{minHeight:"calc(100vh - 56px)"}:{height:"calc(100vh - 56px)"})}}>
+      <div style={{display:"flex",flex:1,overflow:"visible",...(mobile?{minHeight:"calc(100vh - 72px)"}:{height:"calc(100vh - 72px)"})}}>
         {view==="internal"&&(
           <div style={{
             width:280,borderRight:`1px solid ${t.border}`,background:t.surface,display:"flex",flexDirection:"column",flexShrink:0,
-            ...(mobile?{position:"fixed",top:56,bottom:0,left:0,zIndex:150,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform 0.25s ease",boxShadow:sidebarOpen?"4px 0 20px rgba(0,0,0,0.3)":"none"}:{}),
+            ...(mobile?{position:"fixed",top:72,bottom:0,left:0,zIndex:150,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform 0.25s ease",boxShadow:sidebarOpen?"4px 0 20px rgba(0,0,0,0.3)":"none"}:{}),
           }}>
             <div style={{padding:"20px 20px 16px"}}>
               <div style={{color:t.textSub,fontSize:10,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:14}}>Projects</div>

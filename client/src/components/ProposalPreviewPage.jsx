@@ -33,7 +33,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
   }
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ fontFamily: "'Satoshi', sans-serif" }}>
 
       {/* Admin preview banner — sticky */}
       <div style={{
