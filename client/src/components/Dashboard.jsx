@@ -4021,7 +4021,12 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {phaseTasks.length === 0 ? (
               <div style={{ color: t.textSub, fontSize: 12, padding: "12px 16px", background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, opacity: 0.6 }}>No actions for this phase.</div>
-            ) : phaseTasks.map(task => {
+            ) : [...phaseTasks].sort((a,b)=>{
+                if(!a.due_date&&!b.due_date) return 0;
+                if(!a.due_date) return 1;
+                if(!b.due_date) return -1;
+                return new Date(a.due_date)-new Date(b.due_date);
+              }).map(task => {
               const dc = getDueStatus(task.due_date);
               const isDoneTask = task.status === "done";
               const isBusy = completing === task.id;
