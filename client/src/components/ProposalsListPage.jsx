@@ -2,30 +2,32 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
-  bg: "#F4F3EF",
+  bg: "#FAFBFC",
+  surface: "#F4F8FB",
+  surfaceHigh: "#E4F1F8",
   card: "#FFFFFF",
   nav: "#FFFFFF",
-  border: "#E5E3DC",
-  borderLight: "#EDEBE4",
-  text: "#1A1A18",
-  textSub: "#6B6B5F",
-  textMeta: "#9B9B8F",
-  accent: "#0B4F4F",
-  accentHover: "#093C3C",
-  accentLight: "rgba(11,79,79,0.08)",
-  shadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)",
-  shadowHover: "0 4px 12px rgba(0,0,0,0.08)",
+  border: "#E8E8E8",
+  borderLight: "rgba(0,0,0,0.08)",
+  text: "#232A34",
+  textSub: "#616568",
+  textMeta: "#9DB5C9",
+  accent: "#375971",
+  accentHover: "#232A34",
+  accentLight: "rgba(55,89,113,0.07)",
+  shadow: "0 1px 4px rgba(35,42,52,0.06)",
+  shadowHover: "0 4px 12px rgba(35,42,52,0.08)",
 };
 
 const STATUS_CFG = {
   draft:          { label: "Draft",             bg: "transparent",          color: t.textSub,   border: t.border },
-  sent:           { label: "Sent",              bg: "#EFF6FF",              color: "#2563EB",   border: "#BFDBFE" },
-  in_review:      { label: "In review",         bg: "#FFFBEB",              color: "#D97706",   border: "#FDE68A" },
+  sent:           { label: "Sent",              bg: "#E4F1F8",              color: "#375971",   border: "rgba(55,89,113,0.18)" },
+  in_review:      { label: "In review",         bg: "rgba(180,83,9,0.07)",  color: "#B45309",   border: "rgba(180,83,9,0.2)" },
   submitted:          { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
   feedback_received:  { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
-  viewed:             { label: "Viewed",             bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
-  won:                { label: "Won / Graduated",   bg: "#ECFDF5", color: "#059669", border: "#A7F3D0" },
-  lost:               { label: "Lost",              bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
+  viewed:             { label: "Viewed",             bg: "#E4F1F8", color: "#375971", border: "rgba(55,89,113,0.18)" },
+  won:                { label: "Won / Graduated",   bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  lost:               { label: "Lost",              bg: "rgba(201,84,46,0.08)", color: "#C9542E", border: "rgba(201,84,46,0.2)" },
   converted:          { label: "Converted",         bg: t.accent,  color: "#FFFFFF", border: t.accent },
 };
 
@@ -36,8 +38,8 @@ function StatusPill({ status }) {
       display: "inline-block",
       background: cfg.bg, color: cfg.color,
       border: `1px solid ${cfg.border}`,
-      borderRadius: 99, padding: "3px 10px",
-      fontSize: 12, fontWeight: 500,
+      borderRadius: 99, padding: "4px 10px",
+      fontSize: 11, fontWeight: 500,
       whiteSpace: "nowrap",
     }}>
       {cfg.label}
@@ -266,11 +268,15 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-    fontSize: 13, borderRadius: 7, padding: "6px 10px", transition: "background 0.12s",
+    fontSize: 13, borderRadius: 8, padding: "10px 24px", transition: "background 0.2s",
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', sans-serif", color: t.text }}>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", color: t.text }}>
+      <style>{`
+        @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
 
       {/* Nav */}
       <nav style={{
@@ -316,7 +322,8 @@ export default function ProposalsListPage({ navigate, onLogout }) {
               style={{
                 ...btnBase,
                 background: newMenuOpen ? t.accentHover : hovBtn === "new" ? t.accentHover : t.accent,
-                color: "#fff", fontWeight: 600, paddingLeft: 14, paddingRight: 14,
+                color: "#fff", fontWeight: 500, paddingLeft: 24, paddingRight: 24,
+                fontSize: 16,
                 gap: 8,
               }}
             >
@@ -399,7 +406,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             style={{
               ...btnBase,
               background: hovBtn === "new2" ? t.accentHover : t.accent,
-              color: "#fff", fontWeight: 600, paddingLeft: 16, paddingRight: 16, fontSize: 13,
+              color: "#fff", fontWeight: 500, paddingLeft: 24, paddingRight: 24, fontSize: 16,
             }}
           >
             + New proposal
@@ -421,7 +428,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             <div style={{ color: t.textMeta, fontSize: 13, marginBottom: 24 }}>Create your first proposal to get started.</div>
             <button
               onClick={() => navigate("/admin/proposals/new")}
-              style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 600, padding: "9px 20px", margin: "0 auto" }}
+              style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 16, margin: "0 auto" }}
             >
               + New proposal
             </button>

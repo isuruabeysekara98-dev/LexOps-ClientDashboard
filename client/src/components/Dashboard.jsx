@@ -91,23 +91,23 @@ async function fetchProjectData(projectId) {
 
 function Pill({status,label,t}) {
   const m={
-    active:{bg:t.greenSoft,color:t.green,b:t.green+"25"},
-    complete:{bg:t.accentSoft,color:t.accentLight,b:t.accent+"30"},
-    pending:{bg:t.amberSoft,color:t.amber,b:t.amber+"25"},
-    paid:{bg:t.greenSoft,color:t.green,b:t.green+"25"},
+    active:{bg:t.surfaceHigh,color:t.accent,b:"rgba(0,0,0,0.08)"},
+    complete:{bg:t.greenSoft,color:t.green,b:"rgba(0,0,0,0.08)"},
+    pending:{bg:t.surface,color:t.textSub,b:"rgba(0,0,0,0.08)"},
+    paid:{bg:t.greenSoft,color:t.green,b:"rgba(0,0,0,0.08)"},
     upcoming:{bg:"transparent",color:t.textSub,b:t.border},
-    resolved:{bg:t.greenSoft,color:t.green,b:t.green+"25"},
-    "in-progress":{bg:t.accentSoft,color:t.accentLight,b:t.accent+"30"},
-    open:{bg:t.amberSoft,color:t.amber,b:t.amber+"25"},
-    high:{bg:t.redSoft,color:t.red,b:t.red+"25"},
-    medium:{bg:t.amberSoft,color:t.amber,b:t.amber+"25"},
-    low:{bg:t.accentSoft,color:t.accentLight,b:t.accent+"20"},
-    existing:{bg:t.accentSoft,color:t.accentLight,b:t.accent+"25"},
-    new:{bg:t.greenSoft,color:t.green,b:t.green+"25"},
+    resolved:{bg:t.greenSoft,color:t.green,b:"rgba(0,0,0,0.08)"},
+    "in-progress":{bg:t.surfaceHigh,color:t.accent,b:"rgba(0,0,0,0.08)"},
+    open:{bg:t.surfaceHigh,color:t.accent,b:"rgba(0,0,0,0.08)"},
+    high:{bg:t.redSoft,color:t.red,b:"rgba(0,0,0,0.08)"},
+    medium:{bg:t.surfaceHigh,color:t.accent,b:"rgba(0,0,0,0.08)"},
+    low:{bg:t.surface,color:t.textSub,b:"rgba(0,0,0,0.08)"},
+    existing:{bg:t.surface,color:t.textSub,b:"rgba(0,0,0,0.08)"},
+    new:{bg:t.greenSoft,color:t.green,b:"rgba(0,0,0,0.08)"},
   };
   const v=m[status]||m.pending;
-  return <span style={{background:v.bg,color:v.color,border:`1px solid ${v.b}`,borderRadius:999,padding:"2px 9px",fontSize:11,fontWeight:600,letterSpacing:"0.03em",display:"inline-flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}>
-    <span style={{width:4,height:4,borderRadius:"50%",background:v.color,flexShrink:0}}/>
+  return <span style={{background:v.bg,color:v.color,border:`1px solid ${v.b}`,borderRadius:999,padding:"4px 10px",fontSize:11,fontWeight:500,letterSpacing:"0.03em",display:"inline-flex",alignItems:"center",gap:4,whiteSpace:"nowrap"}}>
+    <span style={{width:5,height:5,borderRadius:"50%",background:v.color,flexShrink:0}}/>
     {label}
   </span>;
 }
@@ -119,13 +119,18 @@ function Thin({value,t,color}) {
   </div>;
 }
 function SectionLabel({children,t}) {
-  return <div style={{color:t.text,fontSize:18,fontWeight:600,letterSpacing:"-0.01em",marginBottom:14,fontFamily:"'Satoshi', sans-serif"}}>{children}</div>;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <span style={{width:5,height:5,borderRadius:"50%",background:"#9DB5C9",display:"inline-block"}}/>
+      <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#616568"}}>{children}</span>
+    </div>
+  );
 }
 function Card({children,t,style={}}) {
-  return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,boxShadow:t.shadow,...style}}>{children}</div>;
+  return <div style={{background:"#FFFFFF",border:"1px solid rgba(0,0,0,0.08)",borderRadius:12,boxShadow:"0 1px 4px rgba(35,42,52,0.06)",...style}}>{children}</div>;
 }
 function CardPad({children,t,style={}}) {
-  return <div style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 24px",boxShadow:t.shadow,...style}}>{children}</div>;
+  return <div style={{background:"#FFFFFF",border:"1px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"20px 24px",boxShadow:"0 1px 4px rgba(35,42,52,0.06)",...style}}>{children}</div>;
 }
 
 function SidebarRow({p,active,onClick,t}) {

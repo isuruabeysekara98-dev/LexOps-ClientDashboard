@@ -3,23 +3,52 @@ import { supabase } from "@/lib/supabase";
 import ProposalViewer, { Logo } from "./ProposalViewer.jsx";
 
 const t = {
-  bg: "#FAFBFC", card: "#FFFFFF",
-  border: "#E8E8E8", surface: "#F4F8FB", surfaceHigh: "#E4F1F8",
-  text: "#232A34", textSub: "#616568", textMeta: "#9DB5C9",
-  accent: "#375971", accentLight: "rgba(55,89,113,0.07)", accentBorder: "rgba(55,89,113,0.18)",
-  green: "#3C7A52", greenSoft: "#E7F3EC", greenBorder: "rgba(60,122,82,0.22)",
-  amber: "#B45309", amberSoft: "rgba(180,83,9,0.07)", amberBorder: "rgba(180,83,9,0.2)",
-  red: "#C9542E", redSoft: "rgba(201,84,46,0.08)",
-  shadow: "0 1px 4px rgba(35,42,52,0.08)",
-  shadowMd: "0 4px 16px rgba(35,42,52,0.10)",
+  bg: "#FAFBFC",
+  card: "#FFFFFF",
+  surface: "#F4F8FB",
+  surfaceHigh: "#E4F1F8",
+  border: "#E8E8E8",
+  text: "#232A34",
+  textSub: "#616568",
+  textMeta: "#9DB5C9",
+  accent: "#375971",
+  accentHover: "#232A34",
+  accentLight: "rgba(55,89,113,0.07)",
+  accentBorder: "rgba(55,89,113,0.18)",
+  green: "#3C7A52",
+  greenSoft: "#E7F3EC",
+  greenBorder: "rgba(60,122,82,0.22)",
+  amber: "#B45309",
+  amberSoft: "rgba(180,83,9,0.07)",
+  amberBorder: "rgba(180,83,9,0.2)",
+  red: "#C9542E",
+  redSoft: "rgba(201,84,46,0.08)",
+  shadow: "0 1px 4px rgba(35,42,52,0.06)",
+  shadowMd: "0 8px 32px rgba(35,42,52,0.14)",
   shadowLg: "0 12px 40px rgba(35,42,52,0.14)",
 };
 
 const inp = {
-  width: "100%", background: t.card, border: `1px solid ${t.border}`,
-  borderRadius: 8, padding: "10px 13px", fontSize: 13, color: t.text,
-  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+  width: "100%",
+  background: "#FFFFFF",
+  border: "1px solid rgba(0,0,0,0.12)",
+  borderRadius: 8,
+  padding: "10px 14px",
+  fontSize: 14,
+  color: "#232A34",
+  outline: "none",
+  boxSizing: "border-box",
+  fontFamily: "inherit",
 };
+
+function Eyebrow({ label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#9DB5C9", display: "inline-block" }} />
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#616568" }}>{label}</span>
+    </div>
+  );
+}
 
 // Dashed placeholder shown where content hasn't been filled in yet
 function FieldTodo({ label = "Field to be completed", compact = false }) {
@@ -113,10 +142,10 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
         {error && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, padding: "9px 12px", color: t.red, fontSize: 12, marginBottom: 14 }}>{error}</div>}
         {mode === "idle" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={() => setMode("accepting")} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "12px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9 }} onMouseEnter={e => e.currentTarget.style.opacity = "0.88"} onMouseLeave={e => e.currentTarget.style.opacity = "1"}>
+            <button onClick={() => setMode("accepting")} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = t.accentHover} onMouseLeave={e => e.currentTarget.style.background = t.accent}>
               <span style={{ fontSize: 16 }}>✓</span> Accept this proposal
             </button>
-            <button onClick={() => setMode("requesting")} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "12px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9 }} onMouseEnter={e => { e.currentTarget.style.borderColor = t.accentBorder; e.currentTarget.style.color = t.accent; }} onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSub; }}>
+            <button onClick={() => setMode("requesting")} style={{ background: "transparent", color: t.text, border: `1px solid rgba(0,0,0,0.2)`, borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={e => { e.currentTarget.style.background = t.text; e.currentTarget.style.color = "#fff"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = t.text; }}>
               <span style={{ fontSize: 16 }}>↩</span> Request changes
             </button>
           </div>
@@ -128,8 +157,8 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
               <input type="text" value={signerName} onChange={e => setSignerName(e.target.value)} placeholder="e.g. Jane Smith" style={inp} autoFocus />
             </div>
             <div style={{ display: "flex", gap: 9 }}>
-              <button onClick={handleAccept} disabled={submitting} style={{ background: submitting ? t.border : t.accent, color: submitting ? t.textSub : "#fff", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 13, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>{submitting ? "Confirming…" : "Confirm acceptance →"}</button>
-              <button onClick={() => { setMode("idle"); setError(""); }} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Back</button>
+              <button onClick={handleAccept} disabled={submitting} style={{ background: submitting ? t.border : t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>{submitting ? "Confirming…" : "Confirm acceptance →"}</button>
+              <button onClick={() => { setMode("idle"); setError(""); }} style={{ background: "transparent", color: t.text, border: `1px solid rgba(0,0,0,0.2)`, borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>Back</button>
             </div>
           </div>
         )}
@@ -140,8 +169,8 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
               <textarea value={changeNote} onChange={e => setChangeNote(e.target.value)} placeholder="Describe what you'd like LexOps to revise or clarify…" rows={4} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }} autoFocus />
             </div>
             <div style={{ display: "flex", gap: 9 }}>
-              <button onClick={handleRequestChanges} disabled={submitting} style={{ background: submitting ? t.border : t.accent, color: submitting ? t.textSub : "#fff", border: "none", borderRadius: 8, padding: "10px 22px", fontSize: 13, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit" }}>{submitting ? "Sending…" : "Send change request →"}</button>
-              <button onClick={() => { setMode("idle"); setError(""); }} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 18px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Back</button>
+              <button onClick={handleRequestChanges} disabled={submitting} style={{ background: submitting ? t.border : t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>{submitting ? "Sending…" : "Send change request →"}</button>
+              <button onClick={() => { setMode("idle"); setError(""); }} style={{ background: "transparent", color: t.text, border: `1px solid rgba(0,0,0,0.2)`, borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>Back</button>
             </div>
           </div>
         )}
@@ -959,8 +988,11 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
   const objectives = Array.isArray(proposal.objectives) ? proposal.objectives : [];
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', sans-serif" }}>
-      <style>{GLOBAL_CSS}</style>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif" }}>
+      <style>{`
+        @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
+        ${GLOBAL_CSS}
+      `}</style>
 
       {/* Top bar */}
       <div style={{ background: t.card, borderBottom: `1px solid ${t.border}`, padding: "13px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}>
@@ -984,7 +1016,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
           {/* Pain points + Objectives cards — always shown */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Challenges we're solving</div>
+              <Eyebrow label="Challenges we're solving" />
               {painPoints.length > 0 ? painPoints.map((pp, i) => (
                 <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
                   <span style={{ color: t.accent, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>•</span>
@@ -993,7 +1025,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
               )) : <FieldTodo label="Pain points to be completed" />}
             </div>
             <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 20px", boxShadow: t.shadow }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 12 }}>Objectives</div>
+              <Eyebrow label="Objectives" />
               {objectives.length > 0 ? objectives.map((obj, i) => (
                 <div key={i} style={{ display: "flex", gap: 9, marginBottom: 8, fontSize: 13, color: t.text, lineHeight: 1.55 }}>
                   <span style={{ color: t.green, flexShrink: 0, fontWeight: 700, marginTop: 1 }}>→</span>
@@ -1018,9 +1050,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
         {/* Workflow blocks */}
         {workflows.length > 0 && (
           <>
-            <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 16 }}>
-              {workflows.length > 1 ? `${workflows.length} Proposed Workflows` : "Proposed Workflow"}
-            </div>
+            <Eyebrow label={workflows.length > 1 ? `${workflows.length} Proposed Workflows` : "Proposed Workflow"} />
             <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 36 }}>
               {workflows.map((wf, i) => (
                 <WorkflowBlock

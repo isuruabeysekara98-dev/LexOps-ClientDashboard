@@ -1,19 +1,32 @@
 const t = {
-  bg: "#F9F8F5",
+  bg: "#FAFBFC",
   card: "#FFFFFF",
-  border: "#E5E3DC",
-  borderLight: "#EDEBE4",
-  text: "#1A1A18",
-  textSub: "#6B6B5F",
-  textMeta: "#9B9B8F",
-  accent: "#0B4F4F",
-  accentLight: "rgba(11,79,79,0.07)",
-  accentBorder: "rgba(11,79,79,0.18)",
-  green: "#059669",
-  greenSoft: "rgba(5,150,105,0.08)",
-  shadow: "0 1px 4px rgba(0,0,0,0.06)",
-  shadowMd: "0 4px 16px rgba(0,0,0,0.08)",
+  surface: "#F4F8FB",
+  surfaceHigh: "#E4F1F8",
+  border: "#E8E8E8",
+  borderLight: "rgba(0,0,0,0.08)",
+  text: "#232A34",
+  textSub: "#616568",
+  textMeta: "#9DB5C9",
+  accent: "#375971",
+  accentHover: "#232A34",
+  accentLight: "rgba(55,89,113,0.07)",
+  accentBorder: "rgba(55,89,113,0.18)",
+  green: "#3C7A52",
+  greenSoft: "#E7F3EC",
+  greenBorder: "rgba(60,122,82,0.22)",
+  shadow: "0 1px 4px rgba(35,42,52,0.06)",
+  shadowMd: "0 8px 32px rgba(35,42,52,0.14)",
 };
+
+function Eyebrow({ label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#9DB5C9", display: "inline-block" }} />
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#616568" }}>{label}</span>
+    </div>
+  );
+}
 
 export function Logo() {
   return (

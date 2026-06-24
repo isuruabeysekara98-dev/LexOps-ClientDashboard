@@ -2,20 +2,44 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
-  bg: "#F4F3EF", card: "#FFFFFF", nav: "#FFFFFF",
-  border: "#E5E3DC", borderLight: "#EDEBE4",
-  text: "#1A1A18", textSub: "#6B6B5F", textMeta: "#9B9B8F",
-  accent: "#0B4F4F", accentHover: "#093C3C", accentLight: "rgba(11,79,79,0.08)",
-  red: "#DC2626", redSoft: "rgba(220,38,38,0.08)",
-  shadow: "0 1px 3px rgba(0,0,0,0.06)",
+  bg: "#FAFBFC",
+  surface: "#F4F8FB",
+  surfaceHigh: "#E4F1F8",
+  card: "#FFFFFF",
+  border: "#E8E8E8",
+  borderLight: "rgba(0,0,0,0.08)",
+  text: "#232A34",
+  textSub: "#616568",
+  textMeta: "#9DB5C9",
+  accent: "#375971",
+  accentHover: "#232A34",
+  accentLight: "rgba(55,89,113,0.07)",
+  red: "#C9542E",
+  redSoft: "rgba(201,84,46,0.08)",
+  shadow: "0 1px 4px rgba(35,42,52,0.06)",
 };
 
 const inp = {
-  background: "#FFFFFF", border: `1px solid ${t.border}`,
-  borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text,
-  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
+  background: "#FFFFFF",
+  border: "1px solid rgba(0,0,0,0.12)",
+  borderRadius: 8,
+  padding: "10px 14px",
+  fontSize: 14,
+  color: "#232A34",
+  outline: "none",
+  boxSizing: "border-box",
+  fontFamily: "inherit",
   width: "100%",
 };
+
+function Eyebrow({ label }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#9DB5C9", display: "inline-block" }} />
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#616568" }}>{label}</span>
+    </div>
+  );
+}
 
 function Logo() {
   return (
@@ -250,12 +274,15 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-    fontSize: 13, borderRadius: 7, padding: "7px 12px", transition: "all 0.12s",
+    fontSize: 13, borderRadius: 8, padding: "10px 24px", transition: "all 0.2s",
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Inter', sans-serif", color: t.text }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", color: t.text }}>
+      <style>{`
+        @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
 
       {/* Nav */}
       <nav style={{
@@ -308,11 +335,12 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         </h1>
 
         {/* Section: Basic details */}
-        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
+        <div style={{ background: t.card, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
+          <Eyebrow label="Basic details" />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
             <div>
               <label style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 6 }}>
-                Proposal name *
+                Proposal name
               </label>
               <input style={inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Probate & Estates — Okafor & Partners" />
             </div>
@@ -340,10 +368,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         </div>
 
         {/* Client context: Pain points + Objectives */}
-        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 18 }}>
-            Client context
-          </div>
+        <div style={{ background: t.card, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
+          <Eyebrow label="Client context" />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
             {/* Pain points */}
             <div>
@@ -413,11 +439,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
         {form.workflows.map((wf, wi) => {
           const stages = getStages(wi);
           return (
-            <div key={wi} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
+            <div key={wi} style={{ background: t.card, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12, padding: "24px 24px", marginBottom: 16, boxShadow: t.shadow }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                  Workflow stages
-                </h2>
+                <Eyebrow label="Workflow stages" />
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {/* show_try_matter toggle */}
                   <div title={`When on, clients see a 3-step wizard to run their own matter through this workflow (requires SQL migration — see supabase_workflow_review_setup.sql)`} style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8, padding: "5px 12px", background: wf.show_try_matter ? "rgba(11,79,79,0.08)" : "#F4F2ED", border: `1px solid ${wf.show_try_matter ? "rgba(11,79,79,0.22)" : "#E5E3DC"}`, borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }} onClick={() => setForm(f => ({ ...f, workflows: f.workflows.map((w, j) => j !== wi ? w : { ...w, show_try_matter: !w.show_try_matter }) }))}>
@@ -430,9 +454,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                     onClick={() => useDefaultTemplate(wi)}
                     onMouseEnter={() => setHovBtn(`tpl-${wi}`)} onMouseLeave={() => setHovBtn(null)}
                     style={{
-                      ...btnBase, border: `1px solid ${t.border}`, color: t.text, fontSize: 12,
-                      background: hovBtn === `tpl-${wi}` ? "#F0EDE6" : t.card,
-                      padding: "6px 12px",
+                      ...btnBase, border: `1px solid rgba(0,0,0,0.2)`, color: t.text, fontSize: 12,
+                      background: hovBtn === `tpl-${wi}` ? t.accentLight : "transparent",
+                      padding: "6px 16px",
                     }}
                   >
                     🗂 Use default template
@@ -441,9 +465,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                     onClick={() => addStage(wi)}
                     onMouseEnter={() => setHovBtn(`add-${wi}`)} onMouseLeave={() => setHovBtn(null)}
                     style={{
-                      ...btnBase, border: `1px solid ${t.border}`, color: t.text, fontSize: 12,
-                      background: hovBtn === `add-${wi}` ? "#F0EDE6" : t.card,
-                      padding: "6px 12px",
+                      ...btnBase, border: `1px solid rgba(0,0,0,0.2)`, color: t.text, fontSize: 12,
+                      background: hovBtn === `add-${wi}` ? t.accentLight : "transparent",
+                      padding: "6px 16px",
                     }}
                   >
                     + Add stage
@@ -453,8 +477,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
 
               {stages.length === 0 ? (
                 <div style={{
-                  border: `1.5px dashed ${t.border}`, borderRadius: 10,
-                  padding: "40px 0", textAlign: "center",
+                  border: `1.5px dashed rgba(0,0,0,0.12)`, borderRadius: 12,
+                  padding: "40px 0", textAlign: "center", background: t.surface,
                 }}>
                   <div style={{ color: t.textMeta, fontSize: 13, marginBottom: 16 }}>
                     No stages yet. Use the default template or build from scratch.
@@ -462,13 +486,13 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                   <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                     <button
                       onClick={() => useDefaultTemplate(wi)}
-                      style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, fontSize: 13, padding: "8px 16px", background: t.card }}
+                      style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, fontSize: 13, padding: "10px 24px", background: "transparent" }}
                     >
                       🗂 Use default template
                     </button>
                     <button
                       onClick={() => addStage(wi)}
-                      style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, fontSize: 13, padding: "8px 16px", background: t.card }}
+                      style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, fontSize: 13, padding: "10px 24px", background: "transparent" }}
                     >
                       + Add blank stage
                     </button>
@@ -480,12 +504,12 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                     const key = `${wi}-${si}`;
                     const isOpen = expanded.has(key);
                     return (
-                      <div key={si} style={{ border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+                      <div key={si} style={{ border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
                         {/* Stage header */}
                         <div style={{
                           display: "grid", gridTemplateColumns: "28px 28px auto 1fr 1fr auto auto auto auto",
                           gap: 8, alignItems: "center", padding: "10px 14px",
-                          background: isOpen ? "#F9F8F5" : t.card,
+                          background: isOpen ? t.surface : t.card,
                           borderBottom: isOpen ? `1px solid ${t.border}` : "none",
                           cursor: "default",
                         }}>
@@ -494,7 +518,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
 
                           {/* Number */}
                           <div style={{
-                            width: 24, height: 24, borderRadius: "50%",
+                            width: 24, height: 24, borderRadius: 8,
                             background: t.accent, color: "#fff",
                             display: "flex", alignItems: "center", justifyContent: "center",
                             fontSize: 11, fontWeight: 700, flexShrink: 0,
@@ -507,7 +531,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                             value={s.emoji}
                             onChange={e => setStageField(wi, si, "emoji", e.target.value)}
                             maxLength={2}
-                            style={{ ...inp, width: 36, textAlign: "center", fontSize: 16, padding: "3px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 5 }}
+                            style={{ ...inp, width: 36, textAlign: "center", fontSize: 16, padding: "3px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8 }}
                           />
 
                           {/* Name */}
@@ -515,7 +539,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                             value={s.title}
                             onChange={e => setStageField(wi, si, "title", e.target.value)}
                             placeholder="Untitled stage"
-                            style={{ ...inp, fontWeight: s.title ? 500 : 400, color: s.title ? t.text : t.textMeta, gridColumn: "4 / 6" }}
+                            style={{ ...inp, fontWeight: s.title ? 500 : 400, color: s.title ? t.text : t.textMeta, gridColumn: "4 / 6", background: "transparent", border: "none" }}
                           />
 
                           {/* Move up */}
@@ -610,7 +634,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           paddingTop: 8,
         }}>
           {saveMsg && (
-            <span style={{ fontSize: 13, color: saveMsg.ok ? "#059669" : t.red, fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: saveMsg.ok ? "#3C7A52" : t.red, fontWeight: 500 }}>
               {saveMsg.text}
             </span>
           )}
@@ -620,7 +644,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           <button
             onClick={() => navigate("/admin/proposals")}
             onMouseEnter={() => setHovBtn("cancel")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "cancel" ? "#F0EDE6" : t.card, padding: "8px 18px" }}
+            style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, background: hovBtn === "cancel" ? t.accentLight : "transparent" }}
           >
             Cancel
           </button>
@@ -628,7 +652,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             onClick={() => save({ send: false })}
             disabled={saving}
             onMouseEnter={() => setHovBtn("draft")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "draft" ? "#F0EDE6" : t.card, padding: "8px 18px", opacity: saving ? 0.6 : 1 }}
+            style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, background: hovBtn === "draft" ? t.accentLight : "transparent", opacity: saving ? 0.6 : 1 }}
           >
             Save as draft
           </button>
@@ -637,8 +661,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             disabled={saving}
             onMouseEnter={() => setHovBtn("send")} onMouseLeave={() => setHovBtn(null)}
             style={{
-              ...btnBase, padding: "8px 18px", fontWeight: 600,
-              background: saving ? "#6B9999" : hovBtn === "send" ? t.accentHover : t.accent,
+              ...btnBase, fontWeight: 500, fontSize: 16,
+              background: saving ? t.textSub : hovBtn === "send" ? t.accentHover : t.accent,
               color: "#fff", opacity: saving ? 0.7 : 1,
             }}
           >

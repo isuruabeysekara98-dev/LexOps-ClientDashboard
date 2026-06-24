@@ -26,15 +26,15 @@ function LogoLight({ h = 24 }) {
 
 const inputStyle = {
   width: "100%",
-  background: t.surfaceHigh,
-  border: `1px solid ${t.border}`,
+  background: "#FFFFFF",
+  border: "1px solid rgba(0,0,0,0.12)",
   borderRadius: 8,
   padding: "10px 14px",
-  fontSize: 13,
-  color: t.text,
+  fontSize: 14,
+  color: "#232A34",
   outline: "none",
   boxSizing: "border-box",
-  fontFamily: "inherit",
+  fontFamily: "'Satoshi', sans-serif",
 };
 
 export default function SetPasswordPage() {
@@ -84,7 +84,7 @@ export default function SetPasswordPage() {
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      fontFamily: "'Inter', sans-serif",
+      fontFamily: "'Satoshi', sans-serif",
       color: t.text,
       padding: 24,
     }}>
@@ -102,11 +102,11 @@ export default function SetPasswordPage() {
         </div>
 
         <div style={{
-          background: t.surface,
-          border: `1px solid ${t.border}`,
-          borderRadius: 14,
+          background: "#F4F8FB",
+          border: "1px solid rgba(0,0,0,0.08)",
+          borderRadius: 12,
           padding: "28px 28px",
-          boxShadow: t.shadow,
+          boxShadow: "0 1px 4px rgba(35,42,52,0.06)",
         }}>
           {done ? (
             <div style={{ textAlign: "center", padding: "12px 0" }}>
@@ -166,16 +166,16 @@ export default function SetPasswordPage() {
                 disabled={loading}
                 style={{
                   marginTop: 4,
-                  background: loading ? t.surfaceHigh : t.accent,
+                  background: loading ? "#E4F1F8" : "#375971",
                   color: loading ? t.textSub : "#fff",
                   border: "none",
                   borderRadius: 8,
-                  padding: "11px 0",
-                  fontSize: 13,
-                  fontWeight: 600,
+                  padding: "10px 24px",
+                  fontSize: 16,
+                  fontWeight: 500,
                   cursor: loading ? "not-allowed" : "pointer",
-                  transition: "background 0.15s",
-                  fontFamily: "inherit",
+                  transition: "all 0.2s",
+                  fontFamily: "'Satoshi', sans-serif",
                 }}
               >
                 {loading ? "Setting password…" : "Set Password"}

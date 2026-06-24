@@ -36,16 +36,17 @@ function Line({ t }) {
 
 function SectionLabel({ children, t }) {
   return (
-    <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 14 }}>
-      {children}
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+      <span style={{width:5,height:5,borderRadius:"50%",background:"#9DB5C9",display:"inline-block"}}/>
+      <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em",color:"#616568"}}>{children}</span>
     </div>
   );
 }
 
 function Btn({ children, onClick, variant = "default", disabled = false, t, style = {} }) {
   const styles = {
-    default: { background: t.accent, color: "#fff", border: "none" },
-    ghost:   { background: "transparent", color: t.textSub, border: `1px solid ${t.border}` },
+    default: { background: "#375971", color: "#fff", border: "none" },
+    ghost:   { background: "transparent", color: "#232A34", border: "1px solid rgba(0,0,0,0.2)" },
     danger:  { background: t.redSoft, color: t.red, border: `1px solid ${t.red}25` },
   };
   const s = styles[variant] || styles.default;
@@ -54,9 +55,9 @@ function Btn({ children, onClick, variant = "default", disabled = false, t, styl
       onClick={onClick}
       disabled={disabled}
       style={{
-        ...s, borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 600,
+        ...s, borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500,
         cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
-        whiteSpace: "nowrap", fontFamily: "inherit", transition: "opacity 0.15s", ...style,
+        whiteSpace: "nowrap", fontFamily: "'Satoshi', sans-serif", transition: "all 0.2s", ...style,
       }}
     >
       {children}
@@ -72,9 +73,9 @@ function Input({ value, onChange, placeholder, type = "text", t, style = {} }) {
       onChange={onChange}
       placeholder={placeholder}
       style={{
-        width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`,
-        borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text,
-        outline: "none", boxSizing: "border-box", fontFamily: "inherit", ...style,
+        width: "100%", background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)",
+        borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#232A34",
+        outline: "none", boxSizing: "border-box", fontFamily: "'Satoshi', sans-serif", ...style,
       }}
     />
   );
@@ -228,8 +229,8 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
       background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
     }}>
       <div style={{
-        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
-        padding: "28px 28px", width: "100%", maxWidth: 440, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        background: "#F4F8FB", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12,
+        padding: "28px 28px", width: "100%", maxWidth: 440, boxShadow: "0 8px 32px rgba(35,42,52,0.14)",
         overflowY: "auto", maxHeight: "90vh",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
@@ -242,7 +243,7 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
           {field("Full Name", <Input t={t} value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} placeholder="Jane Smith" />)}
           {field("Role",
             <Select t={t} value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value, project_ids: [] }))}
-              options={ROLES.map(r => [r, ROLE_LABELS[r]])} style={{ width: "100%" }} />
+              options={ROLES.map(r => [r, ROLE_LABELS[r]])} style={{ width: "100%", borderRadius: 8, background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)", padding: "10px 14px", fontSize: 14 }} />
           )}
 
           {form.role === "client" && (
@@ -250,7 +251,7 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
               <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 Assign Projects
               </label>
-              <div style={{ background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 8, overflow: "hidden" }}>
                 {projectsLoading ? (
                   <div style={{ padding: "12px 14px", color: t.textSub, fontSize: 12 }}>Loading projects…</div>
                 ) : availableProjects.length === 0 ? (
@@ -265,7 +266,7 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
                         type="checkbox"
                         checked={form.project_ids.includes(p.id)}
                         onChange={() => toggleProject(p.id)}
-                        style={{ accentColor: t.accent, width: 14, height: 14, flexShrink: 0, cursor: "pointer" }}
+                        style={{ accentColor: "#375971", width: 14, height: 14, flexShrink: 0, cursor: "pointer" }}
                       />
                       {p.label}
                     </label>
@@ -338,8 +339,8 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
       background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, overflowY: "auto",
     }}>
       <div style={{
-        background: t.surface, border: `1px solid ${t.border}`, borderRadius: 14,
-        padding: "28px 28px", width: "100%", maxWidth: 520, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        background: "#F4F8FB", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 12,
+        padding: "28px 28px", width: "100%", maxWidth: 520, boxShadow: "0 8px 32px rgba(35,42,52,0.14)",
         margin: "auto", overflowY: "auto", maxHeight: "90vh",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
@@ -359,15 +360,15 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
             {field("Status",
               <Select t={t} value={form.status} onChange={set("status")}
                 options={[["active","Active"],["complete","Complete"],["on-hold","On Hold"]]}
-                style={{ width: "100%" }} />,
+                style={{ width: "100%", borderRadius: 8, background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)", padding: "10px 14px", fontSize: 14 }} />,
               true
             )}
             {field("Summary",
               <textarea value={form.summary} onChange={set("summary")} placeholder="Brief project description…"
                 style={{
-                  width: "100%", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 7,
-                  padding: "8px 12px", fontSize: 13, color: t.text, outline: "none",
-                  resize: "vertical", minHeight: 72, fontFamily: "inherit", boxSizing: "border-box",
+                  width: "100%", background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 8,
+                  padding: "10px 14px", fontSize: 14, color: "#232A34", outline: "none",
+                  resize: "vertical", minHeight: 72, fontFamily: "'Satoshi', sans-serif", boxSizing: "border-box",
                 }} />
             )}
           </div>
