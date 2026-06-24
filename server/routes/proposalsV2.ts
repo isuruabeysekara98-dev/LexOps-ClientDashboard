@@ -3,8 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { sendV2ProposalInvite } from "../email";
 import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
 
 // Robust PDF text extraction using unpdf (Node.js-compatible PDF.js wrapper)
 async function extractPdfText(buffer: Buffer): Promise<string> {
