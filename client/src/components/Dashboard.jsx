@@ -152,6 +152,10 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
   const doneDel = deliverables.filter(d=>d.status==="done").length;
   const pendingDel = deliverables.filter(d=>d.status!=="done");
   const phases = project.phases || [];
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+  const in7 = new Date(todayMid.getTime() + 7*86400000);
+  const overdueActions = tasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) < todayMid);
+  const dueSoonActions = tasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) >= todayMid && new Date(tk.due_date) <= in7);
   const activePhase = phases.find(p=>p.status==="active") || phases.find(p=>p.status!=="complete") || null;
   const budgetPct = project.budget ? Math.round((project.spent??0)/project.budget*100) : 0;
 
@@ -251,6 +255,63 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Overdue / Due-soon actions ── */}
+      {(overdueActions.length > 0 || dueSoonActions.length > 0) && (
+        <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden",boxShadow:t.shadow}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:14,fontWeight:600,color:t.text,fontFamily:"'Playfair Display',Georgia,serif",letterSpacing:"-0.01em"}}>Actions Needing Attention</div>
+            <span style={{fontSize:11,fontWeight:600,padding:"2px 10px",borderRadius:99,background:overdueActions.length>0?"#fdf0ee":"#fef6e8",color:overdueActions.length>0?"#c0392b":"#d4881a"}}>
+              {overdueActions.length+dueSoonActions.length} flagged
+            </span>
+          </div>
+          {overdueActions.length > 0 && (
+            <div style={{padding:"10px 20px 6px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"#c0392b",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⚠️ Overdue</div>
+              {overdueActions.map((tk,i) => {
+                const phaseName = phases.find(p=>p.id===tk.phase_id)?.name;
+                const daysLate = Math.floor((todayMid-new Date(tk.due_date))/86400000);
+                return (
+                  <div key={tk.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?"1px solid #fdf0ee":"none"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:500,color:t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</div>
+                      {phaseName&&<div style={{fontSize:11,color:t.textSub,marginTop:1}}>{phaseName}</div>}
+                    </div>
+                    {tk.owner==="client"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f0fe",color:"#2b5fcc",flexShrink:0}}>Client</span>}
+                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f5ef",color:"#1A6666",flexShrink:0}}>LexOps</span>}
+                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fdf0ee",color:"#c0392b",flexShrink:0}}>
+                      {daysLate===0?"Due today":`${daysLate}d overdue`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {dueSoonActions.length > 0 && (
+            <div style={{padding:overdueActions.length>0?"4px 20px 12px":"10px 20px 12px"}}>
+              {overdueActions.length>0&&<div style={{height:1,background:"#f0f4f3",marginBottom:10}}/>}
+              <div style={{fontSize:10,fontWeight:700,color:"#d4881a",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⏳ Due Within 7 Days</div>
+              {dueSoonActions.map((tk,i) => {
+                const phaseName = phases.find(p=>p.id===tk.phase_id)?.name;
+                const daysLeft = Math.ceil((new Date(tk.due_date)-todayMid)/86400000);
+                return (
+                  <div key={tk.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderTop:i>0?"1px solid #fef6e8":"none"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:500,color:t.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tk.title}</div>
+                      {phaseName&&<div style={{fontSize:11,color:t.textSub,marginTop:1}}>{phaseName}</div>}
+                    </div>
+                    {tk.owner==="client"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f0fe",color:"#2b5fcc",flexShrink:0}}>Client</span>}
+                    {tk.owner==="lexops"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:99,background:"#e8f5ef",color:"#1A6666",flexShrink:0}}>LexOps</span>}
+                    <span style={{fontSize:11,fontWeight:600,padding:"2px 9px",borderRadius:99,background:"#fef6e8",color:"#d4881a",flexShrink:0}}>
+                      {daysLeft===0?"Due today":`Due in ${daysLeft}d`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -3409,6 +3470,11 @@ function ClientOverviewTab({ project, t, mobile }) {
 
   const phases = project.phases || [];
   const deliverables = (project.tasks || []).filter(tk => tk.is_deliverable && tk.status !== "done");
+  const clientTasks = (project.tasks || []).filter(tk => !tk.is_internal);
+  const todayMidC = new Date(); todayMidC.setHours(0,0,0,0);
+  const in7C = new Date(todayMidC.getTime() + 7*86400000);
+  const overdueClient = clientTasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) < todayMidC);
+  const dueSoonClient = clientTasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) >= todayMidC && new Date(tk.due_date) <= in7C);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -3416,6 +3482,62 @@ function ClientOverviewTab({ project, t, mobile }) {
 
       {phases.length > 0 && (
         <ClientPhaseTimeline phases={phases} t={t} mobile={mobile} />
+      )}
+
+      {(overdueClient.length > 0 || dueSoonClient.length > 0) && (
+        <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
+          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, fontFamily: "'Playfair Display',Georgia,serif", letterSpacing: "-0.01em" }}>Actions Needing Attention</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: overdueClient.length > 0 ? "#fdf0ee" : "#fef6e8", color: overdueClient.length > 0 ? "#c0392b" : "#d4881a" }}>
+              {overdueClient.length + dueSoonClient.length} flagged
+            </span>
+          </div>
+          {overdueClient.length > 0 && (
+            <div style={{ padding: "10px 20px 6px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#c0392b", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⚠️ Overdue</div>
+              {overdueClient.map((tk, i) => {
+                const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
+                const daysLate = Math.floor((todayMidC - new Date(tk.due_date)) / 86400000);
+                return (
+                  <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #fdf0ee" : "none" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
+                      {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
+                    </div>
+                    {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
+                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>LexOps</span>}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#c0392b", flexShrink: 0 }}>
+                      {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {dueSoonClient.length > 0 && (
+            <div style={{ padding: overdueClient.length > 0 ? "4px 20px 12px" : "10px 20px 12px" }}>
+              {overdueClient.length > 0 && <div style={{ height: 1, background: "#f0f4f3", marginBottom: 10 }} />}
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#d4881a", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⏳ Due Within 7 Days</div>
+              {dueSoonClient.map((tk, i) => {
+                const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
+                const daysLeft = Math.ceil((new Date(tk.due_date) - todayMidC) / 86400000);
+                return (
+                  <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #fef6e8" : "none" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
+                      {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
+                    </div>
+                    {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
+                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>LexOps</span>}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fef6e8", color: "#d4881a", flexShrink: 0 }}>
+                      {daysLeft === 0 ? "Due today" : `Due in ${daysLeft}d`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {proposalWorkflow && proposalWorkflow.stages.length > 0 && (
