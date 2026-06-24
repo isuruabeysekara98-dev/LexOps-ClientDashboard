@@ -4421,10 +4421,17 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
         }
       }
 
-      // Close edit mode immediately — don't block on data reload
+      // Update local state immediately — no re-fetch needed
+      setTasks(ts => ts.map(tk => tk.id === taskId ? {
+        ...tk,
+        title: editDraft.title,
+        status: editDraft.status,
+        due_date: editDraft.due_date || null,
+        phase_id: editDraft.phase_id || null,
+        owner: ownerColMissing ? tk.owner : (editDraft.owner || null),
+      } : tk));
       setEditingId(null);
       setSaving(false);
-      loadData();        // fire-and-forget background refresh
       onRefresh?.();
     } catch(err) {
       console.error("[InternalActionsTab] saveEdit failed:", err.message);
@@ -4443,10 +4450,12 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
     if (!newTask.title.trim()) return;
     setSaving(true);
     try {
-      await adminFetch("/tasks", { method: "POST", body: { project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null, owner: newTask.owner || null }});
-      setNewTask({ title: "", due_date: "" });
+      const payload = { project_id: projectId, title: newTask.title.trim(), status: "pending", is_internal: false, is_deliverable: false, due_date: newTask.due_date || null, phase_id: phaseId || null };
+      const res = await dbWrite("tasks", "insert", payload);
+      const added = res?.data || { ...payload, id: Date.now().toString() };
+      setTasks(ts => [...ts, added]);
+      setNewTask({ title: "", due_date: "", owner: "" });
       setShowAddIn(null);
-      await loadData();
       onRefresh?.();
     } catch(err) { console.error("[InternalActionsTab] addTask failed:", err.message); }
     setSaving(false);
@@ -4709,15 +4718,17 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     }
     const { data:{ publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
+    let newDoc;
     try {
-      await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
+      const res = await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
+      newDoc = res?.data || { project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null };
     } catch(err) {
       setUploadError(`Could not save document record: ${err.message}`);
       setUploading(false);
       return;
     }
+    setDocs(ds => [newDoc, ...ds]);
     setUploading(false);
-    load(); // fire-and-forget
     onRefresh?.();
   }
 
@@ -4734,18 +4745,17 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!editDocForm.name.trim()) return;
     setDocSaving(true);
+    const updatedName = editDocForm.name.trim();
+    const updatedPhase = editDocForm.phase_name || null;
     try {
-      await dbWrite("documents", "update", {
-        name: editDocForm.name.trim(),
-        phase_name: editDocForm.phase_name || null
-      }, { id: editingDocId });
+      await dbWrite("documents", "update", { name: updatedName, phase_name: updatedPhase }, { id: editingDocId });
+      setDocs(ds => ds.map(d => d.id === editingDocId ? { ...d, name: updatedName, phase_name: updatedPhase } : d));
+      setEditingDocId(null);
+      onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] updateDoc failed:", err.message);
     }
-    setEditingDocId(null);
     setDocSaving(false);
-    load(); // fire-and-forget
-    onRefresh?.();
   }
 
   async function addTool(e) {
@@ -4753,11 +4763,13 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     if (!newTool.name.trim()) return;
     setToolSaving(true);
     setToolsError(null);
+    const payload = { project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length };
     try {
-      await dbWrite("project_tools","insert",{ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
+      const res = await dbWrite("project_tools","insert", payload);
+      const added = res?.data || payload;
+      setTools(ts => [...ts, added]);
       setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
       setShowAddTool(false);
-      load(); // fire-and-forget
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] addTool failed:", err.message);
@@ -4771,15 +4783,11 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     if (!editToolForm.name.trim()) return;
     setToolSaving(true);
     setToolsError(null);
+    const updates = { name: editToolForm.name.trim(), purpose: editToolForm.purpose.trim()||null, url: editToolForm.url.trim()||null, logo_emoji: editToolForm.logo_emoji||"🔧" };
     try {
-      await dbWrite("project_tools", "update", {
-        name: editToolForm.name.trim(),
-        purpose: editToolForm.purpose.trim() || null,
-        url: editToolForm.url.trim() || null,
-        logo_emoji: editToolForm.logo_emoji || "🔧"
-      }, { id: editingToolId });
+      await dbWrite("project_tools", "update", updates, { id: editingToolId });
+      setTools(ts => ts.map(t => t.id === editingToolId ? { ...t, ...updates } : t));
       setEditingToolId(null);
-      load(); // fire-and-forget
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] updateTool failed:", err.message);
