@@ -159,6 +159,13 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
   const activePhase = phases.find(p=>p.status==="active") || phases.find(p=>p.status!=="complete") || null;
   const budgetPct = project.budget ? Math.round((project.spent??0)/project.budget*100) : 0;
 
+  // Next action timing — same logic as ClientStatusBanner
+  const pendingWithDate = tasks.filter(tk => tk.status !== "done" && tk.due_date).sort((a,b) => new Date(a.due_date)-new Date(b.due_date));
+  const nextAction = pendingWithDate[0] || null;
+  const nextDaysDiff = nextAction ? Math.ceil((new Date(nextAction.due_date) - todayMid) / 86400000) : null;
+  const nextActionVal = nextDaysDiff === null ? null : String(Math.abs(nextDaysDiff));
+  const nextActionLabel = nextDaysDiff === null ? null : nextDaysDiff < 0 ? "Days Overdue" : nextDaysDiff === 0 ? "Due Today" : "Days Away";
+
   const iconMap={milestone:"◆",document:"↑",invoice:"$",update:"·"};
   const colorMap={milestone:t.accent,document:t.green,invoice:t.amber,update:t.textSub};
 
@@ -191,7 +198,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           {[
             {val:`${project.progress??0}%`, label:"Progress"},
             {val:doneDel+"/"+deliverables.length, label:"Actions"},
-            ...(daysLeft!==null?[{val:daysLeft===0?"Today":String(Math.abs(daysLeft)), label:daysLeft<0?"Days Overdue":"Days Left"}]:[]),
+            ...(nextActionVal!==null?[{val:nextDaysDiff===0?"Today":nextActionVal, label:nextActionLabel}]:[]),
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
               {i>0&&<div style={{width:1,background:"rgba(255,255,255,0.2)",alignSelf:"stretch"}}/>}
