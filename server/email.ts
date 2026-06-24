@@ -65,6 +65,28 @@ function firstName(fullName: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Support ticket notification → project manager
+// ---------------------------------------------------------------------------
+export async function sendSupportTicketNotification(
+  managerEmail: string,
+  ticket: { title: string; description?: string | null; priority: string; category: string; created_by: string },
+  projectName: string,
+) {
+  const priorityLabel = ticket.priority === "high" ? "🔴 High" : ticket.priority === "medium" ? "🟡 Medium" : "🟢 Low";
+  await send(managerEmail, `[${projectName}] New support ticket: ${ticket.title}`, emailWrapper(
+    heading("New support ticket") +
+    bodyText(`A new support ticket has been submitted on <strong>${projectName}</strong> by ${ticket.created_by === "client" ? "the client" : "your team"}.`) +
+    `<table cellpadding="0" cellspacing="0" style="width:100%;border-radius:8px;border:1px solid #e9ecef;overflow:hidden;margin:18px 0">
+      <tr><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Subject</td><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${ticket.title}</td></tr>
+      <tr><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Priority</td><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${priorityLabel}</td></tr>
+      <tr><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Category</td><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${ticket.category}</td></tr>
+      ${ticket.description ? `<tr><td style="padding:10px 16px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Details</td><td style="padding:10px 16px;font-size:14px;color:#1a2235">${ticket.description}</td></tr>` : ""}
+    </table>` +
+    ctaButton("View in portal", `${PORTAL_URL}/`)
+  ));
+}
+
+// ---------------------------------------------------------------------------
 // a. Admin Invite
 // ---------------------------------------------------------------------------
 export async function sendAdminInvite(email: string, fullName: string, inviteUrl: string) {

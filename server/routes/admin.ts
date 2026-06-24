@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import multer from "multer";
 import { generateProjectStructure } from "../lib/generateProject";
+import { sendSupportTicketNotification } from "../email";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -722,6 +723,31 @@ router.post("/db", requireAuth, async (req: Request, res: Response) => {
       const r = await q;
       if (r.error) throw r.error;
       result = r.data;
+
+      // Fire-and-forget PM email on new support ticket
+      if (table === "support_tickets" && !Array.isArray(data) && data?.project_id) {
+        (async () => {
+          try {
+            const { data: proj } = await (adminSupabase as any)
+              .from("projects")
+              .select("name, client_name, manager_email")
+              .eq("id", data.project_id)
+              .single();
+            if (proj?.manager_email) {
+              const projectName = proj.name || proj.client_name || "Unknown Project";
+              await sendSupportTicketNotification(proj.manager_email, {
+                title: data.title,
+                description: data.description ?? null,
+                priority: data.priority ?? "medium",
+                category: data.category ?? "general",
+                created_by: data.created_by ?? "client",
+              }, projectName);
+            }
+          } catch (emailErr: any) {
+            console.warn("[admin/db] support ticket email failed:", emailErr.message);
+          }
+        })();
+      }
     } else if (operation === "update") {
       let q = tbl.update(data);
       if (match) for (const [k, v] of Object.entries(match as Record<string,any>)) q = q.eq(k, v);

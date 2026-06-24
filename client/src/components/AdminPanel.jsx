@@ -300,7 +300,7 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
 // ---------------------------------------------------------------------------
 const EMPTY_PROJECT_FORM = {
   client_name: "", name: "", phase: "", due_date: "",
-  manager: "", budget: "", summary: "", status: "active", progress: 0,
+  manager: "", manager_email: "", budget: "", summary: "", status: "active", progress: 0,
 };
 
 function ProjectModal({ project, onClose, onSuccess, t }) {
@@ -355,6 +355,7 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
             {field("Milestone",    <Input t={t} value={form.phase}       onChange={set("phase")}       placeholder="Implementation" />, true)}
             {field("Due Date",     <Input t={t} type="date" value={form.due_date} onChange={set("due_date")} />, true)}
             {field("Manager",      <Input t={t} value={form.manager}     onChange={set("manager")}     placeholder="Jane Smith" />, true)}
+            {field("Manager Email", <Input t={t} type="email" value={form.manager_email || ""} onChange={set("manager_email")} placeholder="manager@example.com" />, true)}
             {field("Budget ($)",   <Input t={t} type="number" value={form.budget} onChange={set("budget")} placeholder="5000" />, true)}
             {field("Progress (%)", <Input t={t} type="number" value={form.progress} onChange={set("progress")} placeholder="0" />, true)}
             {field("Status",
