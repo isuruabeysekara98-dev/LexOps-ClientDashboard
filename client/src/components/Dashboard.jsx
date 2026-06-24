@@ -1026,9 +1026,14 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
   }
 
   const loadTickets=useCallback(async()=>{
-    const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
-    if(data) setTickets(data);
-    setLoading(false);
+    try {
+      const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
+      if(data) setTickets(data);
+    } catch(e) {
+      console.error("[SupportTab] loadTickets error:",e);
+    } finally {
+      setLoading(false);
+    }
   },[projectId]);
 
   useEffect(()=>{loadTickets();},[loadTickets]);
@@ -4334,13 +4339,18 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [{ data: d }, { data: tl }] = await Promise.all([
-      supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
-    ]);
-    if (d) setDocs(d);
-    if (tl) setTools(tl);
-    setLoading(false);
+    try {
+      const [{ data: d }, { data: tl }] = await Promise.all([
+        supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
+        supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
+      ]);
+      if (d) setDocs(d);
+      if (tl) setTools(tl);
+    } catch(e) {
+      console.error("[ClientResourcesTab] load error:", e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
