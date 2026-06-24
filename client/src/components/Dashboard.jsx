@@ -3541,7 +3541,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
       <div style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: `1px solid ${t.border}`, boxShadow: "0 1px 3px rgba(26,74,71,0.06)", marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Overall Engagement Progress</span>
-          <span style={{ fontSize: 13, color: t.textSub }}>{doneDeliverables} of {allDeliverables.length} deliverables complete</span>
+          <span style={{ fontSize: 13, color: t.textSub }}>{doneDeliverables} of {allDeliverables.length} actions complete</span>
         </div>
         <div style={{ height: 6, background: "#f0f4f3", borderRadius: 99, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${progress}%`, background: `linear-gradient(90deg, ${t.accent}, #3d8f88)`, borderRadius: 99, transition: "width 0.6s ease" }} />
