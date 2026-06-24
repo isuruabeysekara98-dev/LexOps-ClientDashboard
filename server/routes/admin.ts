@@ -22,9 +22,18 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "Unauthorized" }); return; }
   const token = auth.slice(7);
-  const { data: { user }, error } = await adminSupabase.auth.getUser(token);
-  if (error || !user) { res.status(401).json({ message: "Unauthorized" }); return; }
-  next();
+  try {
+    const { data: { user }, error } = await Promise.race([
+      adminSupabase.auth.getUser(token),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_timeout")), 5000)),
+    ]);
+    if (error || !user) { res.status(401).json({ message: "Unauthorized" }); return; }
+    next();
+  } catch (e: any) {
+    const msg = e?.message === "auth_timeout" ? "Auth timeout — please retry" : "Unauthorized";
+    const status = e?.message === "auth_timeout" ? 503 : 401;
+    res.status(status).json({ message: msg }); return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -38,10 +47,18 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   }
 
   const token = auth.slice(7);
-  const { data: { user }, error } = await adminSupabase.auth.getUser(token);
-  if (error || !user) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
+  let user: any;
+  try {
+    const { data, error } = await Promise.race([
+      adminSupabase.auth.getUser(token),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_timeout")), 5000)),
+    ]);
+    if (error || !data?.user) { res.status(401).json({ message: "Unauthorized" }); return; }
+    user = data.user;
+  } catch (e: any) {
+    const msg = e?.message === "auth_timeout" ? "Auth timeout — please retry" : "Unauthorized";
+    const status = e?.message === "auth_timeout" ? 503 : 401;
+    res.status(status).json({ message: msg }); return;
   }
 
   const { data: profile } = await adminSupabase

@@ -1399,8 +1399,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
 
   async function saveEngValue(){
     const v=Number(engInput)||0;
-    await dbWrite("projects","update",{total_engagement_value:v},{id:projectId});
-    setEngValue(v);setEditingEng(false);onRefresh?.();
+    try {
+      await dbWrite("projects","update",{total_engagement_value:v},{id:projectId});
+      setEngValue(v);setEditingEng(false);onRefresh?.();
+    } catch(err){console.error("[InvoicesTab] saveEngValue error:",err.message);}
   }
 
   function startEdit(inv){
@@ -2526,6 +2528,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [newTool, setNewTool] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [toolSaving, setToolSaving] = useState(false);
+  const [toolError, setToolError] = useState("");
 
   // ── Load live data + linked proposal ──
   useEffect(() => { loadAll(); }, [project.id]);
@@ -2727,6 +2730,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
+    setToolError("");
     try {
       await dbWrite("project_tools","insert",{
         project_id: project.id,
@@ -2741,6 +2745,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       await loadAll();
     } catch(err) {
       console.error("[ProjectSetupDrawer] addTool failed:", err.message);
+      setToolError(err.message || "Could not save tool");
     }
     setToolSaving(false);
   }
@@ -2749,6 +2754,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     e.preventDefault();
     if (!editToolForm.name.trim()) return;
     setToolSaving(true);
+    setToolError("");
     try {
       await dbWrite("project_tools", "update", {
         name: editToolForm.name.trim(),
@@ -2760,6 +2766,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
       await loadAll();
     } catch(err) {
       console.error("[ProjectSetupDrawer] updateTool failed:", err.message);
+      setToolError(err.message || "Could not save tool");
     }
     setToolSaving(false);
   }
@@ -3236,8 +3243,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                       {toolSaving ? "Saving…" : "Add Tool"}
                     </button>
                   </div>
+                  {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
                 </form>
               )}
+              {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
 
               {tools.length === 0 && !showAddTool && (
                 <div style={{ textAlign: "center", padding: "32px 24px", background: t.surface, borderRadius: 10, border: `1px solid ${t.border}` }}>
@@ -4342,10 +4351,12 @@ function ManagerEditor({ projectId, value, t, onSaved }) {
   const [saving, setSaving] = useState(false);
   async function save() {
     setSaving(true);
-    await dbWrite("projects","update",{ manager: draft.trim() || null },{id: projectId});
+    try {
+      await dbWrite("projects","update",{ manager: draft.trim() || null },{id: projectId});
+      setEditing(false);
+      onSaved?.(draft.trim());
+    } catch(err){console.error("[ManagerField] save error:",err.message);}
     setSaving(false);
-    setEditing(false);
-    onSaved?.(draft.trim());
   }
   if (editing) return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
@@ -4678,6 +4689,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const [editToolForm, setEditToolForm] = useState({ name: "", purpose: "", url: "", logo_emoji: "🔧" });
   const [newTool, setNewTool] = useState({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
   const [toolSaving, setToolSaving] = useState(false);
+  const [toolError, setToolError] = useState("");
 
   const load = useCallback(async () => {
     const [{ data:d }, tl, { data:ph }] = await Promise.all([
@@ -4806,6 +4818,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!newTool.name.trim()) return;
     setToolSaving(true);
+    setToolError("");
     const payload = { project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length };
     try {
       const res = await dbWrite("project_tools","insert", payload);
@@ -4816,6 +4829,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] addTool failed:", err.message);
+      setToolError(err.message || "Could not save tool");
     }
     setToolSaving(false);
   }
@@ -4824,6 +4838,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!editToolForm.name.trim()) return;
     setToolSaving(true);
+    setToolError("");
     const updates = { name: editToolForm.name.trim(), purpose: editToolForm.purpose.trim()||null, url: editToolForm.url.trim()||null, logo_emoji: editToolForm.logo_emoji||"🔧" };
     try {
       await dbWrite("project_tools", "update", updates, { id: editingToolId });
@@ -4832,6 +4847,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] updateTool failed:", err.message);
+      setToolError(err.message || "Could not save tool");
     }
     setToolSaving(false);
   }
@@ -4963,8 +4979,10 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
                 {toolSaving?"Saving…":"Add"}
               </button>
             </div>
+            {toolError&&<div style={{padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
           </form>
         )}
+        {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{toolError}</div>}
         {tools.length===0&&!showAddTool?(
           <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
             <div style={{ fontSize:24, marginBottom:8 }}>🔧</div>
