@@ -3460,6 +3460,10 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
     else unphased.push(tk);
   });
 
+  const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+  const overdueClient = tasks.filter(tk => tk.status !== "done" && tk.owner === "client" && tk.due_date && new Date(tk.due_date) < todayMidnight);
+  const overdueLexops = tasks.filter(tk => tk.status !== "done" && tk.owner === "lexops" && tk.due_date && new Date(tk.due_date) < todayMidnight);
+
   function getDueStatus(due_date) {
     if (!due_date) return null;
     const days = Math.ceil((new Date(due_date) - new Date()) / 86400000);
@@ -3552,6 +3556,56 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
           </div>
         )}
       </div>
+
+      {/* ── Overdue client actions ── */}
+      {overdueClient.length > 0 && (
+        <div style={{ background: "#fff8f6", border: "1.5px solid rgba(192,57,43,0.22)", borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#c0392b", fontFamily: "'Playfair Display', Georgia, serif" }}>Actions on your part that require immediate attention</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#c0392b", flexShrink: 0 }}>
+              {overdueClient.length} overdue
+            </span>
+          </div>
+          {overdueClient.map((task, i) => {
+            const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
+            return (
+              <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "1px solid rgba(192,57,43,0.1)" : "1px solid rgba(192,57,43,0.08)" }}>
+                <div onClick={() => markComplete(task)} style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: "2px solid rgba(192,57,43,0.4)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Mark complete" />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#1a1f1e" }}>{task.title}</div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#c0392b", flexShrink: 0 }}>
+                  {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Overdue LexOps actions ── */}
+      {overdueLexops.length > 0 && (
+        <div style={{ background: "#f8fbfb", border: `1.5px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>⏳</span>
+            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text, fontFamily: "'Playfair Display', Georgia, serif" }}>Pending actions from Lex Ops</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "#e8f5ef", color: "#1A6666", flexShrink: 0 }}>
+              {overdueLexops.length} delayed
+            </span>
+          </div>
+          {overdueLexops.map((task, i) => {
+            const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
+            return (
+              <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? `1px solid ${t.border}` : `1px solid rgba(197,212,212,0.5)` }}>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${t.border}`, background: "transparent" }} />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: t.text }}>{task.title}</div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#f0f4f3", color: "#6b7c7a", flexShrink: 0 }}>
+                  {daysLate === 0 ? "Due today" : `${daysLate}d delayed`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Phase sections */}
       {phases.length > 0
