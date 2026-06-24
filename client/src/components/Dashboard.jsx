@@ -186,7 +186,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
         <div style={{display:"flex",gap:mobile?12:20,alignItems:"center",position:"relative",flexShrink:0,flexWrap:"wrap"}}>
           {[
             {val:`${project.progress??0}%`, label:"Progress"},
-            {val:doneDel+"/"+deliverables.length, label:"Deliverables"},
+            {val:doneDel+"/"+deliverables.length, label:"Actions"},
             ...(daysLeft!==null?[{val:daysLeft<=0?"Past due":String(daysLeft), label:"Days Left"}]:[]),
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
@@ -3055,7 +3055,7 @@ function ClientStatusBanner({ project, phases, t }) {
       <div style={{ display: "flex", gap: 20, alignItems: "center", position: "relative", flexShrink: 0 }}>
         {[
           { val: `${project.progress ?? 0}%`, label: "Overall Progress" },
-          { val: `${doneDel}/${deliverables.length || 0}`, label: "Deliverables Done" },
+          { val: `${doneDel}/${deliverables.length || 0}`, label: "Actions Done" },
           { val: daysLeft !== null ? String(daysLeft) : "—", label: "Days Remaining" },
         ].map((s, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 20 }}>
