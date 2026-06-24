@@ -1039,30 +1039,42 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
     e.preventDefault();
     if(!form.title.trim()) return;
     setSaving(true);
-    await dbWrite("support_tickets","insert",{
-      project_id:projectId,title:form.title.trim(),
-      description:form.description.trim()||null,
-      priority:form.priority,category:form.category,
-      status:"open",created_by:isInternal?"admin":"client",
-    });
-    setForm(EMPTY_TICKET);setShowForm(false);
-    await loadTickets();setSaving(false);
+    try {
+      await dbWrite("support_tickets","insert",{
+        project_id:projectId,title:form.title.trim(),
+        description:form.description.trim()||null,
+        priority:form.priority,category:form.category,
+        status:"open",created_by:isInternal?"admin":"client",
+      });
+      setForm(EMPTY_TICKET);setShowForm(false);
+      setSaving(false);
+      loadTickets().catch(()=>{});
+    } catch(err) {
+      console.error("[SupportTab] createTicket error:",err.message);
+      setSaving(false);
+    }
   }
 
   async function moveTicket(id,newStatus){
     setMovingId(id);
-    await dbWrite("support_tickets","update",{status:newStatus,client_move_requested:null,updated_at:new Date().toISOString()},{id});
-    await loadTickets();setMovingId(null);
+    try {
+      await dbWrite("support_tickets","update",{status:newStatus,client_move_requested:null,updated_at:new Date().toISOString()},{id});
+    } catch(err) { console.error("[SupportTab] moveTicket error:",err.message); }
+    setMovingId(null);
+    loadTickets().catch(()=>{});
   }
 
   async function cancelRequest(id){
-    await dbWrite("support_tickets","update",{client_move_requested:null},{id});
-    await loadTickets();
+    try { await dbWrite("support_tickets","update",{client_move_requested:null},{id}); } catch(err) { console.error("[SupportTab] cancelRequest error:",err.message); }
+    loadTickets().catch(()=>{});
   }
 
   async function deleteTicket(id){
-    await dbWrite("support_tickets","delete",null,{id});
     setTickets(ts=>ts.filter(tk=>tk.id!==id));
+    try { await dbWrite("support_tickets","delete",null,{id}); } catch(err) {
+      console.error("[SupportTab] deleteTicket error:",err.message);
+      loadTickets().catch(()=>{});
+    }
   }
 
   async function updateTicket(e){
@@ -1078,13 +1090,13 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
         updated_at: new Date().toISOString()
       };
       await dbWrite("support_tickets", "update", payload, {id: editingTicketId});
-      await loadTickets();
       setEditingTicketId(null);
+      setUpdateSaving(false);
+      loadTickets().catch(()=>{});
     } catch(err) {
       console.error("[SupportTab] updateTicket failed:", err.message);
-      alert("Could not update ticket: " + err.message);
+      setUpdateSaving(false);
     }
-    setUpdateSaving(false);
   }
 
   const prioBar={high:"#c0392b",medium:"#d4881a",low:"#2d7a5a"};
