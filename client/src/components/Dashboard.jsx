@@ -1032,8 +1032,8 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
 
   const loadTickets=useCallback(async()=>{
     try {
-      const {data}=await supabase.from("support_tickets").select("*").eq("project_id",projectId).order("created_at",{ascending:false});
-      if(data) setTickets(data);
+      const result=await adminFetch(`/db-read?table=support_tickets&project_id=${projectId}&order_by=created_at&ascending=false`);
+      if(result.data) setTickets(result.data);
     } catch(e) {
       console.error("[SupportTab] loadTickets error:",e);
     } finally {
@@ -4345,12 +4345,12 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
 
   const load = useCallback(async () => {
     try {
-      const [{ data: d }, { data: tl }] = await Promise.all([
-        supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at", { ascending: false }),
-        supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
+      const [docsResult, toolsResult] = await Promise.all([
+        adminFetch(`/db-read?table=documents&project_id=${projectId}&order_by=uploaded_at&ascending=false`).catch(() => ({ data: [] })),
+        adminFetch(`/db-read?table=project_tools&project_id=${projectId}&order_by=sort_order`).catch(() => ({ data: [] })),
       ]);
-      if (d) setDocs(d);
-      if (tl) setTools(tl);
+      if (docsResult.data) setDocs(docsResult.data);
+      if (toolsResult.data) setTools(toolsResult.data);
     } catch(e) {
       console.error("[ClientResourcesTab] load error:", e);
     } finally {
@@ -4805,16 +4805,14 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const [toolError, setToolError] = useState("");
 
   const load = useCallback(async () => {
-    const [{ data:d }, tl, { data:ph }] = await Promise.all([
-      supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at",{ascending:false}),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r),
-      supabase.from("phases").select("id,name,sort_order").eq("project_id", projectId).order("sort_order"),
+    const [docsResult, toolsResult, phasesResult] = await Promise.all([
+      adminFetch(`/db-read?table=documents&project_id=${projectId}&order_by=uploaded_at&ascending=false`).catch(() => ({ data: [] })),
+      adminFetch(`/db-read?table=project_tools&project_id=${projectId}&order_by=sort_order`).catch(() => ({ data: [] })),
+      adminFetch(`/db-read?table=phases&project_id=${projectId}&order_by=sort_order`).catch(() => ({ data: [] })),
     ]);
-    if (d) setDocs(d);
-    if (ph) setProjectPhases(ph);
-    if (tl?.data) {
-      setTools(tl.data);
-    }
+    if (docsResult.data) setDocs(docsResult.data);
+    if (phasesResult.data) setProjectPhases(phasesResult.data);
+    if (toolsResult.data) setTools(toolsResult.data);
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
 

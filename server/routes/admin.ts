@@ -668,6 +668,34 @@ router.delete("/invoices/:id", requireAuth, async (req: Request, res: Response) 
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/db-read — generic service-role read proxy
+// Query params: table, project_id?, order_by?, ascending?
+// ---------------------------------------------------------------------------
+const ALLOWED_READ_TABLES = [
+  "support_tickets","project_tools","documents","tasks","phases","invoices",
+  "projects","project_members","profiles","proposals","flowchart_nodes",
+  "flowchart_arrows","flowchart_comments","flowchart_templates",
+];
+
+router.get("/db-read", requireAuth, async (req: Request, res: Response) => {
+  const { table, project_id, order_by, ascending } = req.query as Record<string, string>;
+  if (!ALLOWED_READ_TABLES.includes(table)) {
+    res.status(400).json({ message: `Table "${table}" not allowed for read` }); return;
+  }
+  try {
+    let q: any = (adminSupabase as any).from(table).select("*");
+    if (project_id) q = q.eq("project_id", project_id);
+    if (order_by) q = q.order(order_by, { ascending: ascending !== "false" });
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ data: data ?? [] });
+  } catch (err: any) {
+    console.error(`[admin/db-read] ${table}:`, err.message);
+    res.status(500).json({ message: err.message || "Read failed" });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/db — generic service-role database write proxy
 // Body: { table, operation: "insert"|"update"|"delete"|"upsert", data, match? }
 // ---------------------------------------------------------------------------
