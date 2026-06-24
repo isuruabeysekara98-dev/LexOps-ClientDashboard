@@ -208,7 +208,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
         {[
           {label:"Tasks Done",value:`${done}/${tasks.length}`,sub:`${tasks.length-done} remaining`,bar:tasks.length?Math.round(done/tasks.length*100):0},
-          {label:"Due Date",value:project.dueDate?project.dueDate.slice(5).replace("-"," / "):"TBD",sub:daysLeft!==null?(daysLeft>0?`${daysLeft} days remaining`:"Past due"):"No date set"},
+          {label:"Due Date",value:project.dueDate?project.dueDate.slice(5).replace("-"," / "):"TBD",sub:daysLeft!==null?(daysLeft>0?`${daysLeft} days remaining`:daysLeft===0?"Due today":`${Math.abs(daysLeft)} days past due`):"No date set"},
           {label:"Budget",value:`$${(project.budget??0).toLocaleString()}`,sub:`$${(project.spent??0).toLocaleString()} spent`,bar:budgetPct},
           {label:"Engagement Value",value:project.total_engagement_value?`$${Number(project.total_engagement_value).toLocaleString()}`:"—",sub:"Total contracted"},
         ].map((s,i)=>(
