@@ -4655,7 +4655,9 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
 function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefresh }) {
   const [docs, setDocs] = useState(initialDocuments || []);
   const [tools, setTools] = useState([]);
+  const [projectPhases, setProjectPhases] = useState([]);
   const [toolsError, setToolsError] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   const [phaseFilter, setPhaseFilter] = useState("all");
   const [uploading, setUploading] = useState(false);
   const [uploadPhase, setUploadPhase] = useState("");
@@ -4670,21 +4672,26 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   const [toolSaving, setToolSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data:d }, tl] = await Promise.all([
+    const [{ data:d }, tl, { data:ph }] = await Promise.all([
       supabase.from("documents").select("*").eq("project_id", projectId).order("uploaded_at",{ascending:false}),
-      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r.error ? { data: [] } : r),
+      supabase.from("project_tools").select("*").eq("project_id", projectId).order("sort_order").then(r => r),
+      supabase.from("phases").select("id,name,sort_order").eq("project_id", projectId).order("sort_order"),
     ]);
     if (d) setDocs(d);
-    if (tl?.data) {
+    if (ph) setProjectPhases(ph);
+    if (tl?.error) {
+      setToolsError(tl.error.message);
+    } else if (tl?.data) {
       setTools(tl.data);
       setToolsError(null);
-    } else if (tl?.error) {
-      setToolsError(tl.error.message);
     }
   }, [projectId]);
   useEffect(() => { load(); }, [load]);
 
-  const phases = [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
+  // Phase names: prefer project phases; fall back to names embedded in existing docs
+  const phaseNames = projectPhases.length > 0
+    ? projectPhases.map(p => p.name)
+    : [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
   const filteredDocs = phaseFilter === "all" ? docs : docs.filter(d => d.phase_name === phaseFilter);
 
   async function handleUpload(e) {
@@ -4692,14 +4699,25 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     if (!file) return;
     e.target.value = "";
     setUploading(true);
+    setUploadError(null);
     const storagePath = `${projectId}/${Date.now()}_${file.name}`;
     const { error:upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert:true });
-    if (upErr) { setUploading(false); return; }
+    if (upErr) {
+      setUploadError(`Upload failed: ${upErr.message}`);
+      setUploading(false);
+      return;
+    }
     const { data:{ publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
-    await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
-    await load();
+    try {
+      await dbWrite("documents","insert",{ project_id:projectId, name:file.name, file_type:ext, file_size:file.size, file_url:publicUrl, storage_path:storagePath, uploaded_at:new Date().toISOString(), phase_name:uploadPhase||null });
+    } catch(err) {
+      setUploadError(`Could not save document record: ${err.message}`);
+      setUploading(false);
+      return;
+    }
     setUploading(false);
+    load(); // fire-and-forget
     onRefresh?.();
   }
 
@@ -4716,13 +4734,17 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
     e.preventDefault();
     if (!editDocForm.name.trim()) return;
     setDocSaving(true);
-    await dbWrite("documents", "update", {
-      name: editDocForm.name.trim(),
-      phase_name: editDocForm.phase_name || null
-    }, { id: editingDocId });
+    try {
+      await dbWrite("documents", "update", {
+        name: editDocForm.name.trim(),
+        phase_name: editDocForm.phase_name || null
+      }, { id: editingDocId });
+    } catch(err) {
+      console.error("[InternalResourcesTab] updateDoc failed:", err.message);
+    }
     setEditingDocId(null);
     setDocSaving(false);
-    await load();
+    load(); // fire-and-forget
     onRefresh?.();
   }
 
@@ -4735,7 +4757,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       await dbWrite("project_tools","insert",{ project_id:projectId, name:newTool.name.trim(), purpose:newTool.purpose.trim()||null, url:newTool.url.trim()||null, logo_emoji:newTool.logo_emoji||"🔧", sort_order:tools.length });
       setNewTool({ name:"", purpose:"", url:"", logo_emoji:"🔧" });
       setShowAddTool(false);
-      await load();
+      load(); // fire-and-forget
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] addTool failed:", err.message);
@@ -4757,7 +4779,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         logo_emoji: editToolForm.logo_emoji || "🔧"
       }, { id: editingToolId });
       setEditingToolId(null);
-      await load();
+      load(); // fire-and-forget
       onRefresh?.();
     } catch(err) {
       console.error("[InternalResourcesTab] updateTool failed:", err.message);
@@ -4795,16 +4817,17 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
             <input type="file" style={{ display:"none" }} onChange={handleUpload} disabled={uploading}/>
           </label>
         </div>
+        {uploadError&&<div style={{marginBottom:8,padding:"7px 12px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#c0392b"}}>{uploadError}</div>}
         <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap", alignItems:"center" }}>
           <select value={uploadPhase} onChange={e=>setUploadPhase(e.target.value)}
             style={{ background:"#fff", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
             <option value="">Tag with milestone (optional)</option>
-            {phases.map(ph=><option key={ph} value={ph}>{ph}</option>)}
+            {phaseNames.map(ph=><option key={ph} value={ph}>{ph}</option>)}
           </select>
         </div>
-        {phases.length>0&&(
+        {phaseNames.length>0&&(
           <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
-            {["all",...phases].map(ph=>(
+            {["all",...phaseNames].map(ph=>(
               <button key={ph} onClick={()=>setPhaseFilter(ph)} style={{ padding:"4px 12px", borderRadius:99, fontSize:11, fontWeight:500, background:phaseFilter===ph?"#e8f2f1":t.surface, color:phaseFilter===ph?t.accent:t.textSub, border:`1.5px solid ${phaseFilter===ph?"rgba(26,102,102,0.25)":"transparent"}`, cursor:"pointer", fontFamily:"inherit" }}>
                 {ph==="all"?"All":ph}
               </button>
@@ -4834,7 +4857,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
                   <select value={editDocForm.phase_name || ""} onChange={e=>setEditDocForm(f=>({...f,phase_name:e.target.value}))}
                     style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 8px", fontSize:11, color:t.textSub, fontFamily:"inherit" }}>
                     <option value="">No milestone</option>
-                    {phases.map(ph=><option key={ph} value={ph}>{ph}</option>)}
+                    {phaseNames.map(ph=><option key={ph} value={ph}>{ph}</option>)}
                   </select>
                   <div style={{ display:"flex", gap:6 }}>
                     <button type="button" onClick={()=>setEditingDocId(null)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, color:t.textSub, cursor:"pointer" }}>Cancel</button>
@@ -4872,32 +4895,34 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         </div>
 
         {toolsError && (
-          <div style={{ background:"#fef6e8", border:"1.5px solid rgba(212,136,26,0.3)", borderRadius:10, padding:14, marginBottom:16 }}>
-            <div style={{ color:"#d4881a", fontSize:13, fontWeight:700, marginBottom:4 }}>⚠️ Table Missing or Access Error</div>
-            <div style={{ color:t.text, fontSize:12, lineHeight:1.5, marginBottom:10 }}>The <code>project_tools</code> table may be missing from Supabase. Please run the following SQL in your Supabase SQL Editor:</div>
-            <pre style={{ background:"#fff", border:`1px solid ${t.border}`, padding:10, fontSize:11, borderRadius:6, overflowX:"auto", maxHeight:120 }}>{`CREATE TABLE IF NOT EXISTS project_tools (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id   uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
-  name         text NOT NULL,
-  purpose      text,
-  url          text,
-  logo_emoji   text DEFAULT '🔧',
-  sort_order   int  DEFAULT 0,
-  created_at   timestamptz DEFAULT now()
+          <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"14px 18px", marginBottom:16, display:"flex", gap:14, alignItems:"flex-start" }}>
+            <span style={{ fontSize:18, lineHeight:1, flexShrink:0 }}>⚙️</span>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:4 }}>One-time database setup needed for Tools</div>
+              <div style={{ fontSize:12, color:"#7a5f00", marginBottom:8 }}>Run this SQL in <strong>Supabase → SQL Editor → New query</strong>, then refresh:</div>
+              <div style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+                <pre style={{ background:"rgba(0,0,0,0.06)", border:"none", borderRadius:6, padding:"8px 12px", fontSize:11, flex:1, fontFamily:"monospace", color:"#3a3000", overflowX:"auto", margin:0, whiteSpace:"pre-wrap" }}>{`-- Run supabase_resources_tools_setup.sql
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;
+
+CREATE TABLE IF NOT EXISTS project_tools (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  name text NOT NULL, purpose text, url text,
+  logo_emoji text DEFAULT '🔧', sort_order int DEFAULT 0,
+  created_at timestamptz DEFAULT now()
 );
 ALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('lexops_admin','lexops_member'))
+  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN ('lexops_admin','lexops_member'))
 );
 CREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM profiles pr
-    JOIN projects p ON p.id = project_id
-    WHERE pr.id = auth.uid()
-      AND (pr.role IN ('lexops_admin','lexops_member')
-           OR p.client_id = (SELECT client_id FROM profiles WHERE id = auth.uid()))
-  )
+  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()
+    AND (pr.role IN ('lexops_admin','lexops_member') OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))
 );`}</pre>
+                <button onClick={()=>navigator.clipboard.writeText(`ALTER TABLE documents ADD COLUMN IF NOT EXISTS phase_name text;\n\nCREATE TABLE IF NOT EXISTS project_tools (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  project_id uuid REFERENCES projects(id) ON DELETE CASCADE NOT NULL,\n  name text NOT NULL, purpose text, url text,\n  logo_emoji text DEFAULT \u2019\uD83D\uDD27\u2019, sort_order int DEFAULT 0,\n  created_at timestamptz DEFAULT now()\n);\nALTER TABLE project_tools ENABLE ROW LEVEL SECURITY;\nCREATE POLICY "lexops_manage_tools" ON project_tools FOR ALL USING (\n  EXISTS (SELECT 1 FROM profiles WHERE id=auth.uid() AND role IN (\u2019lexops_admin\u2019,\u2019lexops_member\u2019))\n);\nCREATE POLICY "clients_read_tools" ON project_tools FOR SELECT USING (\n  EXISTS (SELECT 1 FROM profiles pr JOIN projects p ON p.id=project_id WHERE pr.id=auth.uid()\n    AND (pr.role IN (\u2019lexops_admin\u2019,\u2019lexops_member\u2019) OR p.client_id=(SELECT client_id FROM profiles WHERE id=auth.uid())))\n);`).catch(()=>{})}
+                  style={{ flexShrink:0, background:"#f5c542", border:"none", borderRadius:6, padding:"6px 12px", fontSize:11, fontWeight:600, cursor:"pointer", color:"#3a3000", fontFamily:"inherit", alignSelf:"flex-start" }}>Copy SQL</button>
+              </div>
+            </div>
           </div>
         )}
 
