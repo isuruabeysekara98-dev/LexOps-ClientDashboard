@@ -75,9 +75,11 @@ async function fetchProjectData(projectId) {
     supabase.from("document_requests").select("*").eq("project_id",projectId).order("requested_at",{ascending:false}),
   ]);
   console.log("[fetchProjectData] phases query result:",{projectId,phasesData:phases.data,phasesError:phases.error,taskCount:(tasks.data||[]).length,taskPhaseIds:[...new Set((tasks.data||[]).map(t=>t.phase_id))]});
+  const rawTasks = tasks.data || [];
+  const rawPhases = phases.data || [];
   return {
-    phases:    phases.data     || [],
-    tasks:     tasks.data      || [],
+    phases:    computePhaseStatuses(rawPhases, rawTasks),
+    tasks:     rawTasks,
     documents: documents.data  || [],
     invoices:  invoices.data   || [],
     software:  software.data   || [],
@@ -318,6 +320,26 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
 const toNull=v=>v===""?null:v;
 
 const TASK_STATUSES=[["todo","To Do"],["in-progress","In Progress"],["done","Done"]];
+
+// Derive phase statuses from tasks — never rely solely on the stored DB value.
+// Rules: if all tasks in a phase are done → complete; first non-complete → active; rest → pending.
+// Phases with zero tasks keep their stored status so admin overrides are respected.
+function computePhaseStatuses(phases, tasks) {
+  const hasTasks = {};
+  const allDone = {};
+  for (const t of (tasks || [])) {
+    if (!t.phase_id) continue;
+    if (!hasTasks[t.phase_id]) { hasTasks[t.phase_id] = true; allDone[t.phase_id] = true; }
+    if (t.status !== "done") allDone[t.phase_id] = false;
+  }
+  let activeAssigned = false;
+  return (phases || []).map(ph => {
+    if (!hasTasks[ph.id]) return ph;                     // no tasks → keep stored status
+    if (allDone[ph.id]) return { ...ph, status: "complete", progress: 100 };
+    if (!activeAssigned) { activeAssigned = true; return { ...ph, status: "active" }; }
+    return { ...ph, status: "pending" };
+  });
+}
 
 async function autoCompletePhaseIfDone(projectId, phaseId) {
   if (!phaseId) return;
@@ -3429,7 +3451,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
       supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
-    if (pd) setPhases(pd);
+    if (pd) setPhases(computePhaseStatuses(pd, td));
   }, [projectId]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -3962,7 +3984,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
       supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
-    if (pd) setPhases(pd);
+    if (pd) setPhases(computePhaseStatuses(pd, td));
   }, [projectId]);
   useEffect(() => { loadData(); }, [loadData]);
 
