@@ -3580,7 +3580,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
 
   const loadData = useCallback(async () => {
     const [{ data: td }, { data: pd }] = await Promise.all([
-      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).order("id"),
+      supabase.from("tasks").select("*").eq("project_id", projectId).eq("is_internal", false).eq("owner", "client").order("id"),
       supabase.from("phases").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (td) setTasks(td);
@@ -4769,7 +4769,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
                 : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
               )}
-              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
+              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal && tk.owner==="client")} initialPhases={selected.phases} t={t} mobile={mobile}/>}
               {tab==="actions"     && !isClientView && <InternalActionsTab  projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
               {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
               {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
