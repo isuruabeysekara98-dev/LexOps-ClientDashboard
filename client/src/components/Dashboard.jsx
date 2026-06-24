@@ -3660,7 +3660,7 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
         {docs.slice(0, 6).map(doc => {
           const ext = (doc.file_type || "").toUpperCase();
           return (
-            <a key={doc.id} href={doc.file_url || "#"} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+            <a key={doc.id} href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
               <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, transition: "border-color 0.15s, box-shadow 0.15s", boxShadow: t.shadow }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: `${extColor[ext] || t.accent}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
                   {extIcon[ext] || "📁"}
@@ -3671,7 +3671,7 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
                     {ext}{doc.uploaded_at ? ` · ${new Date(doc.uploaded_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
                   </div>
                 </div>
-                <span style={{ fontSize: 12, color: t.textSub, flexShrink: 0 }}>↓</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: t.accent, flexShrink: 0 }}>↓ Download</span>
               </div>
             </a>
           );
@@ -4217,8 +4217,8 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
                       <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{fmtBytes(doc.file_size)} · {fmtDate(doc.uploaded_at)}</div>
                     </div>
                   </div>
-                  <a href={doc.file_url} target="_blank" rel="noreferrer" download={doc.name} style={{ background: "transparent", color: t.accentLight, border: `1px solid ${t.border}`, borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 500, textDecoration: "none", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                    Download
+                  <a href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                    ↓ Download
                   </a>
                 </div>
                 {i < docs.length - 1 && <Line t={t} />}
@@ -4289,7 +4289,7 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
           const ext = doc.file_type || doc.name?.split(".").pop()?.toUpperCase() || "FILE";
           const icon = docIcon(ext);
           return (
-            <a key={doc.id} href={doc.file_url} target="_blank" rel="noreferrer" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, cursor: "pointer", boxShadow: "0 1px 3px rgba(26,74,71,0.06)", transition: "all 0.15s" }}>
+            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, background: icon.bg }}>
                 {icon.emoji}
               </div>
@@ -4303,7 +4303,11 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
               {doc.phase_name && (
                 <span style={{ fontSize: 10, padding: "2px 8px", background: "#e8f2f1", color: t.accent, borderRadius: 99, fontWeight: 500, flexShrink: 0 }}>{doc.phase_name}</span>
               )}
-            </a>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${t.border}`, color: t.textSub, textDecoration: "none", fontWeight: 500 }}>View</a>
+                <a href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", textDecoration: "none", fontWeight: 600 }}>↓ Download</a>
+              </div>
+            </div>
           );
         })}
       </div>
