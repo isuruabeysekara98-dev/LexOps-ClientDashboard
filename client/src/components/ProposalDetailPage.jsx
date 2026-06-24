@@ -583,10 +583,18 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const stageCount = proposal.workflows?.reduce((acc, wf) => acc + (wf.stages?.length || 0), 0) || 0;
   const workflowsComplete = hasWorkflows && proposal.workflows.every(wf => wf.has_proceeded);
 
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-    fontSize: 13, borderRadius: 8, padding: "10px 24px", transition: "all 0.2s",
+    fontSize: 13, borderRadius: 8, padding: "8px 12px", transition: "all 0.2s",
+    whiteSpace: "nowrap",
   };
 
   const subData = selectedSub?.data || selectedSub?.response_data || {};
@@ -597,26 +605,30 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
 
       <nav style={{
         background: t.nav, borderBottom: `1px solid ${t.border}`,
-        padding: "0 28px", height: 52,
+        padding: mobile ? "0 12px" : "0 28px", height: 52,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         position: "sticky", top: 0, zIndex: 20,
       }}>
         <Logo />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <button
-            onClick={() => navigate("/active-projects")}
-            onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
-          >
-            ⚡ Active Projects
-          </button>
-          <button
-            onClick={() => navigate("/admin/proposals")}
-            onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
-          >
-            📋 Proposals
-          </button>
+          {!mobile && (
+            <button
+              onClick={() => navigate("/active-projects")}
+              onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
+            >
+              ⚡ Active Projects
+            </button>
+          )}
+          {!mobile && (
+            <button
+              onClick={() => navigate("/admin/proposals")}
+              onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
+            >
+              📋 Proposals
+            </button>
+          )}
           <button
             onClick={() => navigate("/admin/proposals/new")}
             onMouseEnter={() => setHovBtn("new")} onMouseLeave={() => setHovBtn(null)}
@@ -625,8 +637,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               background: hovBtn === "new" ? t.accentHover : t.accent,
               color: "#fff",
               fontWeight: 500,
-              fontSize: 16,
-              padding: "10px 24px",
+              padding: "8px 14px",
             }}
           >
             + New proposal
@@ -637,7 +648,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             onMouseEnter={() => setHovBtn("logout")} onMouseLeave={() => setHovBtn(null)}
             style={{ ...btnBase, color: t.textSub, background: hovBtn === "logout" ? "#F0EDE6" : "transparent" }}
           >
-            Log out
+            {mobile ? "→" : "Log out"}
           </button>
         </div>
       </nav>

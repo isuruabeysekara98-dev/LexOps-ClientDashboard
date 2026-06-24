@@ -271,10 +271,18 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
     </div>
   );
 
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",
     fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-    fontSize: 13, borderRadius: 8, padding: "10px 24px", transition: "all 0.2s",
+    fontSize: 13, borderRadius: 8, padding: "8px 12px", transition: "all 0.2s",
+    whiteSpace: "nowrap",
   };
 
   return (
@@ -287,26 +295,30 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
       {/* Nav */}
       <nav style={{
         background: t.nav, borderBottom: `1px solid ${t.border}`,
-        padding: "0 28px", height: 52,
+        padding: mobile ? "0 12px" : "0 28px", height: 52,
         display: "flex", alignItems: "center", justifyContent: "space-between",
         position: "sticky", top: 0, zIndex: 20,
       }}>
         <Logo />
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <button
-            onClick={() => navigate("/active-projects")}
-            onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
-          >
-            ⚡ Active Projects
-          </button>
-          <button
-            onClick={() => navigate("/admin/proposals")}
-            onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
-          >
-            📋 Proposals
-          </button>
+          {!mobile && (
+            <button
+              onClick={() => navigate("/active-projects")}
+              onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
+            >
+              ⚡ Active Projects
+            </button>
+          )}
+          {!mobile && (
+            <button
+              onClick={() => navigate("/admin/proposals")}
+              onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
+            >
+              📋 Proposals
+            </button>
+          )}
           <div style={{ width: 1, height: 18, background: t.border, margin: "0 6px" }} />
           {onLogout && (
             <button
@@ -314,7 +326,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
               onMouseEnter={() => setHovBtn("logout")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.textSub, background: hovBtn === "logout" ? "#F0EDE6" : "transparent" }}
             >
-              Log out
+              {mobile ? "→" : "Log out"}
             </button>
           )}
         </div>
