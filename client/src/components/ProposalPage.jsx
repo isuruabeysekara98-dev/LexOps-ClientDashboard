@@ -190,7 +190,7 @@ function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
       <div style={{ display: "flex", alignItems: "flex-start", position: "relative", minWidth: stages.length * 152 }}>
         {/* Connecting line */}
         {stages.length > 1 && (
-          <div style={{ position: "absolute", top: half, left: half + 8, right: half + 8, height: 2, background: "#0B3B3B", zIndex: 0 }} />
+          <div style={{ position: "absolute", top: half, left: half + 8, right: half + 8, height: 2, background: "#232A34", zIndex: 0 }} />
         )}
         {stages.map((stage, i) => {
           const isSelected = selectedIndex === i;
@@ -199,11 +199,11 @@ function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
               {/* Circle */}
               <div style={{
                 width: circleSize, height: circleSize, borderRadius: "50%",
-                background: isSelected ? t.accent : "#0B3B3B",
+                background: isSelected ? t.accent : "#232A34",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 24, position: "relative", flexShrink: 0,
-                border: isSelected ? `3px solid ${t.accent}` : `3px solid #0B3B3B`,
-                boxShadow: isSelected ? `0 0 0 5px rgba(11,79,79,0.18), ${t.shadowMd}` : `0 2px 8px rgba(0,0,0,0.18)`,
+                border: isSelected ? `3px solid ${t.accent}` : `3px solid #232A34`,
+                boxShadow: isSelected ? `0 0 0 5px rgba(55,89,113,0.18), ${t.shadowMd}` : `0 2px 8px rgba(0,0,0,0.18)`,
                 transition: "all 0.2s ease",
                 userSelect: "none",
               }}>
@@ -212,10 +212,10 @@ function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
                 <div style={{
                   position: "absolute", top: -3, right: -3,
                   width: 20, height: 20, borderRadius: "50%",
-                  background: "#fff", color: "#0B3B3B",
+                  background: "#fff", color: "#232A34",
                   fontSize: 9, fontWeight: 800,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid rgba(11,59,59,0.15)`,
+                  border: `1.5px solid rgba(35,42,52,0.15)`,
                   boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
                 }}>
                   {i + 1}
@@ -267,7 +267,7 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 48px" }}>
           {/* Description + stats */}
-          <div style={{ background: "rgba(11,79,79,0.05)", border: `1px solid rgba(11,79,79,0.12)`, borderRadius: 12, padding: "18px 20px", marginBottom: 24 }}>
+          <div style={{ background: "rgba(55,89,113,0.05)", border: `1px solid rgba(55,89,113,0.12)`, borderRadius: 12, padding: "18px 20px", marginBottom: 24 }}>
             {stage.description ? (
               <p style={{ fontSize: 14, color: t.textSub, lineHeight: 1.75, margin: stats.length > 0 ? "0 0 18px" : 0 }}>{stage.description}</p>
             ) : (
@@ -590,8 +590,8 @@ function TryMatterWizard({ wf, token, proposal }) {
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "flex-start", gap: 14 }}>
         <div style={{ width: 32, height: 32, borderRadius: 7, background: t.amber, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, flexShrink: 0, letterSpacing: "-0.05em" }}>B</div>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Try your own matter</div>
-          <div style={{ fontSize: 12, color: t.textSub, marginTop: 2, lineHeight: 1.5 }}>Run a matter through the workflow — then review each stage and submit your feedback</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Try your own case</div>
+          <div style={{ fontSize: 12, color: t.textSub, marginTop: 2, lineHeight: 1.5 }}>Run a case through the workflow — then review each stage and submit your feedback</div>
         </div>
         {runCount > 0 && (
           <div style={{ marginLeft: "auto", fontSize: 11, color: t.textMeta, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 20, padding: "3px 10px", flexShrink: 0, whiteSpace: "nowrap" }}>
@@ -602,7 +602,7 @@ function TryMatterWizard({ wf, token, proposal }) {
 
       {/* Step tabs */}
       <div style={{ display: "flex", padding: "0 22px", borderBottom: `1px solid ${t.border}`, gap: 24 }}>
-        <button style={tabStyle(step === 1, true)} onClick={() => setStep(1)}>Step 1 — Matter details</button>
+        <button style={tabStyle(step === 1, true)} onClick={() => setStep(1)}>Step 1 — Case details</button>
         <button style={tabStyle(step === 2, true)} onClick={() => setStep(2)}>Step 2 — Documents</button>
         <button style={tabStyle(step === 3, step >= 2)} onClick={() => { if (step >= 2) setStep(3); }}>Step 3 — Results &amp; feedback</button>
       </div>
@@ -925,7 +925,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
     <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, overflow: "hidden", boxShadow: t.shadow, animation: `fadeUp ${0.3 + index * 0.07}s ease-out` }}>
       {/* Workflow header */}
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 11, flexShrink: 0, background: "#0B3B3B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 11, flexShrink: 0, background: "#375971", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
           {wf.emoji || "⚙️"}
         </div>
         <div style={{ flex: 1 }}>

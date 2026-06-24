@@ -3,10 +3,10 @@ import { supabase } from "@/lib/supabase.js";
 import ProposalPage from "./ProposalPage.jsx";
 
 const ta = {
-  accent: "#0B4F4F",
-  border: "#E5E3DC",
-  text: "#1A1A18",
-  textSub: "#6B6B5F",
+  accent: "#375971",
+  border: "#E8E8E8",
+  text: "#232A34",
+  textSub: "#616568",
 };
 
 export default function ProposalPreviewPage({ id, navigate }) {
