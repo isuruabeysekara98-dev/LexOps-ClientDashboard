@@ -44,7 +44,7 @@ const heading = (text: string) =>
 const subText = (text: string) =>
   `<p style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">${text}</p>`;
 
-async function send(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+export async function send(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
   if (!resend) {
     const msg = `RESEND_API_KEY not set — cannot send "${subject}" to ${to}`;
     console.warn(`[email] ${msg}`);

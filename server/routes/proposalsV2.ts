@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
-import { sendV2ProposalInvite } from "../email";
+import { sendV2ProposalInvite, send as sendEmail } from "../email";
 import Anthropic from "@anthropic-ai/sdk";
 import multer from "multer";
 
@@ -1348,12 +1348,10 @@ router.post("/:id/accept", async (req, res) => {
   const clientName = proposal.client_contact_name || proposal.client_name || proposal.client_email || "the client";
 
   try {
-    const { send } = await import("../email.js");
-    await send({
-      to: "isuru@lex-ops.io",
-      subject: `✅ Proposal accepted: ${proposal.name || "Untitled"}`,
-      html: `
-<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F3EF;font-family:'Inter',Arial,sans-serif;">
+    await sendEmail(
+      "isuru@lex-ops.io",
+      `✅ Proposal accepted: ${proposal.name || "Untitled"}`,
+      `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#F4F3EF;font-family:'Inter',Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F3EF;padding:40px 20px;">
 <tr><td align="center">
 <table width="580" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:14px;overflow:hidden;border:1px solid #E5E3DC;">
@@ -1369,8 +1367,8 @@ router.post("/:id/accept", async (req, res) => {
   <a href="${adminLink}" style="background:#0B4F4F;color:#FFFFFF;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:14px;font-weight:600;display:inline-block;">View Proposal →</a>
 </td></tr>
 </table></td></tr></table>
-</body></html>`,
-    });
+</body></html>`
+    );
   } catch (e) {
     console.warn("[accept] email failed:", (e as any).message);
   }

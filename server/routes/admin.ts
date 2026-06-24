@@ -263,7 +263,7 @@ router.delete("/cancel-invite", requireAdmin, async (req: Request, res: Response
 // DELETE /api/admin/remove-user/:userId
 // ---------------------------------------------------------------------------
 router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Response) => {
-  const { userId } = req.params;
+  const userId = String(req.params.userId);
 
   const { error } = await adminSupabase.auth.admin.deleteUser(userId);
   if (error) {
