@@ -209,8 +209,8 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
         {[
           {label:"Tasks Done",value:`${done}/${tasks.length}`,sub:`${tasks.length-done} remaining`,bar:tasks.length?Math.round(done/tasks.length*100):0},
           {label:"Due Date",value:project.dueDate?project.dueDate.slice(5).replace("-"," / "):"TBD",sub:daysLeft!==null?(daysLeft>0?`${daysLeft} days remaining`:"Past due"):"No date set"},
-          {label:"Budget",value:`£${(project.budget??0).toLocaleString()}`,sub:`£${(project.spent??0).toLocaleString()} spent`,bar:budgetPct},
-          {label:"Engagement Value",value:project.total_engagement_value?`£${Number(project.total_engagement_value).toLocaleString()}`:"—",sub:"Total contracted"},
+          {label:"Budget",value:`$${(project.budget??0).toLocaleString()}`,sub:`$${(project.spent??0).toLocaleString()} spent`,bar:budgetPct},
+          {label:"Engagement Value",value:project.total_engagement_value?`$${Number(project.total_engagement_value).toLocaleString()}`:"—",sub:"Total contracted"},
         ].map((s,i)=>(
           <div key={i} style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"16px 18px",boxShadow:t.shadow}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>{s.label}</div>
@@ -1471,12 +1471,12 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
         <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Engagement Value</div>
-            <div style={{color:t.text,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{engValue?`£${engValue.toLocaleString()}`:"—"}</div>
+            <div style={{color:t.text,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{engValue?`$${engValue.toLocaleString()}`:"—"}</div>
             <div style={{color:t.textSub,fontSize:11}}>Total contracted</div>
           </div>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Invoiced to Date</div>
-            <div style={{color:t.accentLight,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:6}}>{`£${(total||0).toLocaleString()}`}</div>
+            <div style={{color:t.accentLight,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:6}}>{`$${(total||0).toLocaleString()}`}</div>
             {engValue>0&&<div style={{height:4,background:"#f0f4f3",borderRadius:99,overflow:"hidden",marginBottom:4}}>
               <div style={{height:"100%",width:`${Math.min(100,Math.round(total/engValue*100))}%`,background:`linear-gradient(90deg,${t.accent},#3d8f88)`,borderRadius:99,transition:"width 0.6s ease"}}/>
             </div>}
@@ -1484,7 +1484,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
           </div>
           <div style={{background:"#fff",border:`1px solid ${t.border}`,borderRadius:12,padding:"20px 22px",boxShadow:"0 1px 3px rgba(26,74,71,0.06)"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:8}}>Remaining</div>
-            <div style={{color:engValue&&(engValue-total)>0?t.amber:t.green,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{`£${Math.max(0,engValue-total).toLocaleString()}`}</div>
+            <div style={{color:engValue&&(engValue-total)>0?t.amber:t.green,fontSize:28,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,letterSpacing:"-0.03em",marginBottom:2}}>{`$${Math.max(0,engValue-total).toLocaleString()}`}</div>
             <div style={{color:t.textSub,fontSize:11}}>{engValue?"of contract":"pending value"}</div>
           </div>
         </div>
@@ -1494,10 +1494,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
     {isInternal&&(
       <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
         {[
-          {label:"Engagement Value",value:engValue?`£${engValue.toLocaleString()}`:"Set value →",color:t.text,eng:true},
-          {label:"Invoiced",value:`£${(total||0).toLocaleString()}`,color:t.text},
-          {label:"Collected",value:`£${(paid||0).toLocaleString()}`,color:t.green},
-          {label:"Outstanding",value:`£${((total-paid)||0).toLocaleString()}`,color:t.amber},
+          {label:"Engagement Value",value:engValue?`$${engValue.toLocaleString()}`:"Set value →",color:t.text,eng:true},
+          {label:"Invoiced",value:`$${(total||0).toLocaleString()}`,color:t.text},
+          {label:"Collected",value:`$${(paid||0).toLocaleString()}`,color:t.green},
+          {label:"Outstanding",value:`$${((total-paid)||0).toLocaleString()}`,color:t.amber},
         ].map((s,i)=>(
           <div key={i} style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:12,padding:"18px 20px",boxShadow:t.shadow,position:"relative"}}>
             <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",marginBottom:10}}>{s.label}</div>
@@ -1529,7 +1529,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
           <form onSubmit={addInvoice} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
             {inlineInput(newForm.invoice_number,e=>setNewForm(f=>({...f,invoice_number:e.target.value})),"Invoice # *",{flex:"0 1 110px"})}
             {inlineInput(newForm.description,e=>setNewForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 160px"})}
-            <input type="number" min="0" step="0.01" value={newForm.amount} onChange={e=>setNewForm(f=>({...f,amount:e.target.value}))} placeholder="Amount £" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 100px"}}/>
+            <input type="number" min="0" step="0.01" value={newForm.amount} onChange={e=>setNewForm(f=>({...f,amount:e.target.value}))} placeholder="Amount $" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 100px"}}/>
             {inlineInput(newForm.phase_name,e=>setNewForm(f=>({...f,phase_name:e.target.value})),"Milestone",{flex:"0 1 100px"})}
             <input type="date" value={newForm.due_date} onChange={e=>setNewForm(f=>({...f,due_date:e.target.value}))} style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 130px"}}/>
             <input ref={r=>{addFileRef.current=r;}} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)setAddFile(f);e.target.value="";}}/>
@@ -1561,7 +1561,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
               {isEditing?(
                 <form onSubmit={e=>saveEdit(e,inv.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"12px 18px",flexWrap:"wrap"}}>
                   {inlineInput(editForm.description,e=>setEditForm(f=>({...f,description:e.target.value})),"Description",{flex:"1 1 160px"})}
-                  <input type="number" min="0" step="0.01" value={editForm.amount} onChange={e=>setEditForm(f=>({...f,amount:e.target.value}))} placeholder="Amount £" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 90px"}}/>
+                  <input type="number" min="0" step="0.01" value={editForm.amount} onChange={e=>setEditForm(f=>({...f,amount:e.target.value}))} placeholder="Amount $" style={{background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"5px 9px",fontSize:12,color:t.text,outline:"none",fontFamily:"inherit",minWidth:0,flex:"0 1 90px"}}/>
                   {inlineSelect(editForm.status,e=>setEditForm(f=>({...f,status:e.target.value})))}
                   {inlineInput(editForm.due_date,e=>setEditForm(f=>({...f,due_date:e.target.value})),"Due date",{flex:"0 1 120px",type:"date"})}
                   <div style={{display:"flex",gap:6}}>
@@ -1578,10 +1578,10 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                       {label}
                       <div style={{color:t.textSub,fontSize:11,marginTop:2}}>{inv.invoice_number} · Due {inv.due_date||"—"}</div>
                     </div>
-                    {mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em",flexShrink:0}}>£{(inv.amount||0).toLocaleString()}</span>}
+                    {mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em",flexShrink:0}}>${(inv.amount||0).toLocaleString()}</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
-                    {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>£{(inv.amount||0).toLocaleString()}</span>}
+                    {!mobile&&<span style={{color:t.text,fontFamily:"'Playfair Display',Georgia,serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {inv.file_url&&(
                       <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
@@ -2877,8 +2877,8 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                   </select>
                 )}
                 {fld("Progress (%)", inp(det.progress, e => setDet(d => ({ ...d, progress: e.target.value })), "0", "number"))}
-                {fld("Budget (£)", inp(det.budget, e => setDet(d => ({ ...d, budget: e.target.value })), "0", "number"))}
-                {fld("Total Engagement Value (£)", inp(det.total_engagement_value, e => setDet(d => ({ ...d, total_engagement_value: e.target.value })), "0", "number"))}
+                {fld("Budget ($)", inp(det.budget, e => setDet(d => ({ ...d, budget: e.target.value })), "0", "number"))}
+                {fld("Total Engagement Value ($)", inp(det.total_engagement_value, e => setDet(d => ({ ...d, total_engagement_value: e.target.value })), "0", "number"))}
               </div>
 
               {fld("Internal Summary",
@@ -3151,7 +3151,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                         style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                     </div>
                     <div>
-                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Amount (£)</div>
+                      <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 5 }}>Amount ($)</div>
                       <input type="number" min="0" step="0.01" value={newInv.amount} onChange={e => setNewInv(f => ({ ...f, amount: e.target.value }))} placeholder="0.00"
                         style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                     </div>
@@ -3199,12 +3199,12 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                     {invoices.map(inv => (
                       <div key={inv.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "13px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ width: 36, height: 36, borderRadius: 8, background: t.surface, border: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <span style={{ fontSize: 14 }}>£</span>
+                          <span style={{ fontSize: 14 }}>$</span>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: t.text, fontSize: 13, fontWeight: 600 }}>{inv.invoice_number}</div>
                           <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>
-                            {inv.amount ? `£${Number(inv.amount).toLocaleString()}` : "—"}
+                            {inv.amount ? `$${Number(inv.amount).toLocaleString()}` : "—"}
                             {inv.description ? ` · ${inv.description}` : ""}
                             {inv.due_date ? ` · Due ${inv.due_date}` : ""}
                           </div>
