@@ -3460,9 +3460,7 @@ function ClientStatusBanner({ project, phases, t }) {
           {activePhase ? activePhase.name : project.phase || "In Progress"}
         </div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
-          {pendingActions > 0
-            ? <><strong style={{ color: "#fff" }}>{pendingActions} action{pendingActions !== 1 ? "s" : ""} need your input</strong> to keep this engagement on track.</>
-            : <><strong style={{ color: "#fff" }}>All caught up!</strong> LexOps is progressing the next deliverable.</>}
+          {pendingActions > 0 && <><strong style={{ color: "#fff" }}>{pendingActions} action{pendingActions !== 1 ? "s" : ""} need your input</strong> to keep this engagement on track.</>}
         </div>
       </div>
       <div style={{ display: "flex", gap: 20, alignItems: "center", position: "relative", flexShrink: 0, flexWrap: "wrap" }}>
