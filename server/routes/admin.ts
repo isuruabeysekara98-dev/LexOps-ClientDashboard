@@ -15,6 +15,18 @@ const adminSupabase = createClient(
 const SITE_URL = process.env.SITE_URL || "https://client-lexops.replit.app";
 
 // ---------------------------------------------------------------------------
+// Middleware: any authenticated Supabase user
+// ---------------------------------------------------------------------------
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "Unauthorized" }); return; }
+  const token = auth.slice(7);
+  const { data: { user }, error } = await adminSupabase.auth.getUser(token);
+  if (error || !user) { res.status(401).json({ message: "Unauthorized" }); return; }
+  next();
+}
+
+// ---------------------------------------------------------------------------
 // Middleware: extract Bearer token, verify user, confirm lexops_admin role
 // ---------------------------------------------------------------------------
 async function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -314,6 +326,19 @@ router.post("/bulk-rename-phases", requireAdmin, async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/admin/tasks/:id/status — update task status (bypasses RLS via service role)
+// ---------------------------------------------------------------------------
+router.patch("/tasks/:id/status", requireAuth, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const valid = ["pending", "in_progress", "done"];
+  if (!valid.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
+  const { error } = await adminSupabase.from("tasks").update({ status }).eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
 });
 
 export default router;

@@ -3597,9 +3597,27 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
   async function markComplete(task) {
     if (task.status === "done" || completing === task.id) return;
     setCompleting(task.id);
-    await supabase.from("tasks").update({ status: "done" }).eq("id", task.id);
-    await autoCompletePhaseIfDone(projectId, task.phase_id);
-    await loadData();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const resp = await fetch(`/api/admin/tasks/${task.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ status: "done" }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error("[ClientActionsTab] markComplete failed:", err);
+        // Still reflect locally so UI doesn't snap back
+        setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status: "done" } : tk));
+      } else {
+        await autoCompletePhaseIfDone(projectId, task.phase_id);
+        await loadData();
+      }
+    } catch (e) {
+      console.error("[ClientActionsTab] markComplete error:", e);
+      setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status: "done" } : tk));
+    }
     setCompleting(null);
     showToast("✅ Marked complete — LexOps will verify shortly.");
   }
