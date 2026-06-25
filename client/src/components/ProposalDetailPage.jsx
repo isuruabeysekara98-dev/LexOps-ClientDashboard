@@ -466,7 +466,20 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
       const headers = { Authorization: `Bearer ${session?.access_token}` };
 
       const prRes = await fetch(`/api/proposals/v2/${id}`, { headers });
-      if (prRes.ok) {
+      if (prRes.status === 401) {
+        // Session expired — trigger a fresh sign-in via Supabase refresh
+        await supabase.auth.refreshSession();
+        const { data: { session: s2 } } = await supabase.auth.getSession();
+        const prRes2 = await fetch(`/api/proposals/v2/${id}`, {
+          headers: { Authorization: `Bearer ${s2?.access_token}` },
+        });
+        if (prRes2.ok) {
+          const pr = await prRes2.json();
+          setProposal(pr);
+          document.title = `LexOps | ${pr.name || "Proposal"}`;
+          if (pr.status === "converted") setConverted(true);
+        }
+      } else if (prRes.ok) {
         const pr = await prRes.json();
         setProposal(pr);
         document.title = `LexOps | ${pr.name || "Proposal"}`;
@@ -483,6 +496,8 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
       const subList = subs || [];
       setSubmissions(subList);
       if (subList.length > 0) setSelectedSub(subList[0]);
+    } catch (e) {
+      console.error("[ProposalDetailPage] loadAll error:", e);
     } finally {
       setLoading(false);
     }
