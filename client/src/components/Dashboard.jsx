@@ -7,6 +7,7 @@ import {
   Zap, FileText, PenTool, BookOpen, Link as LinkIcon, Bug, Wrench, MessageSquare,
   Mail, User, CheckCircle2, RefreshCw, Clock, FileSpreadsheet, Image as ImageIcon,
   Folder, File as FileIcon, ArrowUp, ArrowDown, Download, Upload, Plus,
+  Settings, Menu, PenLine,
 } from "lucide-react";
 
 // File-type → brand icon. Keeps document rows consistent with lucide iconography.
@@ -280,7 +281,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
                   <div style={{flex:1}}>
                     <div style={{display:"flex",alignItems:"center",marginBottom:10}}>
                       <div style={{width:20,height:20,borderRadius:"50%",flexShrink:0,background:isDone?t.green:isActive?t.accent:"transparent",border:`2px solid ${isDone?t.green:isActive?t.accent:t.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1}}>
-                        {isDone&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+                        {isDone&&<Check size={11} color="#fff" strokeWidth={3} />}
                         {isActive&&<span style={{width:5,height:5,borderRadius:"50%",background:"#fff",display:"block"}}/>}
                       </div>
                       {i<phases.length-1&&<div style={{flex:1,height:2,background:isDone?t.green:t.border,marginLeft:0}}/>}
@@ -311,7 +312,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           </div>
           {overdueActions.length > 0 && (
             <div style={{padding:"10px 20px 6px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"#C9542E",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>⚠️ Overdue</div>
+              <div style={{fontSize:10,fontWeight:700,color:"#C9542E",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8,display:"flex",alignItems:"center",gap:5}}><AlertTriangle size={12} strokeWidth={2.25} /> Overdue</div>
               {overdueActions.map((tk,i) => {
                 const phaseName = phases.find(p=>p.id===tk.phase_id)?.name;
                 const daysLate = Math.floor((todayMid-new Date(tk.due_date))/86400000);
@@ -385,7 +386,7 @@ function OverviewTab({project,isInternal,t,mobile,onSetup}) {
           <div style={{padding:"8px 0"}}>
             {pendingDel.slice(0,5).map((d,i)=>(
               <div key={d.id||i} style={{padding:"10px 22px",display:"flex",alignItems:"center",gap:12,borderBottom:i<Math.min(pendingDel.length,5)-1?`1px solid ${t.border}`:"none"}}>
-                <span style={{fontSize:15,flexShrink:0}}>📦</span>
+                <Package size={15} color={t.accent} strokeWidth={1.75} style={{flexShrink:0}} />
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{color:t.text,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.title}</div>
                   {d.due_date&&<div style={{color:t.textSub,fontSize:11,marginTop:1}}>Due {d.due_date}</div>}
@@ -779,7 +780,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
           <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"center",justifyContent:"space-between",padding:mobile?"14px 16px":"13px 18px",gap:mobile?10:12}}>
             <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
               <div onClick={()=>toggleTask(task)} style={{width:18,height:18,borderRadius:"50%",flexShrink:0,border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-                {task.status==="done"&&<span style={{color:"#fff",fontSize:9,fontWeight:800}}>✓</span>}
+                {task.status==="done"&&<Check size={11} color="#fff" strokeWidth={3} />}
               </div>
               <div style={{minWidth:0}}>
                 <div style={{color:task.status==="done"?t.textSub:t.text,fontSize:13,fontWeight:500,textDecoration:task.status==="done"?"line-through":"none",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{task.title}</div>
@@ -789,7 +790,7 @@ function TasksTab({projectId,initialTasks,isInternal,onRefresh,t,mobile,teamMemb
             <div style={{display:"flex",alignItems:"center",gap:mobile?8:12,flexShrink:0,justifyContent:mobile?"space-between":"flex-end"}}>
               {(task.due_date||task.due)&&<span style={{color:t.textSub,fontSize:11,whiteSpace:"nowrap"}}>Due {task.due_date||task.due}</span>}
               <span style={{color:c.lc,fontSize:11,fontWeight:600,minWidth:40,textAlign:"right"}}>{c.label}</span>
-              <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
+              <button onClick={()=>startEdit(task)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}><Pencil size={13} strokeWidth={1.75} /></button>
               <button onClick={()=>deleteTask(task.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
             </div>
           </div>
@@ -991,7 +992,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
             borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
           }}>
             <div style={{minWidth:0}}>
-              <div style={{color:t.text,fontSize:13,fontWeight:500}}>{req.fulfilled_at?"✓ ":""}{req.title}</div>
+              <div style={{color:t.text,fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:5}}>{req.fulfilled_at&&<Check size={12} color={t.green} strokeWidth={2.5} />}{req.title}</div>
               {req.description&&<div style={{color:t.textSub,fontSize:11,marginTop:2}}>{req.description}</div>}
             </div>
             <span style={{color:t.textSub,fontSize:11,flexShrink:0}}>{req.fulfilled_at?"Fulfilled":fmtDate(req.requested_at)}</span>
@@ -1629,7 +1630,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                 </div>
               :<div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{color:s.color,fontSize:22,fontWeight:300,letterSpacing:"-0.04em"}}>{s.value}</span>
-                  {s.eng&&<button onClick={()=>{setEditingEng(true);setEngInput(String(engValue));}} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:13,padding:0,opacity:0.6}}>✏</button>}
+                  {s.eng&&<button onClick={()=>{setEditingEng(true);setEngInput(String(engValue));}} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:13,padding:0,opacity:0.6}}><Pencil size={13} strokeWidth={1.75} /></button>}
                 </div>
             }
           </div>
@@ -1712,7 +1713,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                         <button onClick={()=>{fileRef.invoiceId=inv.id;setTimeout(()=>{const input=document.createElement("input");input.type="file";input.accept=".pdf";input.onchange=e=>handlePdfUpload(e,inv);input.click();},0);}} disabled={uploadingId===inv.id} title="Upload PDF" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 10px",fontSize:11,cursor:uploadingId===inv.id?"not-allowed":"pointer",color:t.accentLight,fontFamily:"inherit",opacity:uploadingId===inv.id?0.4:1}}>
                           {uploadingId===inv.id?"…":"PDF ↑"}
                         </button>
-                        <button onClick={()=>startEdit(inv)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}>✏</button>
+                        <button onClick={()=>startEdit(inv)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13,flexShrink:0}}><Pencil size={13} strokeWidth={1.75} /></button>
                         <button onClick={()=>deleteInvoice(inv.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,flexShrink:0}}>×</button>
                       </>
                     )}
@@ -1941,7 +1942,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
                     <div style={{flex:1}}><Thin value={ph.progress} t={t}/></div>
                     <div style={{flex:1,textAlign:"right"}}><Pill t={t} status={ph.status==="complete"?"complete":ph.status==="active"?"active":"pending"} label={ph.status==="complete"?"Done":ph.status==="active"?"Active":"Pending"}/></div>
                     <div style={{display:"flex",gap:6,flexShrink:0}} onClick={e=>e.stopPropagation()}>
-                      <button onClick={()=>startEdit(ph)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}>✏</button>
+                      <button onClick={()=>startEdit(ph)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}><Pencil size={13} strokeWidth={1.75} /></button>
                       <button onClick={()=>deletePhase(ph.id)} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15}}>×</button>
                     </div>
                   </div>
@@ -1952,7 +1953,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
                         return(
                           <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 20px"}}>
                             <div style={{width:14,height:14,borderRadius:"50%",border:`1.5px solid ${c.dot}`,background:task.status==="done"?c.dot:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                              {task.status==="done"&&<span style={{color:"#fff",fontSize:7,fontWeight:800}}>✓</span>}
+                              {task.status==="done"&&<Check size={9} color="#fff" strokeWidth={3} />}
                             </div>
                             <span style={{color:task.status==="done"?t.textSub:t.text,fontSize:12,fontWeight:400,textDecoration:task.status==="done"?"line-through":"none",flex:1}}>{task.title}</span>
                             {task.assignee&&<span style={{color:t.textDim,fontSize:11}}>{task.assignee}</span>}
@@ -2237,7 +2238,7 @@ function PlanTab({projectId,initialPhases,initialTasks,isInternal,onRefresh,t,mo
 
 const SW_STATUSES=[["existing","Client Tool"],["new","Set Up by LexOps"]];
 const EMPTY_TOOL={name:"",category:"",status:"existing",access:"",url:"",note:""};
-const CAT_ICON={"Practice Management":"⚖","Productivity":"📋","Automation":"⚡","Intake Forms":"📝","CLM":"📄","e-Signature":"✍","Knowledge Management":"📚"};
+const CAT_ICON={"Practice Management":Scale,"Productivity":ClipboardList,"Automation":Zap,"Intake Forms":FileText,"CLM":FileText,"e-Signature":PenLine,"Knowledge Management":BookOpen};
 
 function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
   const [tools,setTools]=useState(initialSoftware||[]);
@@ -2314,8 +2315,8 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
             return(
               <div key={sw.id??i}>
                 <div style={{display:"flex",alignItems:"center",padding:"15px 22px",gap:14}}>
-                  <div style={{width:38,height:38,borderRadius:9,flexShrink:0,background:catColor+"14",border:`1px solid ${catColor}25`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>
-                    {CAT_ICON[sw.category]||"🔗"}
+                  <div style={{width:38,height:38,borderRadius:9,flexShrink:0,background:catColor+"14",border:`1px solid ${catColor}25`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    {(() => { const I = CAT_ICON[sw.category] || LinkIcon; return <I size={18} color={catColor} strokeWidth={1.75} />; })()}
                   </div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
@@ -2328,7 +2329,7 @@ function SoftwareTab({projectId,initialSoftware,isInternal,onRefresh,t}) {
                     {isInternal&&<span style={{color:t.textSub,fontSize:11,background:t.surfaceHigh,border:`1px solid ${t.border}`,borderRadius:6,padding:"2px 8px"}}>{sw.access}</span>}
                     <Pill t={t} status={sw.status} label={sw.status==="existing"?"Client Tool":"Set Up by LexOps"}/>
                     {isInternal&&<>
-                      <button onClick={()=>openEdit(sw)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}>✏</button>
+                      <button onClick={()=>openEdit(sw)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}><Pencil size={13} strokeWidth={1.75} /></button>
                       <button onClick={()=>deleteTool(sw.id)} disabled={deletingId===sw.id} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,opacity:deletingId===sw.id?0.4:1}}>×</button>
                     </>}
                   </div>
@@ -2388,7 +2389,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
   const [editingId,setEditingId]=useState(null);
   const [editForm,setEditForm]=useState(EMPTY_EDIT_MNT);
   const [deletingId,setDeletingId]=useState(null);
-  const typeIcon={bug:"🐛",maintenance:"🔧",request:"💬"};
+  const typeIcon={bug:Bug,maintenance:Wrench,request:MessageSquare};
   const typeLabel={bug:"Bug",maintenance:"Maintenance",request:"Request"};
   const statusLabel={resolved:"Resolved","in-progress":"In Progress",open:"Open"};
 
@@ -2506,7 +2507,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
                 <div style={{padding:mobile?"14px 16px":"16px 22px"}}>
                   <div style={{display:"flex",flexDirection:mobile?"column":"row",alignItems:mobile?"stretch":"flex-start",justifyContent:"space-between",gap:mobile?10:16,marginBottom:8}}>
                     <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                      <span style={{fontSize:16,marginTop:1,flexShrink:0}}>{typeIcon[item.type]||"📋"}</span>
+                      {(() => { const I = typeIcon[item.type] || ClipboardList; return <I size={16} color={t.accent} strokeWidth={1.75} style={{marginTop:1,flexShrink:0}} />; })()}
                       <div>
                         <div style={{color:t.text,fontSize:13,fontWeight:500,marginBottom:3}}>{item.title}</div>
                         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -2522,7 +2523,7 @@ function MaintenanceTab({projectId,initialMaintenance,isInternal,onRefresh,t,mob
                       </div>
                       <Pill t={t} status={item.status} label={statusLabel[item.status]||item.status}/>
                       {isInternal&&<>
-                        <button onClick={()=>openEdit(item)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}>✏</button>
+                        <button onClick={()=>openEdit(item)} title="Edit" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.textSub,fontSize:13}}><Pencil size={13} strokeWidth={1.75} /></button>
                         <button onClick={()=>deleteItem(item.id)} disabled={deletingId===item.id} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:6,width:26,height:26,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,opacity:deletingId===item.id?0.4:1}}>×</button>
                       </>}
                     </div>
@@ -2554,7 +2555,7 @@ function BookingTab({project,t}) {
   return <div style={{display:"flex",flexDirection:"column",gap:20}}>
     <CardPad t={t}>
       <div style={{display:"flex",alignItems:"flex-start",gap:20}}>
-        <div style={{width:48,height:48,borderRadius:12,background:t.accentSoft,border:`1px solid ${t.accent}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>📅</div>
+        <div style={{width:48,height:48,borderRadius:12,background:t.accentSoft,border:`1px solid ${t.accent}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Calendar size={22} color={t.accent} strokeWidth={1.75} /></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontSize:16,fontWeight:500,marginBottom:6}}>Book a Project Catchup</div>
           <div style={{color:t.textSub,fontSize:13,lineHeight:1.7,marginBottom:16}}>
@@ -2591,9 +2592,9 @@ function BookingTab({project,t}) {
     <CardPad t={t} style={{border:`1px dashed ${t.border}`}}>
       <SectionLabel t={t}>Prefer to reach out directly?</SectionLabel>
       <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-        {[{label:"Email",value:"hello@teamsquared.io",icon:"✉"},{label:"Your Manager",value:project?.manager,icon:"👤"}].map((c,i)=>(
+        {[{label:"Email",value:"hello@teamsquared.io",icon:Mail},{label:"Your Manager",value:project?.manager,icon:User}].map((c,i)=>(
           <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:14}}>{c.icon}</span>
+            {(() => { const I = c.icon; return <I size={15} color={t.accent} strokeWidth={1.75} />; })()}
             <div>
               <div style={{color:t.textSub,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{c.label}</div>
               <div style={{color:t.accentLight,fontSize:13,fontWeight:500}}>{c.value||"—"}</div>
@@ -3059,7 +3060,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                   style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: detSaving ? 0.65 : 1 }}>
                   {detSaving ? "Saving…" : "Save Details"}
                 </button>
-                {detOk && <span style={{ color: t.green, fontSize: 12, fontWeight: 600 }}>✓ Saved successfully</span>}
+                {detOk && <span style={{ color: t.green, fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} strokeWidth={2.5} /> Saved successfully</span>}
               </div>
             </form>
           )}
@@ -3213,7 +3214,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
               {tasks.length === 0
                 ? (
                   <div style={{ textAlign: "center", padding: "40px 24px", color: t.textSub, fontSize: 13 }}>
-                    <div style={{ fontSize: 28, marginBottom: 10, opacity: 0.4 }}>✅</div>
+                    <div style={{ marginBottom: 12, opacity: 0.4, display: "flex", justifyContent: "center" }}><CheckCircle2 size={30} strokeWidth={1.75} color={t.green} /></div>
                     No actions yet. Add tasks and deliverables to define the project work.
                   </div>
                 )
@@ -3221,7 +3222,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {tasks.map(tk => (
                       <div key={tk.id} style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 9, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ fontSize: 15, flexShrink: 0 }}>{tk.is_deliverable ? "📦" : "✅"}</span>
+                        <span style={{ flexShrink: 0, display: "flex" }}>{tk.is_deliverable ? <Package size={15} color={t.accent} strokeWidth={1.75} /> : <CheckCircle2 size={15} color={t.green} strokeWidth={1.75} />}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: t.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
                           <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>
@@ -3424,7 +3425,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
 
               {tools.length === 0 && !showAddTool && (
                 <div style={{ textAlign: "center", padding: "32px 24px", background: t.surface, borderRadius: 10, border: `1px solid ${t.border}` }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
+                  <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><Wrench size={26} strokeWidth={1.5} color={t.textDim} /></div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No tools yet</div>
                   <div style={{ fontSize: 12, color: t.textSub }}>Add tools your team has set up for this client — they'll see them in Resources.</div>
                 </div>
@@ -4561,7 +4562,7 @@ function ManagerEditor({ projectId, value, t, onSaved }) {
       style={{ background:"transparent", border:"none", padding:0, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}>
       <span style={{color:t.textSub,fontSize:12}}>Manager: </span>
       <span style={{color:t.accentLight,fontSize:12}}>{value||"—"}</span>
-      <span style={{fontSize:10,color:t.textSub,opacity:0.5,marginLeft:2}}>✏</span>
+      <Pencil size={10} color={t.textSub} strokeWidth={1.75} style={{opacity:0.5,marginLeft:2,flexShrink:0}} />
     </button>
   );
 }
@@ -4711,7 +4712,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
           </div>
         </div>
         <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:99, background:st.bg, color:st.color, flexShrink:0 }}>
-          {task.status==="done"?"✓ Done":task.status==="in_progress"?"In Progress":"Pending"}
+          {task.status==="done"?"Done":task.status==="in_progress"?"In Progress":"Pending"}
         </span>
         <button onClick={()=>startEdit(task)} style={{ background:"transparent", border:`1px solid ${t.border}`, borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", color:t.textSub, fontFamily:"inherit", flexShrink:0 }}>Edit</button>
         <button onClick={()=>deleteTask(task.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
@@ -4777,7 +4778,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       {ownerColMissing && (
         <div style={{ background:"#fffbea", border:"1.5px solid #f5c542", borderRadius:10, padding:"14px 18px", display:"flex", gap:14, alignItems:"flex-start" }}>
-          <span style={{ fontSize:18, lineHeight:1, flexShrink:0 }}>⚙️</span>
+          <Settings size={18} color="#7a5f00" strokeWidth={2} style={{ flexShrink:0, marginTop:1 }} />
           <div style={{ flex:1 }}>
             <div style={{ fontSize:13, fontWeight:700, color:"#7a5f00", marginBottom:4 }}>One-time database setup needed for Owner field</div>
             <div style={{ fontSize:12, color:"#7a5f00", marginBottom:8 }}>Run this SQL once in your <strong>Supabase dashboard → SQL Editor</strong> to enable the Owner (Client / LexOps) column:</div>
@@ -4802,7 +4803,7 @@ function InternalActionsTab({ projectId, initialTasks, initialPhases, t, mobile,
       {intOverdueClient.length > 0 && (
         <div style={{ background:"#fff8f6", border:"1.5px solid rgba(192,57,43,0.22)", borderRadius:12, padding:"16px 20px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-            <span style={{ fontSize:16, lineHeight:1 }}>⚠️</span>
+            <AlertTriangle size={16} color="#C9542E" strokeWidth={2} style={{ flexShrink:0 }} />
             <div style={{ flex:1, fontSize:13, fontWeight:700, color:"#C9542E", fontFamily:"'Satoshi',sans-serif" }}>Client actions overdue — awaiting their response</div>
             <span style={{ fontSize:11, fontWeight:600, padding:"2px 10px", borderRadius:99, background:"rgba(192,57,43,0.1)", color:"#C9542E", flexShrink:0 }}>{intOverdueClient.length} overdue</span>
           </div>
@@ -5049,9 +5050,9 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
 
   function docIcon(ft) {
     const e = (ft||"").toLowerCase();
-    if (e==="pdf") return { emoji:"📄", bg:"#fde8e8" };
-    if (["xls","xlsx","csv"].includes(e)) return { emoji:"📊", bg:"#e8f5e8" };
-    return { emoji:"📝", bg:"#e8eef8" };
+    if (e==="pdf") return { bg:"#fde8e8" };
+    if (["xls","xlsx","csv"].includes(e)) return { bg:"#e8f5e8" };
+    return { bg:"#e8eef8" };
   }
 
   return (
@@ -5059,7 +5060,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       {/* ── Docs ── */}
       <div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, paddingBottom:10, borderBottom:`1.5px solid ${t.border}` }}>
-          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>📁 Documents</span>
+          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:7 }}><Folder size={14} strokeWidth={1.75} /> Documents</span>
           <label style={{ background:t.accent, color:"#fff", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
             {uploading?"Uploading…":"+ Upload"}
             <input type="file" style={{ display:"none" }} onChange={handleUpload} disabled={uploading}/>
@@ -5084,7 +5085,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         )}
         {filteredDocs.length===0?(
           <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
-            <div style={{ fontSize:24, marginBottom:8 }}>📁</div>
+            <div style={{ marginBottom:10, display:"flex", justifyContent:"center" }}><Folder size={26} strokeWidth={1.5} color={t.textDim} /></div>
             <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:4 }}>No documents yet</div>
             <div style={{ fontSize:12, color:t.textSub }}>Upload files using the button above.</div>
           </div>
@@ -5097,7 +5098,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
             return (
               <form key={doc.id} onSubmit={updateDoc} style={{ background:"#fff", borderRadius:8, border:`2px solid ${t.accent}`, padding:"12px 14px", marginBottom:8, display:"flex", flexDirection:"column", gap:10, boxShadow:t.shadow }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
+                  <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:icon.bg }}><FileTypeIcon ext={ext} size={16} color={t.accent} /></div>
                   <input autoFocus value={editDocForm.name} onChange={e=>{setEditDocForm(f=>({...f,name:e.target.value}));setDocSaveError("");}}
                     style={{ background:t.surface, border:`1px solid ${t.border}`, borderRadius:6, padding:"6px 10px", fontSize:13, fontFamily:"inherit", color:t.text, flex:1 }}/>
                 </div>
@@ -5125,14 +5126,14 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
 
           return(
             <div key={doc.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#fff", borderRadius:8, border:`1px solid ${t.border}`, padding:"12px 14px", marginBottom:8, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
-              <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
+              <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, background:icon.bg }}><FileTypeIcon ext={ext} size={16} color={t.accent} /></div>
               <div style={{ flex:1, minWidth:0 }}>
                 <button onClick={()=>openDocument(doc.id)} style={{ fontSize:13, fontWeight:600, color:t.text, background:"transparent", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit", textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:"100%" }}>{doc.name}</button>
                 <div style={{ fontSize:11, color:t.textSub }}>{doc.uploaded_at?new Date(doc.uploaded_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):""}{doc.file_type?` · ${doc.file_type}`:""}</div>
               </div>
               {doc.phase_name&&<span style={{ fontSize:10, padding:"2px 8px", background:"#e8f2f1", color:t.accent, borderRadius:99, fontWeight:500, flexShrink:0 }}>{doc.phase_name}</span>}
               <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                <button onClick={() => { setEditingDocId(doc.id); setEditDocForm({ name: doc.name, phase_name: doc.phase_name || "" }); }} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px", opacity:0.5 }}>✏️</button>
+                <button onClick={() => { setEditingDocId(doc.id); setEditDocForm({ name: doc.name, phase_name: doc.phase_name || "" }); }} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px", opacity:0.5 }}><Pencil size={13} strokeWidth={1.75} /></button>
                 <button onClick={()=>deleteDoc(doc)} disabled={deletingDocId===doc.id} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:deletingDocId===doc.id?0.3:0.5, lineHeight:1, flexShrink:0 }}>×</button>
               </div>
             </div>
@@ -5143,7 +5144,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
       {/* ── Tools ── */}
       <div>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, paddingBottom:10, borderBottom:`1.5px solid ${t.border}` }}>
-          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase" }}>🔧 Tools</span>
+          <span style={{ fontSize:11, fontWeight:600, color:t.textSub, letterSpacing:"1px", textTransform:"uppercase", display:"inline-flex", alignItems:"center", gap:7 }}><Wrench size={14} strokeWidth={1.75} /> Tools</span>
           <button onClick={()=>setShowAddTool(s=>!s)} style={{ background:t.accent, color:"#fff", border:"none", borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>+ Add Tool</button>
         </div>
 
@@ -5171,7 +5172,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
         {toolError&&!showAddTool&&!editingToolId&&<div style={{marginBottom:8,padding:"6px 10px",background:"rgba(192,57,43,0.08)",border:"1px solid rgba(192,57,43,0.2)",borderRadius:6,fontSize:11,color:"#C9542E"}}>{toolError}</div>}
         {tools.length===0&&!showAddTool?(
           <div style={{ textAlign:"center", padding:"32px 24px", background:"#fff", borderRadius:10, border:`1px solid ${t.border}` }}>
-            <div style={{ fontSize:24, marginBottom:8 }}>🔧</div>
+            <div style={{ marginBottom:10, display:"flex", justifyContent:"center" }}><Wrench size={26} strokeWidth={1.5} color={t.textDim} /></div>
             <div style={{ fontSize:13, fontWeight:600, color:t.text, marginBottom:4 }}>No tools yet</div>
             <div style={{ fontSize:12, color:t.textSub }}>Add platforms and tools set up for this client.</div>
           </div>
@@ -5209,7 +5210,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 {tool.url&&<a href={tool.url} target="_blank" rel="noreferrer" style={{ padding:"6px 14px", borderRadius:8, background:t.accent, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none", whiteSpace:"nowrap", flexShrink:0 }}>Launch ↗</a>}
                 <button onClick={() => { setEditingToolId(tool.id); setEditToolForm({ name: tool.name, purpose: tool.purpose || "", url: tool.url || "", logo_emoji: tool.logo_emoji || "🔧" }); }}
-                  style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px 4px", opacity:0.5 }}>✏️</button>
+                  style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:14, padding:"2px 4px", opacity:0.5 }}><Pencil size={13} strokeWidth={1.75} /></button>
                 <button onClick={()=>deleteTool(tool.id)} style={{ background:"transparent", border:"none", color:t.textSub, cursor:"pointer", fontSize:16, padding:"2px 4px", opacity:0.4, lineHeight:1, flexShrink:0 }}>×</button>
               </div>
             </div>
@@ -5388,14 +5389,14 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
         <div style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
           {mobile&&view==="internal"&&(
             <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:20,cursor:"pointer",padding:4,lineHeight:1,display:"flex",alignItems:"center"}}>
-              {sidebarOpen?"✕":"☰"}
+              {sidebarOpen?<X size={20} strokeWidth={2} />:<Menu size={20} strokeWidth={2} />}
             </button>
           )}
           <LogoDark h={mobile?16:20}/>
           {!mobile&&<><div style={{width:1,height:16,background:t.border}}/><span style={{color:t.textSub,fontSize:12,letterSpacing:"0.02em"}}>Client Portal</span></>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:mobile?6:10,flexWrap:mobile?"wrap":"nowrap"}}>
-          {isAdmin&&navigate&&<button onClick={()=>navigate("/admin/proposals")} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",color:t.textSub,transition:"all 0.15s",fontFamily:"inherit"}}>{mobile?"📋":"📋 Proposals"}</button>}{isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{mobile?"⚙":"Admin"}</button>}
+          {isAdmin&&navigate&&<button onClick={()=>navigate("/admin/proposals")} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",color:t.textSub,transition:"all 0.15s",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6}}>{mobile?<ClipboardList size={15} strokeWidth={1.75}/>:<><ClipboardList size={14} strokeWidth={1.75}/> Proposals</>}</button>}{isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s",display:"inline-flex",alignItems:"center",gap:6}}>{mobile?<Settings size={15} strokeWidth={1.75}/>:"Admin"}</button>}
           {!isClient&&<div style={{display:"flex",background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2}}>
             {[["internal",mobile?"Int":"Internal"],["client",mobile?"Client":"Client View"]].map(([k,l])=>(
               <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
@@ -5487,7 +5488,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                 <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
                   <Pill t={t} status={selected.status} label={selected.status==="complete"?"Complete":selected.phase}/>
                   {!isClientView&&<button onClick={()=>setSetupOpen(true)} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:mobile?"6px 12px":"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap",flexShrink:0}}>
-                    <span style={{fontSize:13}}>⚙</span>{!mobile&&" Setup"}
+                    <Settings size={14} strokeWidth={1.75} />{!mobile&&" Setup"}
                   </button>}
                 </div>
               </div>
