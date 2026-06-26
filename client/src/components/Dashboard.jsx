@@ -2,6 +2,29 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AdminPanel from "./AdminPanel";
 import FlowchartTab from "./FlowchartTab.jsx";
 import { supabase } from "@/lib/supabase.js";
+import {
+  Check, X, AlertTriangle, Package, Pencil, Calendar, Scale, ClipboardList,
+  Zap, FileText, PenTool, BookOpen, Link as LinkIcon, Bug, Wrench, MessageSquare,
+  Mail, User, CheckCircle2, RefreshCw, Clock, FileSpreadsheet, Image as ImageIcon,
+  Folder, File as FileIcon, ArrowUp, ArrowDown, Download, Upload, Plus,
+} from "lucide-react";
+
+// File-type → brand icon. Keeps document rows consistent with lucide iconography.
+function FileTypeIcon({ ext, size = 16, color }) {
+  const e = (ext || "").toUpperCase();
+  const Cmp = e === "PDF" ? FileText
+    : ["DOC", "DOCX"].includes(e) ? FileText
+    : ["XLS", "XLSX", "CSV"].includes(e) ? FileSpreadsheet
+    : ["PNG", "JPG", "JPEG", "GIF", "WEBP", "SVG"].includes(e) ? ImageIcon
+    : FileIcon;
+  return <Cmp size={size} color={color} strokeWidth={1.75} />;
+}
+
+// Small colored status dot used for priority (replaces 🔴🟡🟢).
+function PriorityDot({ level, t }) {
+  const c = level === "high" ? t.red : level === "medium" ? t.amber : t.green;
+  return <span style={{ width: 8, height: 8, borderRadius: "50%", background: c, display: "inline-block", flexShrink: 0 }} />;
+}
 
 function useIsMobile(breakpoint=768){
   const [mobile,setMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<breakpoint);
@@ -1145,7 +1168,6 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
   const prioBar={high:"#C9542E",medium:"#D97706",low:"#3C7A52"};
   const prioPillBg={high:"#fdf0ee",medium:"#fef6e8",low:"#E7F3EC"};
   const prioPillColor={high:"#C9542E",medium:"#D97706",low:"#3C7A52"};
-  const prioEmoji={high:"🔴",medium:"🟡",low:"🟢"};
 
   const colConfig=[
     {status:"open",label:"Open",countBg:"#fef6e8",countColor:"#D97706"},
@@ -1186,9 +1208,9 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
                 onChange={e=>setEditTicketForm(f=>({...f,priority:e.target.value}))}
                 style={{background:"#f7fafa",border:`1px solid ${t.border}`,borderRadius:6,padding:"6px 8px",fontSize:12,color:t.text,fontFamily:"inherit",cursor:"pointer"}}
               >
-                <option value="high">🔴 High</option>
-                <option value="medium">🟡 Medium</option>
-                <option value="low">🟢 Low</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
               </select>
               <select 
                 value={editTicketForm.category} 
@@ -1223,8 +1245,8 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
           {ticket.description&&<div style={{fontSize:11,color:t.textSub,lineHeight:1.4,marginBottom:8}}>{ticket.description}</div>}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:99,background:prioPillBg[ticket.priority]||t.surface,color:prioPillColor[ticket.priority]||t.textSub}}>
-                {prioEmoji[ticket.priority]||""} {(ticket.priority||"").charAt(0).toUpperCase()+(ticket.priority||"").slice(1)}
+              <span style={{fontSize:10,fontWeight:600,padding:"2px 8px",borderRadius:99,background:prioPillBg[ticket.priority]||t.surface,color:prioPillColor[ticket.priority]||t.textSub,display:"inline-flex",alignItems:"center",gap:5}}>
+                <PriorityDot level={ticket.priority} t={t} /> {(ticket.priority||"").charAt(0).toUpperCase()+(ticket.priority||"").slice(1)}
               </span>
               <span style={{fontSize:10,color:t.textSub}}>
                 {new Date(ticket.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
@@ -1232,14 +1254,14 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
             </div>
             {isInternal&& (
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setEditTicketForm({...ticket}); setEditingTicketId(ticket.id);}} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:13,padding:0,opacity:0.4}}>✏️</button>
-                <button onClick={()=>deleteTicket(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",fontSize:14,padding:0,opacity:0.4}}>×</button>
+                <button onClick={()=>{setEditTicketForm({...ticket}); setEditingTicketId(ticket.id);}} title="Edit" style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",padding:0,opacity:0.4,display:"flex"}}><Pencil size={13} strokeWidth={1.75} /></button>
+                <button onClick={()=>deleteTicket(ticket.id)} title="Delete" style={{background:"transparent",border:"none",color:t.textSub,cursor:"pointer",padding:0,opacity:0.4,display:"flex"}}><X size={15} strokeWidth={1.75} /></button>
               </div>
             )}
           </div>
           {isInternal&&hasRequest&&(
             <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-              <span style={{color:"#D97706",fontSize:11,fontWeight:600}}>⏳ Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
+              <span style={{color:"#D97706",fontSize:11,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5}}><Clock size={12} strokeWidth={2} /> Client requested → {TICKET_STATUS_LABELS[hasRequest]}</span>
               <div style={{display:"flex",gap:5}}>
                 <button onClick={()=>moveTicket(ticket.id,hasRequest)} disabled={isBusy} style={{background:t.accent,color:"#fff",border:"none",borderRadius:5,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Approve</button>
                 <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:5,padding:"3px 8px",fontSize:11,color:t.textSub,cursor:"pointer"}}>Reject</button>
@@ -1248,7 +1270,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
           )}
           {!isInternal&&hasRequest&&(
             <div style={{background:"#fef6e8",border:"1px solid rgba(212,136,26,0.25)",borderRadius:6,padding:"7px 10px",marginTop:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-              <span style={{color:"#D97706",fontSize:11}}>⏳ Pending review</span>
+              <span style={{color:"#D97706",fontSize:11,display:"inline-flex",alignItems:"center",gap:5}}><Clock size={12} strokeWidth={2} /> Pending review</span>
               <button onClick={()=>cancelRequest(ticket.id)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Cancel</button>
             </div>
           )}
@@ -1273,7 +1295,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
                         }}>Request Resolution →</button>
                       :null
                   )
-                :isResolved?<div style={{fontSize:10,color:"#3C7A52",fontStyle:"italic",marginTop:6}}>✓ Resolved by LexOps</div>
+                :isResolved?<div style={{fontSize:10,color:"#3C7A52",fontStyle:"italic",marginTop:6,display:"flex",alignItems:"center",gap:4}}><Check size={11} strokeWidth={2.5} /> Resolved by LexOps</div>
                 :null
               )
           }
@@ -1302,13 +1324,13 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
             {isInternal&&!editingCalendly&&(
               <button onClick={()=>{setCalendlyDraft(calendlyUrl);setEditingCalendly(true);}}
                 style={{background:t.surface,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 13px",fontSize:12,fontWeight:600,color:t.textSub,cursor:"pointer",fontFamily:"inherit"}}>
-                {calendlyUrl?"✏️ Edit Link":"+ Add Booking Link"}
+                {calendlyUrl?"Edit Link":"Add Booking Link"}
               </button>
             )}
             {!isInternal&&calendlyUrl&&(
               <a href={calendlyUrl} target="_blank" rel="noreferrer"
-                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>
-                📅 Book a Call
+                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:7}}>
+                <Calendar size={15} strokeWidth={2} /> Book a Call
               </a>
             )}
             {!isInternal&&!calendlyUrl&&(
@@ -1316,8 +1338,8 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
             )}
             {isInternal&&calendlyUrl&&!editingCalendly&&(
               <a href={calendlyUrl} target="_blank" rel="noreferrer"
-                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap"}}>
-                📅 Preview
+                style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:7}}>
+                <Calendar size={15} strokeWidth={2} /> Preview
               </a>
             )}
           </div>
@@ -1364,9 +1386,9 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
                 <label style={{fontSize:11,fontWeight:600,color:t.textSub,letterSpacing:"0.04em"}}>Priority</label>
                 <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}
                   style={{background:"#f7fafa",border:`1.5px solid ${t.border}`,borderRadius:8,padding:"8px 10px",fontSize:13,color:t.text,fontFamily:"inherit",cursor:"pointer"}}>
-                  <option value="high">🔴 High — blocking work</option>
-                  <option value="medium">🟡 Medium — important but not urgent</option>
-                  <option value="low">🟢 Low — nice to have</option>
+                  <option value="high">High — blocking work</option>
+                  <option value="medium">Medium — important but not urgent</option>
+                  <option value="low">Low — nice to have</option>
                 </select>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
@@ -3590,7 +3612,7 @@ function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
                   ...(isActive ? { background: "#fff", color: t.accent, border: `2px solid ${t.accent}`, animation: "clientRingPulse 2.2s infinite" } : {}),
                   ...(isFuture ? { background: t.surface, color: t.border, border: `2px solid ${t.border}` } : {}),
                 }}>
-                  {isDone ? "✓" : <span style={{ fontSize: 12 }}>{i + 1}</span>}
+                  {isDone ? <Check size={18} strokeWidth={3} /> : <span style={{ fontSize: 12 }}>{i + 1}</span>}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 600, textAlign: "center", marginBottom: 3, color: isDone ? t.accentLight : isActive ? t.accent : t.border }}>
                   {ph.name}
@@ -3737,7 +3759,7 @@ function WorkflowSnake({ workflow, t, mobile }) {
               <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 18, fontWeight: 700, color: t.text, flex: 1, lineHeight: 1.3, paddingRight: 12 }}>
                 {openStage.title || openStage.name}
               </div>
-              <button onClick={() => setOpenStage(null)} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: t.surface, color: t.text, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+              <button onClick={() => setOpenStage(null)} style={{ width: 28, height: 28, borderRadius: "50%", border: "none", background: t.surface, color: t.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={15} strokeWidth={2} /></button>
             </div>
             <div style={{ padding: "18px 24px", flex: 1 }}>
               {openStage.description && (
@@ -3801,7 +3823,6 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
   if (docs.length === 0) return null;
 
   const extColor = { PDF: "#ef4444", DOCX: "#3b82f6", XLSX: "#16a34a", PNG: "#8b5cf6", JPG: "#8b5cf6", CSV: "#f59e0b" };
-  const extIcon  = { PDF: "📄", DOCX: "📝", XLSX: "📊", PNG: "🖼️", JPG: "🖼️", CSV: "📊" };
 
   return (
     <div>
@@ -3812,8 +3833,8 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
           return (
             <div key={doc.id} onClick={()=>openDocument(doc.id,{download:true})} style={{ cursor:"pointer" }}>
               <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, transition: "border-color 0.15s, box-shadow 0.15s", boxShadow: t.shadow }}>
-                <div style={{ width: 34, height: 34, borderRadius: 8, background: `${extColor[ext] || t.accent}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
-                  {extIcon[ext] || "📁"}
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: `${extColor[ext] || t.accent}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <FileTypeIcon ext={ext} size={16} color={extColor[ext] || t.accent} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
@@ -3848,7 +3869,7 @@ function ClientDeliverablesGrid({ deliverables, t, mobile }) {
               background: "#fff", border: `1px solid ${isDone ? t.green + "50" : t.border}`,
               borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: t.shadow,
             }}>
-              <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{isDone ? "✅" : isActive ? "🔄" : "⏳"}</span>
+              <span style={{ flexShrink: 0, marginTop: 1, display: "flex" }}>{isDone ? <CheckCircle2 size={16} color={t.green} strokeWidth={2} /> : isActive ? <RefreshCw size={16} color={t.accent} strokeWidth={2} /> : <Clock size={16} color={t.textSub} strokeWidth={2} />}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: isDone ? t.textSub : t.text, textDecoration: isDone ? "line-through" : "none", marginBottom: 2 }}>{d.title}</div>
                 <div style={{ fontSize: 11, color: isDone ? t.green : isActive ? t.accent : t.textSub }}>{isDone ? "Complete" : isActive ? "In progress" : "Upcoming"}</div>
@@ -3915,7 +3936,7 @@ function ClientOverviewTab({ project, t, mobile }) {
           </div>
           {overdueClient.length > 0 && (
             <div style={{ padding: "10px 20px 6px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#C9542E", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⚠️ Overdue</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#C9542E", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}><AlertTriangle size={12} strokeWidth={2.25} /> Overdue</div>
               {overdueClient.map((tk, i) => {
                 const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
                 const daysLate = Math.floor((todayMidC - new Date(tk.due_date)) / 86400000);
@@ -4019,17 +4040,17 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
         const err = await resp.json().catch(() => ({}));
         console.error("[ClientActionsTab] markComplete failed:", err);
         setCompleting(null);
-        showToast("⚠️ Could not mark complete — please try again.");
+        showToast("Could not mark complete — please try again.");
         return;
       }
       await autoCompletePhaseIfDone(projectId, task.phase_id);
       await loadData();
       setCompleting(null);
-      showToast("✅ Marked complete — LexOps will verify shortly.");
+      showToast("Marked complete — LexOps will verify shortly.");
     } catch (e) {
       console.error("[ClientActionsTab] markComplete error:", e);
       setCompleting(null);
-      showToast("⚠️ Could not mark complete — please try again.");
+      showToast("Could not mark complete — please try again.");
     }
   }
 
@@ -4093,7 +4114,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
               return (
                 <div key={task.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 14, opacity: isDoneTask ? 0.55 : 1, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
                   <div onClick={() => !isDoneTask && task.owner!=="lexops" && markComplete(task)} style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, marginTop: 1, border: `2px solid ${isDoneTask ? t.accent : task.owner==="lexops" ? t.border : "#b8c4c2"}`, background: isDoneTask || isBusy ? t.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: isDoneTask||task.owner==="lexops" ? "default" : "pointer", transition: "all 0.2s", opacity: task.owner==="lexops"&&!isDoneTask ? 0.4 : 1 }}>
-                    {(isDoneTask || isBusy) && <span style={{ color: "#fff", fontSize: 10, fontWeight: 800 }}>✓</span>}
+                    {(isDoneTask || isBusy) && <Check size={12} color="#fff" strokeWidth={3} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1f1e", marginBottom: 3, textDecoration: isDoneTask ? "line-through" : "none", lineHeight: 1.35 }}>{task.title}</div>
@@ -4140,7 +4161,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             {phases.map(ph => (
               <div key={ph.id} onClick={() => setCollapsed(c => ({ ...c, [ph.id]: false }))} style={{ padding: "4px 12px", borderRadius: 99, fontSize: 11, fontWeight: 500, cursor: "pointer", background: ph.status === "complete" ? "#E7F3EC" : ph.status === "active" ? t.accent : "#F4F8FB", color: ph.status === "complete" ? "#3C7A52" : ph.status === "active" ? "#fff" : "#616568", border: ph.status === "complete" ? "1.5px solid rgba(45,122,90,0.2)" : "1.5px solid transparent" }}>
-                {ph.status === "complete" ? "✓ " : ph.status === "active" ? "● " : ""}{ph.name}
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{ph.status === "complete" ? <Check size={11} strokeWidth={3} /> : ph.status === "active" ? <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor", display: "inline-block" }} /> : null}{ph.name}</span>
               </div>
             ))}
           </div>
@@ -4151,7 +4172,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
       {overdueClient.length > 0 && (
         <div style={{ background: "#fff8f6", border: "1.5px solid rgba(192,57,43,0.22)", borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
+            <AlertTriangle size={18} color="#C9542E" strokeWidth={2} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#C9542E", fontFamily: "'Satoshi', sans-serif" }}>Actions on your part that require immediate attention</div>
             <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#C9542E", flexShrink: 0 }}>
               {overdueClient.length} overdue
@@ -4202,7 +4223,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
         ? phases.map(ph => <PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id] || []} />)
         : tasks.length === 0
           ? <div style={{ background: "#fff", borderRadius: 12, padding: "40px 24px", border: `1px solid ${t.border}`, textAlign: "center" }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>✅</div>
+              <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><CheckCircle2 size={30} strokeWidth={1.75} color={t.green} /></div>
               <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 5 }}>All clear for now</div>
               <div style={{ fontSize: 12, color: t.textSub }}>No action items at this time.</div>
             </div>
@@ -4333,7 +4354,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>📋</span>
+                  <ClipboardList size={16} color={t.accent} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                   <span style={{ color: t.text, fontSize: 14, fontWeight: 600 }}>{req.title}</span>
                 </div>
                 {req.description && <div style={{ color: t.textSub, fontSize: 12, lineHeight: 1.5, marginLeft: 24 }}>{req.description}</div>}
@@ -4417,19 +4438,19 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
   const phases = [...new Set(docs.map(d => d.phase_name).filter(Boolean))];
   const filteredDocs = phaseFilter === "all" ? docs : docs.filter(d => d.phase_name === phaseFilter);
 
-  function docIcon(fileType) {
+  function docBg(fileType) {
     const e = (fileType || "").toLowerCase();
-    if (e === "pdf") return { emoji: "📄", bg: "#fde8e8" };
-    if (["xls","xlsx","csv"].includes(e)) return { emoji: "📊", bg: "#e8f5e8" };
-    return { emoji: "📝", bg: "#e8eef8" };
+    if (e === "pdf") return "#fde8e8";
+    if (["xls","xlsx","csv"].includes(e)) return "#e8f5e8";
+    return "#e8eef8";
   }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 28 }}>
       {/* Documents */}
       <div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}` }}>
-          📁 Documents
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}`, display: "flex", alignItems: "center", gap: 7 }}>
+          <Folder size={14} strokeWidth={1.75} /> Documents
         </div>
         {phases.length > 0 && (
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
@@ -4444,17 +4465,16 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
           <div style={{ color: t.textSub, fontSize: 12, padding: "20px 0" }}>Loading…</div>
         ) : filteredDocs.length === 0 ? (
           <div style={{ textAlign: "center", padding: "32px 24px", background: "#fff", borderRadius: 10, border: `1px solid ${t.border}` }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>📁</div>
+            <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><Folder size={26} strokeWidth={1.5} color={t.textDim} /></div>
             <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No documents yet</div>
             <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.5, maxWidth: 240, margin: "0 auto" }}>Documents will appear here as your engagement progresses.</div>
           </div>
         ) : filteredDocs.map(doc => {
           const ext = doc.file_type || doc.name?.split(".").pop()?.toUpperCase() || "FILE";
-          const icon = docIcon(ext);
           return (
             <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, background: icon.bg }}>
-                {icon.emoji}
+              <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: docBg(ext) }}>
+                <FileTypeIcon ext={ext} size={18} color={t.accent} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
@@ -4468,7 +4488,7 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
               )}
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                 <button onClick={()=>openDocument(doc.id)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${t.border}`, background:"transparent", color: t.textSub, cursor:"pointer", fontFamily:"inherit", fontWeight: 500 }}>View</button>
-                <button onClick={()=>openDocument(doc.id,{download:true})} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight: 600 }}>↓ Download</button>
+                <button onClick={()=>openDocument(doc.id,{download:true})} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight: 600, display:"inline-flex", alignItems:"center", gap:4 }}><Download size={12} strokeWidth={2} /> Download</button>
               </div>
             </div>
           );
@@ -4477,14 +4497,14 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
 
       {/* Tools */}
       <div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}` }}>
-          🔧 Tools Set Up by LexOps
+        <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}`, display: "flex", alignItems: "center", gap: 7 }}>
+          <Wrench size={14} strokeWidth={1.75} /> Tools Set Up by LexOps
         </div>
         {loading ? (
           <div style={{ color: t.textSub, fontSize: 12, padding: "20px 0" }}>Loading…</div>
         ) : tools.length === 0 ? (
           <div style={{ textAlign: "center", padding: "32px 24px", background: "#fff", borderRadius: 10, border: `1px solid ${t.border}` }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>🔧</div>
+            <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><Wrench size={26} strokeWidth={1.5} color={t.textDim} /></div>
             <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>No tools configured yet</div>
             <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.5, maxWidth: 240, margin: "0 auto" }}>LexOps will add tools relevant to your engagement here.</div>
           </div>
