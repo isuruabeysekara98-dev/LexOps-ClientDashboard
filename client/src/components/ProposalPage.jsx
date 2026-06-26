@@ -78,9 +78,16 @@ const GLOBAL_CSS = `
 
 // ─── Simple response panel ────────────────────────────────────────────────────
 function SimpleResponsePanel({ proposal, token, onRefresh }) {
+  // Saved per-workflow feedback (from the "Try your case" wizard) so it can be
+  // surfaced — and carried through — as part of the change request.
+  const savedFeedback = (proposal.workflows || [])
+    .map(w => ({ name: w.name, text: (w.feedback_text || "").trim() }))
+    .filter(f => f.text);
   const [mode, setMode] = useState("idle");
   const [signerName, setSignerName] = useState("");
-  const [changeNote, setChangeNote] = useState("");
+  const [changeNote, setChangeNote] = useState(
+    savedFeedback.map(f => `${f.name ? f.name + " — " : ""}${f.text}`).join("\n\n")
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const isFrozen = ["feedback_received", "won", "lost", "converted"].includes(proposal.status);
@@ -164,9 +171,14 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
         )}
         {mode === "requesting" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {savedFeedback.length > 0 && (
+              <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 13px", fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>
+                <span style={{ fontWeight: 600, color: t.text }}>Your workflow feedback is included below.</span> We've carried over the notes you saved while trying the workflow — edit or add to them before sending.
+              </div>
+            )}
             <div>
               <label style={{ color: t.textSub, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>What would you like changed?</label>
-              <textarea value={changeNote} onChange={e => setChangeNote(e.target.value)} placeholder="Describe what you'd like LexOps to revise or clarify…" rows={4} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }} autoFocus />
+              <textarea value={changeNote} onChange={e => setChangeNote(e.target.value)} placeholder="Describe what you'd like LexOps to revise or clarify…" rows={savedFeedback.length > 0 ? 6 : 4} style={{ ...inp, resize: "vertical", lineHeight: 1.6 }} autoFocus />
             </div>
             <div style={{ display: "flex", gap: 9 }}>
               <button onClick={handleRequestChanges} disabled={submitting} style={{ background: submitting ? t.border : t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>{submitting ? "Sending…" : "Send change request →"}</button>
@@ -529,14 +541,43 @@ function TryMatterWizard({ wf, token, proposal }) {
     return parts.join("\n\n---\n\n");
   }
 
+  // Read text-based uploaded files so their contents actually reach the AI.
+  // Binary files (PDF/DOCX) are noted by name — client-side extraction isn't reliable.
+  async function readUploadedFilesText() {
+    if (!uploadedFiles.length) return "";
+    const TEXT_RE = /\.(txt|csv|md|json|html?|xml|rtf|log)$/i;
+    const parts = [];
+    for (const f of uploadedFiles) {
+      if ((f.type && f.type.startsWith("text/")) || TEXT_RE.test(f.name)) {
+        try {
+          const text = await f.text();
+          parts.push(`FILE: ${f.name}\n${text.slice(0, 8000)}`);
+        } catch { parts.push(`FILE: ${f.name} (could not read contents)`); }
+      } else {
+        parts.push(`FILE ATTACHED: ${f.name} (${(f.size / 1024).toFixed(0)} KB) — binary file, contents not extracted`);
+      }
+    }
+    return parts.join("\n\n---\n\n");
+  }
+
   async function handleRun() {
     if (running || runsRemaining <= 0) return;
+    // Required-field validation before spending a run
+    if (fields && fields.length > 0) {
+      const missing = fields.filter(f => f.required && !String(formValues[f.id] || "").trim());
+      if (missing.length > 0) {
+        setStep(1);
+        setRunError(`Please complete required field${missing.length > 1 ? "s" : ""}: ${missing.map(f => f.label).join(", ")}`);
+        return;
+      }
+    }
     setRunning(true); setRunError("");
     try {
+      const fileText = await readUploadedFilesText();
       const res = await fetch("/api/proposals/v2/demo/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, workflow_id: wf.id, input_text: buildInputText() || null }),
+        body: JSON.stringify({ token, workflow_id: wf.id, input_text: buildInputText() || null, file_content: fileText || null }),
       });
       const data = await res.json();
       if (!res.ok) { setRunError(data.message || "Generation failed. Please try again."); return; }
@@ -828,14 +869,70 @@ function TryMatterWizard({ wf, token, proposal }) {
 }
 
 // ─── Simple submit/expected tabs (when try-matter is disabled) ────────────────
-function SimpleWorkflowTabs({ wf, token }) {
+function SimpleWorkflowTabs({ wf, token, proposal }) {
   const [activeTab, setActiveTab] = useState("expected");
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
-  const allOutputs = (wf.stages || []).flatMap(s => (s.outputs || []).map(o => ({ ...o, stageTitle: s.title, stageEmoji: s.emoji })));
+  const stages = wf.stages || [];
+
+  // Per-stage client uploads ("expected outputs by page") persisted to storage.
+  const [stageFiles, setStageFiles] = useState({}); // { [stageIndex]: [{name,url,path}] }
+  const [uploadingStage, setUploadingStage] = useState(null);
+  const [uploadErr, setUploadErr] = useState("");
+  const stageInputRefs = useRef({});
+
+  // Load previously captured files for this workflow (so reloads show them).
+  useEffect(() => {
+    if (!proposal?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposal.id}/client-files?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.files)) return;
+        const byStage = {};
+        data.files
+          .filter(f => f.workflow_id === wf.id && f.kind === "expected" && f.stage_index != null)
+          .forEach(f => {
+            (byStage[f.stage_index] = byStage[f.stage_index] || []).push({ id: f.id, name: f.file_name, url: f.file_url });
+          });
+        setStageFiles(byStage);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [proposal?.id, wf.id]);
+
+  async function uploadForStage(i, fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !proposal?.id) return;
+    setUploadingStage(i); setUploadErr("");
+    const done = [];
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("token", token);
+      fd.append("workflow_id", wf.id);
+      fd.append("stage_index", String(i));
+      fd.append("kind", "expected");
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposal.id}/client-files`, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) { setUploadErr(data.message || "Upload failed — please try again."); continue; }
+        done.push({ id: data.file.id, name: data.file.file_name, url: data.file.file_url });
+      } catch { setUploadErr("Connection error during upload."); }
+    }
+    if (done.length) setStageFiles(prev => ({ ...prev, [i]: [...(prev[i] || []), ...done] }));
+    setUploadingStage(null);
+  }
+
+  function removeStageFile(i, idx) {
+    const f = (stageFiles[i] || [])[idx];
+    setStageFiles(prev => ({ ...prev, [i]: (prev[i] || []).filter((_, j) => j !== idx) }));
+    if (f?.id) fetch(`/api/proposals/v2/${proposal.id}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
+  }
 
   function handleFileAdd(e) { setUploadedFiles(prev => [...prev, ...Array.from(e.target.files || [])]); }
   function removeFile(i) { setUploadedFiles(prev => prev.filter((_, j) => j !== i)); }
@@ -851,26 +948,63 @@ function SimpleWorkflowTabs({ wf, token }) {
   return (
     <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", background: t.card }}>
       <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, padding: "0 18px", gap: 4 }}>
-        <button style={tabStyle(activeTab === "expected")} onClick={() => setActiveTab("expected")}>Expected documents</button>
+        <button style={tabStyle(activeTab === "expected")} onClick={() => setActiveTab("expected")}>Expected outputs</button>
         <button style={tabStyle(activeTab === "submit")} onClick={() => setActiveTab("submit")}>Submit documents</button>
       </div>
 
       {activeTab === "expected" && (
         <div style={{ padding: "18px 20px" }}>
-          {allOutputs.length === 0 ? (
-            <div style={{ color: t.textMeta, fontSize: 13 }}>No expected outputs defined for this workflow.</div>
+          <div style={{ fontSize: 12, color: t.textSub, marginBottom: 14, lineHeight: 1.6 }}>
+            Upload the output you'd expect at each stage — a sample deliverable, a precedent, or the format you want. This shows us your target so we can match it.
+          </div>
+          {uploadErr && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, padding: "8px 12px", color: t.red, fontSize: 12, marginBottom: 12 }}>{uploadErr}</div>}
+          {stages.length === 0 ? (
+            <div style={{ color: t.textMeta, fontSize: 13 }}>No stages defined for this workflow yet.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {allOutputs.map((o, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: t.surface, borderRadius: 8, padding: "11px 14px" }}>
-                  <span style={{ fontSize: 18 }}>{o.emoji || "✓"}</span>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{o.name}</div>
-                    {o.description && <div style={{ fontSize: 11, color: t.textSub, marginTop: 2 }}>{o.description}</div>}
-                    <div style={{ fontSize: 10, color: t.textMeta, marginTop: 3 }}>{o.stageEmoji} {o.stageTitle}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {stages.map((stage, i) => {
+                const files = stageFiles[i] || [];
+                const hints = stage.outputs || [];
+                return (
+                  <div key={i} style={{ border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", background: t.card }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: hints.length || files.length ? 10 : 0 }}>
+                      <span style={{ fontSize: 18 }}>{stage.emoji || "📋"}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, color: t.textMeta }}>Stage {i + 1}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{stage.title || "Untitled stage"}</div>
+                      </div>
+                      <input
+                        ref={el => { stageInputRefs.current[i] = el; }}
+                        type="file" multiple style={{ display: "none" }}
+                        onChange={e => { uploadForStage(i, e.target.files); e.target.value = ""; }}
+                      />
+                      <button
+                        onClick={() => stageInputRefs.current[i]?.click()}
+                        disabled={uploadingStage === i}
+                        style={{ background: t.accentLight, color: t.accent, border: `1px solid ${t.accentBorder}`, borderRadius: 7, padding: "6px 13px", fontSize: 12, fontWeight: 600, cursor: uploadingStage === i ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                      >
+                        {uploadingStage === i ? "Uploading…" : "⬆ Upload"}
+                      </button>
+                    </div>
+                    {hints.length > 0 && (
+                      <div style={{ fontSize: 11, color: t.textMeta, marginBottom: files.length ? 8 : 0 }}>
+                        Suggested: {hints.map(o => o.name || o.label).filter(Boolean).join(", ")}
+                      </div>
+                    )}
+                    {files.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {files.map((f, idx) => (
+                          <div key={idx} style={{ display: "flex", alignItems: "center", gap: 9, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 7, padding: "7px 11px" }}>
+                            <span style={{ fontSize: 14 }}>📎</span>
+                            <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.accent, textDecoration: "none" }}>{f.name}</a>
+                            <button onClick={() => removeStageFile(i, idx)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13 }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -904,7 +1038,23 @@ function SimpleWorkflowTabs({ wf, token }) {
                   ))}
                 </div>
               )}
-              <button disabled={submitting || uploadedFiles.length === 0} onClick={() => { setSubmitting(true); setTimeout(() => { setSubmitted(true); setSubmitting(false); }, 800); }} style={{ marginTop: 14, background: uploadedFiles.length === 0 ? t.surface : t.accent, color: uploadedFiles.length === 0 ? t.textMeta : "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600, cursor: uploadedFiles.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
+              {uploadErr && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, padding: "8px 12px", color: t.red, fontSize: 12, marginTop: 12 }}>{uploadErr}</div>}
+              <button disabled={submitting || uploadedFiles.length === 0} onClick={async () => {
+                setSubmitting(true); setUploadErr("");
+                try {
+                  for (const file of uploadedFiles) {
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    fd.append("token", token);
+                    fd.append("workflow_id", wf.id);
+                    fd.append("kind", "submitted");
+                    const res = await fetch(`/api/proposals/v2/${proposal?.id}/client-files`, { method: "POST", body: fd });
+                    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Upload failed"); }
+                  }
+                  setSubmitted(true);
+                } catch (e) { setUploadErr(e.message || "Submission failed — please try again."); }
+                finally { setSubmitting(false); }
+              }} style={{ marginTop: 14, background: uploadedFiles.length === 0 ? t.surface : t.accent, color: uploadedFiles.length === 0 ? t.textMeta : "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600, cursor: uploadedFiles.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
                 {submitting ? "Submitting…" : "Submit documents"}
               </button>
             </div>
@@ -960,7 +1110,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
           {showTryMatter ? (
             <TryMatterWizard wf={wf} token={token} proposal={proposal} />
           ) : (
-            <SimpleWorkflowTabs wf={wf} token={token} />
+            <SimpleWorkflowTabs wf={wf} token={token} proposal={proposal} />
           )}
         </div>
       )}

@@ -438,10 +438,58 @@ function ProjectStarterScreen({ proposal, navigate }) {
   );
 }
 
+// Documents the client uploaded as part of the proposal — admin can download them.
+function ClientFilesPanel({ proposalId, workflows }) {
+  const [files, setFiles] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files`, { headers: { Authorization: `Bearer ${session?.access_token}` } });
+        const data = await res.json();
+        if (!cancelled) setFiles(Array.isArray(data.files) ? data.files : []);
+      } catch { if (!cancelled) setFiles([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [proposalId]);
+
+  if (!files || files.length === 0) return null; // hide until the client sends something
+  const wfName = (wfId) => (workflows || []).find(w => w.id === wfId)?.name || "General";
+
+  return (
+    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", marginBottom: 20, boxShadow: t.shadow }}>
+      <Eyebrow label={`Client documents (${files.length})`} />
+      <div style={{ fontSize: 12, color: t.textSub, marginBottom: 14, lineHeight: 1.6 }}>Files the client uploaded as part of this proposal.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {files.map(f => (
+          <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 14px" }}>
+            <span style={{ fontSize: 18 }}>📎</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
+              <div style={{ fontSize: 11, color: t.textMeta }}>
+                {f.kind === "submitted" ? "Submitted" : "Expected output"}
+                {f.workflow_id ? ` · ${wfName(f.workflow_id)}` : ""}
+                {f.stage_index != null ? ` · Stage ${f.stage_index + 1}` : ""}
+                {f.size_bytes ? ` · ${(f.size_bytes / 1024).toFixed(0)} KB` : ""}
+                {f.created_at ? ` · ${fmtDate(f.created_at)}` : ""}
+              </div>
+            </div>
+            {f.file_url && (
+              <a href={f.file_url} target="_blank" rel="noreferrer" download
+                style={{ fontSize: 12, fontWeight: 600, color: t.accent, textDecoration: "none", border: `1px solid ${t.greenBorder}`, borderRadius: 7, padding: "6px 12px", background: t.accentLight, flexShrink: 0 }}>
+                ⬇ Download
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const [proposal, setProposal] = useState(null);
-  const [submissions, setSubmissions] = useState([]);
-  const [selectedSub, setSelectedSub] = useState(null);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -486,16 +534,6 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
         if (pr.status === "converted") setConverted(true);
       }
 
-      const { data: subs } = await supabase
-        .from("workflow_submissions")
-        .select("*, workflow_runs(*, workflows(name))")
-        .eq("proposal_id", id)
-        .order("created_at", { ascending: false })
-        .then(r => r, () => ({ data: [] }));
-
-      const subList = subs || [];
-      setSubmissions(subList);
-      if (subList.length > 0) setSelectedSub(subList[0]);
     } catch (e) {
       console.error("[ProposalDetailPage] loadAll error:", e);
     } finally {
@@ -504,21 +542,34 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   }
 
   async function setStatus(status) {
-    if (!proposal) return;
+    if (!proposal) return false;
     setMarking(status);
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch(`/api/proposals/v2/${id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ status }),
-    });
-    setProposal(p => ({ ...p, status }));
-    setMarking(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/proposals/v2/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setProposal(p => ({ ...p, status }));
+        return true;
+      }
+      setSendMsg({ ok: false, text: "Couldn't update status. Please try again." });
+      setTimeout(() => setSendMsg(null), 4000);
+      return false;
+    } catch {
+      setSendMsg({ ok: false, text: "Network error — couldn't update status." });
+      setTimeout(() => setSendMsg(null), 4000);
+      return false;
+    } finally {
+      setMarking(false);
+    }
   }
 
   async function convert() {
-    await setStatus("converted");
-    setConverted(true);
+    const ok = await setStatus("converted");
+    if (ok) setConverted(true);
   }
 
   function copyLink() {
@@ -610,8 +661,6 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
     fontSize: 13, borderRadius: 8, padding: "8px 12px", transition: "all 0.2s",
     whiteSpace: "nowrap",
   };
-
-  const subData = selectedSub?.data || selectedSub?.response_data || {};
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", color: t.text }}>
@@ -842,6 +891,10 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 ))}
               </div>
 
+              <div style={{ marginTop: 20 }}>
+                <ClientFilesPanel proposalId={id} workflows={proposal.workflows} />
+              </div>
+
               {proposal.signer_note && (
                 <div style={{
                   marginTop: 20, background: t.yellowSoft, border: `1px solid ${t.yellowBorder}`,
@@ -1044,6 +1097,8 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                   </div>
                 </div>
               )}
+
+              <ClientFilesPanel proposalId={id} workflows={proposal.workflows} />
 
               {/* Empty state when no content at all */}
               {!proposal.change_request_note && !proposal.signer_note && !proposal.pain_points?.length && !proposal.objectives?.length && !proposal.stages?.length && (

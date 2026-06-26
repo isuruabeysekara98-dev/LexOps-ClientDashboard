@@ -1245,6 +1245,130 @@ router.post("/:id/duplicate", requireAdmin, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Client document capture — files uploaded by the client as part of a proposal.
+// Stored in the "project-documents" bucket; metadata in proposal_client_files.
+// ---------------------------------------------------------------------------
+
+// POST /api/proposals/v2/:id/client-files — client uploads a file (token-validated)
+//   multipart/form-data: file, token, [workflow_id], [stage_index], [kind]
+router.post("/:id/client-files", upload.single("file"), async (req: any, res) => {
+  const { id } = req.params;
+  const { token, workflow_id, stage_index, kind } = req.body as Record<string, string>;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) { res.status(400).json({ message: "No file uploaded" }); return; }
+  if (!token) { res.status(401).json({ message: "Missing token" }); return; }
+
+  const proposal = await getProposalByToken(token);
+  if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Invalid token for this proposal" }); return; }
+
+  const safeName = file.originalname.replace(/[^a-zA-Z0-9._\-]/g, "_");
+  const storagePath = `proposals/${id}/${workflow_id || "general"}/${kind || "expected"}/${Date.now()}_${safeName}`;
+
+  const { error: storageErr } = await (adminSupabase as any).storage
+    .from("project-documents")
+    .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: true });
+  if (storageErr) {
+    console.error("[client-files] storage:", storageErr.message);
+    res.status(500).json({ message: `Upload failed: ${storageErr.message}` }); return;
+  }
+  const { data: { publicUrl } } = (adminSupabase as any).storage.from("project-documents").getPublicUrl(storagePath);
+
+  const row = {
+    proposal_id: id,
+    workflow_id: isUUID(workflow_id) ? workflow_id : null,
+    stage_index: stage_index != null && stage_index !== "" ? Number(stage_index) : null,
+    kind: kind === "submitted" ? "submitted" : "expected",
+    file_name: file.originalname,
+    storage_path: storagePath,
+    file_url: publicUrl,
+    size_bytes: file.size,
+    content_type: file.mimetype,
+  };
+  const { data, error } = await (adminSupabase as any).from("proposal_client_files").insert(row).select().single();
+  if (error) {
+    await (adminSupabase as any).storage.from("project-documents").remove([storagePath]).catch(() => {});
+    console.error("[client-files] insert:", error.message);
+    const hint = /relation .* does not exist/i.test(error.message)
+      ? "The proposal_client_files table is missing — run supabase/proposal_client_files.sql."
+      : error.message;
+    res.status(500).json({ message: hint }); return;
+  }
+  res.json({ file: data });
+});
+
+// GET /api/proposals/v2/:id/client-files — list captured files.
+//   Admins use a Bearer token; clients pass ?token=. Returns [] if table absent.
+router.get("/:id/client-files", async (req: any, res) => {
+  const { id } = req.params;
+  const queryToken = typeof req.query.token === "string" ? req.query.token : null;
+
+  let authorised = false;
+  if (queryToken) {
+    const proposal = await getProposalByToken(queryToken);
+    authorised = !!proposal && proposal.id === id;
+  } else {
+    const auth = req.headers.authorization;
+    if (auth?.startsWith("Bearer ")) {
+      const { data: { user } } = await adminSupabase.auth.getUser(auth.slice(7));
+      if (user) {
+        const { data: profile } = await adminSupabase.from("profiles").select("role").eq("id", user.id).single();
+        authorised = ["lexops_admin", "lexops_member"].includes(profile?.role);
+      }
+    }
+  }
+  if (!authorised) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  const { data, error } = await (adminSupabase as any)
+    .from("proposal_client_files").select("*").eq("proposal_id", id).order("created_at", { ascending: false });
+  if (error) { res.json({ files: [] }); return; } // table may not exist yet
+  res.json({ files: data || [] });
+});
+
+// DELETE /api/proposals/v2/:id/client-files/:fileId — client removes own upload (token-validated)
+router.delete("/:id/client-files/:fileId", async (req: any, res) => {
+  const { id, fileId } = req.params;
+  const token = typeof req.query.token === "string" ? req.query.token : (req.body?.token as string | undefined);
+  if (!token) { res.status(401).json({ message: "Missing token" }); return; }
+  const proposal = await getProposalByToken(token);
+  if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Invalid token" }); return; }
+
+  const { data: fileRow } = await (adminSupabase as any)
+    .from("proposal_client_files").select("storage_path").eq("id", fileId).eq("proposal_id", id).single();
+  if (fileRow?.storage_path) {
+    await (adminSupabase as any).storage.from("project-documents").remove([fileRow.storage_path]).catch(() => {});
+  }
+  await (adminSupabase as any).from("proposal_client_files").delete().eq("id", fileId).eq("proposal_id", id);
+  res.json({ ok: true });
+});
+
+// DELETE /api/proposals/v2/:id — remove a proposal and all its nested data
+router.delete("/:id", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  const { data: wfs } = await adminSupabase.from("workflows").select("id").eq("proposal_id", id);
+  const wfIds = (wfs || []).map((w: any) => w.id);
+
+  // Remove captured files from storage first
+  const { data: files } = await (adminSupabase as any)
+    .from("proposal_client_files").select("storage_path").eq("proposal_id", id);
+  const paths = (files || []).map((f: any) => f.storage_path).filter(Boolean);
+  if (paths.length) await (adminSupabase as any).storage.from("project-documents").remove(paths).catch(() => {});
+
+  // Delete child rows (no-ops if a table is absent or already empty)
+  await (adminSupabase as any).from("proposal_client_files").delete().eq("proposal_id", id);
+  if (wfIds.length) {
+    for (const tbl of ["workflow_runs", "workflow_submissions", "workflow_demo_templates", "workflow_document_requirements", "workflow_stages"]) {
+      await (adminSupabase as any).from(tbl).delete().in("workflow_id", wfIds);
+    }
+  }
+  await adminSupabase.from("workflows").delete().eq("proposal_id", id);
+
+  const { error } = await adminSupabase.from("proposals").delete().eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/proposals/v2/:id — load one proposal with all nested data + run state
 // ---------------------------------------------------------------------------
 router.get("/:id", requireAdmin, async (req, res) => {

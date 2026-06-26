@@ -120,6 +120,8 @@ function timeAgo(iso) {
 export default function ProposalsListPage({ navigate, onLogout }) {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [copied, setCopied] = useState(null);
   const [hovCard, setHovCard] = useState(null);
   const [hovBtn, setHovBtn] = useState(null);
@@ -155,12 +157,27 @@ export default function ProposalsListPage({ navigate, onLogout }) {
 
   async function load() {
     setLoading(true);
+    setLoadError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/proposals/v2", {
+      let res = await fetch("/api/proposals/v2", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.ok) setProposals(await res.json());
+      // Session may have expired — refresh once and retry before giving up.
+      if (res.status === 401) {
+        await supabase.auth.refreshSession();
+        const { data: { session: s2 } } = await supabase.auth.getSession();
+        res = await fetch("/api/proposals/v2", {
+          headers: { Authorization: `Bearer ${s2?.access_token}` },
+        });
+      }
+      if (res.ok) {
+        setProposals(await res.json());
+      } else {
+        setLoadError(res.status === 401 ? "Your session expired. Please sign in again." : "Couldn't load proposals. Please try again.");
+      }
+    } catch {
+      setLoadError("Network error — couldn't load proposals.");
     } finally {
       setLoading(false);
     }
@@ -177,6 +194,25 @@ export default function ProposalsListPage({ navigate, onLogout }) {
   function handleOpen(e, pr) {
     e.stopPropagation();
     window.open(`/proposal/${pr.token}`, "_blank");
+  }
+
+  async function handleDelete(e, pr) {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${pr.name || "Untitled proposal"}"?\n\nThis permanently removes the proposal and all its workflows, demo runs, and uploaded documents.`)) return;
+    setDeletingId(pr.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/proposals/v2/${pr.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.ok) setProposals(prev => prev.filter(p => p.id !== pr.id));
+      else alert("Couldn't delete this proposal. Please try again.");
+    } catch {
+      alert("Network error — couldn't delete this proposal.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   function openImportModal(tab = "pdf") {
@@ -429,6 +465,20 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             <div style={{ width: 26, height: 26, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
             <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
+        ) : loadError ? (
+          <div style={{
+            background: t.card, border: `1.5px solid rgba(201,84,46,0.25)`, borderRadius: 14,
+            padding: "48px 0", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+            <div style={{ color: t.text, fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{loadError}</div>
+            <button
+              onClick={load}
+              style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 14, margin: "16px auto 0" }}
+            >
+              Retry
+            </button>
+          </div>
         ) : proposals.length === 0 ? (
           <div style={{
             background: t.card, border: `1.5px dashed ${t.border}`, borderRadius: 14,
@@ -520,6 +570,22 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                         </button>
                       </>
                     )}
+                    <button
+                      onClick={e => handleDelete(e, pr)}
+                      disabled={deletingId === pr.id}
+                      title="Delete proposal"
+                      style={{
+                        background: "transparent", border: "none",
+                        cursor: deletingId === pr.id ? "default" : "pointer",
+                        color: deletingId === pr.id ? t.border : t.textMeta,
+                        padding: 4, borderRadius: 5, display: "flex", alignItems: "center",
+                        opacity: deletingId === pr.id ? 0.5 : 1,
+                      }}
+                      onMouseEnter={e => { if (deletingId !== pr.id) e.currentTarget.style.color = "#C9542E"; }}
+                      onMouseLeave={e => { if (deletingId !== pr.id) e.currentTarget.style.color = t.textMeta; }}
+                    >
+                      <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
                   </div>
                 </div>
               );

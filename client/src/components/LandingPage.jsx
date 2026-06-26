@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/lib/supabase.js";
 
 const t = {
   bg: "#FAFBFC", surface: "#F4F8FB", surfaceHigh: "#E4F1F8",
