@@ -568,8 +568,37 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   }
 
   async function convert() {
-    const ok = await setStatus("converted");
-    if (ok) setConverted(true);
+    setMarking("converted");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/proposals/v2/${id}/convert`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.project_id) {
+        setSendMsg({ ok: false, text: j.message || "Couldn't create the project." });
+        setTimeout(() => setSendMsg(null), 4000);
+        return;
+      }
+      setProposal(p => ({ ...p, status: "converted" }));
+      // Hand the new project to the dashboard: select it and open its setup drawer.
+      sessionStorage.setItem("lx_setup_project", j.project_id);
+      navigate("/active-projects");
+      setTimeout(() => window.dispatchEvent(new CustomEvent("lexops:setup-project", { detail: { projectId: j.project_id } })), 0);
+    } catch {
+      setSendMsg({ ok: false, text: "Network error — couldn't create the project." });
+      setTimeout(() => setSendMsg(null), 4000);
+    } finally {
+      setMarking(false);
+    }
+  }
+
+  // Marking a proposal Won immediately spins up the project and drops the admin
+  // into its setup window (per the won -> setup flow).
+  async function markWonAndSetup() {
+    const ok = await setStatus("won");
+    if (ok) await convert();
   }
 
   function copyLink() {
@@ -959,7 +988,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
 
               <DecisionPanel
                 proposal={proposal}
-                onMarkWon={() => setStatus("won")}
+                onMarkWon={markWonAndSetup}
                 onMarkLost={() => setStatus("lost")}
                 onConvert={convert}
                 marking={marking}
@@ -1171,7 +1200,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
 
               <DecisionPanel
                 proposal={proposal}
-                onMarkWon={() => setStatus("won")}
+                onMarkWon={markWonAndSetup}
                 onMarkLost={() => setStatus("lost")}
                 onConvert={convert}
                 marking={marking}

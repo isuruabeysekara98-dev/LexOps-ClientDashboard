@@ -63,8 +63,11 @@ function normalizeProject(row, related={}) {
   };
 }
 
-async function fetchProjectData(projectId) {
-  const [phases,tasks,documents,invoices,software,maintenance,activity,docRequests] = await Promise.all([
+async function fetchProjectData(projectId, _retried = false) {
+  // Make sure the session token is attached before these RLS-protected reads,
+  // otherwise the first paint fires them unauthenticated and they come back empty.
+  await ensureSession();
+  const results = await Promise.all([
     supabase.from("phases").select("*").eq("project_id",projectId).order("created_at",{ascending:true}),
     supabase.from("tasks").select("*").eq("project_id",projectId).order("id"),
     supabase.from("documents").select("*").eq("project_id",projectId).order("uploaded_at",{ascending:false}),
@@ -74,7 +77,13 @@ async function fetchProjectData(projectId) {
     supabase.from("activity").select("*").eq("project_id",projectId).order("date",{ascending:false}).limit(20),
     supabase.from("document_requests").select("*").eq("project_id",projectId).order("requested_at",{ascending:false}),
   ]);
-  console.log("[fetchProjectData] phases query result:",{projectId,phasesData:phases.data,phasesError:phases.error,taskCount:(tasks.data||[]).length,taskPhaseIds:[...new Set((tasks.data||[]).map(t=>t.phase_id))]});
+  // If every read errored, the session almost certainly wasn't ready — wait briefly
+  // and retry once so data loads on the first paint, not only after a manual refresh.
+  if (!_retried && results.every(r => r.error)) {
+    await new Promise(r => setTimeout(r, 300));
+    return fetchProjectData(projectId, true);
+  }
+  const [phases,tasks,documents,invoices,software,maintenance,activity,docRequests] = results;
   const rawTasks = tasks.data || [];
   const rawPhases = phases.data || [];
   return {
@@ -424,24 +433,28 @@ function computePhaseStatuses(phases, tasks) {
 }
 
 // ---------------------------------------------------------------------------
+// ensureSession — returns a valid session, waiting out the brief window on first
+// load where Supabase transiently reports no session while restoring it from
+// storage. This is the root cause of data not loading until a manual refresh.
+async function ensureSession(retries = 4) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) return session;
+      const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+      if (refreshed?.access_token) return refreshed;
+    } catch { /* transient during auth restore — retry */ }
+    await new Promise(r => setTimeout(r, 200 * (i + 1)));
+  }
+  return null;
+}
+
 // adminFetch — wraps fetch with the current user's Bearer token.
 // Routes all writes through the Express backend (service-role key, bypasses RLS).
 // ---------------------------------------------------------------------------
-async function adminFetch(path, options = {}) {
-  // Always refresh the session so we get a valid (non-expired) token
-  let session;
-  try {
-    const { data } = await supabase.auth.getSession();
-    session = data?.session;
-    if (!session) {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      session = refreshed?.session;
-    }
-  } catch (authErr) {
-    console.error("[adminFetch] session error:", authErr?.message);
-  }
+async function adminFetch(path, options = {}, _retried = false) {
+  const session = await ensureSession();
   const token = session?.access_token;
-  if (!token) console.warn("[adminFetch] no access token — request will be rejected");
 
   const body = options.body !== undefined
     ? (typeof options.body === "string" ? options.body : JSON.stringify(options.body))
@@ -463,6 +476,11 @@ async function adminFetch(path, options = {}) {
     throw new Error("Network error — could not reach server");
   }
 
+  // Auth race on first paint: token wasn't ready → refresh once and retry.
+  if (resp.status === 401 && !_retried) {
+    await supabase.auth.refreshSession().catch(() => {});
+    return adminFetch(path, options, true);
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     console.error("[adminFetch] server error:", resp.status, err.message, "path:", path);
@@ -2560,6 +2578,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
     name: project.name || project.project || "",
     client_name: project.client_name || project.client || "",
     manager: project.manager || "",
+    manager_email: project.manager_email || "",
     calendly_url: project.calendly_url || "",
     due_date: project.due_date || project.dueDate || "",
     status: project.status || "active",
@@ -2571,6 +2590,14 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
   });
   const [detSaving, setDetSaving] = useState(false);
   const [detOk, setDetOk] = useState(false);
+
+  // LexOps staff for the Project Manager dropdown (selecting one sets manager_email)
+  const [admins, setAdmins] = useState([]);
+  useEffect(() => {
+    supabase.from("profiles").select("id, full_name, email, role")
+      .in("role", ["lexops_admin", "lexops_member"]).order("full_name", { ascending: true })
+      .then(({ data }) => setAdmins(data || []));
+  }, []);
 
   // ── Linked proposal (for pre-fill) ──
   const [proposal, setProposal] = useState(null);
@@ -2648,6 +2675,7 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
         name: det.name,
         client_name: det.client_name,
         manager: det.manager || null,
+        manager_email: det.manager_email || null,
         calendly_url: det.calendly_url || null,
         due_date: det.due_date || null,
         status: det.status,
@@ -2939,7 +2967,14 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
               <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 1fr", gap: 16 }}>
                 {fld("Project Name", inp(det.name, e => setDet(d => ({ ...d, name: e.target.value })), "e.g. Estates Automation"), true)}
                 {fld("Client Name", inp(det.client_name, e => setDet(d => ({ ...d, client_name: e.target.value })), "e.g. Acme Corp"), true)}
-                {fld("Project Manager", inp(det.manager, e => setDet(d => ({ ...d, manager: e.target.value })), "e.g. Jane Smith"))}
+                {fld("Project Manager",
+                  <select value={det.manager_email || ""}
+                    onChange={e => { const a = admins.find(x => x.email === e.target.value); setDet(d => ({ ...d, manager_email: e.target.value, manager: a ? (a.full_name || a.email) : "" })); }}
+                    style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px", fontSize: 13, color: t.text, fontFamily: "inherit", cursor: "pointer", width: "100%" }}>
+                    <option value="">Select a project manager…</option>
+                    {admins.map(a => <option key={a.id} value={a.email}>{(a.full_name || a.email)}{a.full_name ? ` (${a.email})` : ""}</option>)}
+                  </select>
+                )}
                 {fld("Calendly Booking URL", inp(det.calendly_url, e => setDet(d => ({ ...d, calendly_url: e.target.value })), "https://calendly.com/..."))}
                 {fld("Due Date", inp(det.due_date, e => setDet(d => ({ ...d, due_date: e.target.value })), "", "date"))}
                 {fld("Status",
@@ -3824,7 +3859,7 @@ function ClientOverviewTab({ project, t, mobile }) {
       if (!props?.length) return;
 
       const { data: wfs } = await supabase
-        .from("workflows").select("id, title, description")
+        .from("workflows").select("id, name, description")
         .eq("proposal_id", props[0].id).limit(1);
       if (!wfs?.length) return;
 
@@ -5163,6 +5198,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const [showWelcome,setShowWelcome]=useState(false);
   const [teamMembers,setTeamMembers]=useState([]);
   const lastLoadRef=useRef(0);
+  const pendingSetupRef=useRef(null);
   const mobile=useIsMobile(768);
   const t=themes[mode];
 
@@ -5190,14 +5226,12 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     if(!silent) setLoading(true);
     let query;
     if(isClient){
-      console.log("[Dashboard] Client allowedProjectIds:", JSON.stringify(allowedProjectIds));
-      if(allowedProjectIds.length===0){console.log("[Dashboard] No project memberships found — blank screen");setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
+      if(allowedProjectIds.length===0){setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
       query=supabase.from("projects").select("*").in("id",allowedProjectIds);
     } else {
       query=supabase.from("projects").select("*, clients(name)");
     }
     const {data:rows,error:queryErr}=await query.order("id");
-    if(isClient) console.log("[Dashboard] Projects query:", {ids: allowedProjectIds, rows, error: queryErr?.message});
     if(!rows||rows.length===0){setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
     const full=await Promise.all(rows.map(async row=>{
       const related=await fetchProjectData(row.id);
@@ -5217,6 +5251,31 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   },[]);
 
   useEffect(()=>{ loadProjects(); },[loadProjects]);
+
+  // Won -> setup handoff: when a proposal is converted, ProposalDetailPage navigates
+  // here and fires "lexops:setup-project". Reload so the new project is present, then
+  // an effect below selects it and opens the setup drawer once it appears.
+  useEffect(()=>{
+    function openSetupFor(projectId){
+      if(!projectId) return;
+      pendingSetupRef.current=projectId;
+      setView("internal");
+      loadProjects({silent:true});
+    }
+    const handler=e=>openSetupFor(e.detail?.projectId);
+    window.addEventListener("lexops:setup-project",handler);
+    const pending=(()=>{ try{return sessionStorage.getItem("lx_setup_project");}catch{return null;} })();
+    if(pending){ try{sessionStorage.removeItem("lx_setup_project");}catch{} openSetupFor(pending); }
+    return ()=>window.removeEventListener("lexops:setup-project",handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  // Once projects (re)load, fulfil any pending setup handoff.
+  useEffect(()=>{
+    if(!pendingSetupRef.current) return;
+    const p=projects.find(x=>x.id===pendingSetupRef.current);
+    if(p){ setSelected(p); setTab("overview"); setSetupOpen(true); pendingSetupRef.current=null; }
+  },[projects]);
 
   // Resilience: re-fetch data when tab becomes visible again after a long absence.
   // Uses a 5-minute cooldown so quick tab switches don't trigger a reload.
@@ -5403,16 +5462,19 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                   ))}
                 </div>
               </div>
-              {tab==="overview"    && (isClientView
-                ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
-                : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
-              )}
-              {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
-              {tab==="actions"     && !isClientView && <InternalActionsTab  projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
-              {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
-              {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
-              {tab==="invoices"    && <InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
-              {tab==="support"     && <SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+              <style>{`@keyframes tabFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+              <div key={`${tab}-${view}`} style={{animation:"tabFade 0.22s ease-out"}}>
+                {tab==="overview"    && (isClientView
+                  ? <ClientOverviewTab project={selected} t={t} mobile={mobile}/>
+                  : <OverviewTab     project={selected} isInternal={true} t={t} mobile={mobile} onSetup={()=>setSetupOpen(true)}/>
+                )}
+                {tab==="actions"     && isClientView  && <ClientActionsTab   projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile}/>}
+                {tab==="actions"     && !isClientView && <InternalActionsTab  projectId={selected.id} initialTasks={(selected.tasks||[]).filter(tk=>!tk.is_internal)} initialPhases={selected.phases} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+                {tab==="resources"   && isClientView  && <ClientResourcesTab  projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile}/>}
+                {tab==="resources"   && !isClientView && <InternalResourcesTab projectId={selected.id} initialDocuments={selected.documents} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+                {tab==="invoices"    && <InvoicesTab     projectId={selected.id} initialInvoices={selected.invoices} isInternal={!isClientView} onRefresh={()=>refreshProject(selected.id)} project={selected} t={t} mobile={mobile}/>}
+                {tab==="support"     && <SupportTab      projectId={selected.id} isInternal={!isClientView} project={selected} t={t} mobile={mobile} onRefresh={()=>refreshProject(selected.id)}/>}
+              </div>
             </>
           )}
         </div>

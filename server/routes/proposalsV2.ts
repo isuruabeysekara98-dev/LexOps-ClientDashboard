@@ -1341,6 +1341,52 @@ router.delete("/:id/client-files/:fileId", async (req: any, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/proposals/v2/:id/convert — turn a won proposal into an active project,
+// pre-populating it from the proposal (workflows -> phases, stages -> tasks).
+// Idempotent: if already converted, returns the existing project_id.
+router.post("/:id/convert", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  const { data: proposal } = await adminSupabase.from("proposals").select("*").eq("id", id).single();
+  if (!proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
+  if (proposal.project_id) { res.json({ project_id: proposal.project_id, already: true }); return; }
+
+  const summaryBits = [
+    Array.isArray(proposal.pain_points) && proposal.pain_points.length ? `Challenges: ${proposal.pain_points.join("; ")}` : "",
+    Array.isArray(proposal.objectives) && proposal.objectives.length ? `Objectives: ${proposal.objectives.join("; ")}` : "",
+  ].filter(Boolean).join("\n");
+
+  const { data: project, error: projErr } = await (adminSupabase as any).from("projects").insert({
+    name: proposal.name || "Untitled project",
+    client_name: proposal.client_name || null,
+    status: "active",
+    phase: "Setup",
+    progress: 0,
+    summary: summaryBits || null,
+    total_engagement_value: 0,
+  }).select().single();
+  if (projErr || !project) { res.status(500).json({ message: projErr?.message || "Could not create project" }); return; }
+
+  // Workflows -> phases, their stages -> tasks
+  const { data: workflows } = await adminSupabase.from("workflows").select("*").eq("proposal_id", id).order("order_index");
+  for (const [wi, wf] of ((workflows || []) as any[]).entries()) {
+    const { data: phase } = await (adminSupabase as any).from("phases").insert({
+      project_id: project.id, name: wf.name || `Workflow ${wi + 1}`, status: "pending", progress: 0, sort_order: wi,
+    }).select().single();
+    const { data: stages } = await adminSupabase.from("workflow_stages").select("*").eq("workflow_id", wf.id).order("order_index");
+    for (const st of ((stages || []) as any[])) {
+      await (adminSupabase as any).from("tasks").insert({
+        project_id: project.id, phase_id: phase?.id || null,
+        title: st.title || "Untitled stage", status: "todo",
+        is_internal: false, is_deliverable: false, owner: "lexops",
+      });
+    }
+  }
+
+  await adminSupabase.from("proposals").update({ status: "converted", project_id: project.id, updated_at: new Date().toISOString() }).eq("id", id);
+  res.json({ project_id: project.id });
+});
+
 // DELETE /api/proposals/v2/:id — remove a proposal and all its nested data
 router.delete("/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
