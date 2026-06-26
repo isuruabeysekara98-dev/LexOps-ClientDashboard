@@ -7,6 +7,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { supabase } from "@/lib/supabase.js";
+import { Pencil, RotateCw, X, ArrowRight, Trash2, PartyPopper } from "lucide-react";
 import confetti from "canvas-confetti";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1050,7 +1051,9 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
           color: t.text, fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em",
           textAlign: "center",
         }}>
-          🎉 Congratulations — Your Matter is Complete!
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 12, justifyContent: "center" }}>
+            <PartyPopper size={26} color="#375971" strokeWidth={1.75} style={{ flexShrink: 0 }} /> Congratulations — Your Matter is Complete!
+          </span>
         </div>
       )}
     </div>
@@ -1065,7 +1068,7 @@ function MobileActionBar({ nodeId, nodes, connectSource, onRename, onCycleStatus
   const isConnecting = connectSource === nodeId;
   if (!node) return null;
 
-  const pill = (label, onClick, accent) => (
+  const pill = (icon, label, onClick, accent) => (
     <button
       onClick={onClick} data-tap
       style={{
@@ -1080,6 +1083,7 @@ function MobileActionBar({ nodeId, nodes, connectSource, onRename, onCycleStatus
         letterSpacing: "0.01em",
       }}
     >
+      {icon}
       {label}
     </button>
   );
@@ -1101,10 +1105,10 @@ function MobileActionBar({ nodeId, nodes, connectSource, onRename, onCycleStatus
         <button onClick={onDismiss} style={{ background: "transparent", border: "none", color: COLOR.subtle, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: "0 4px" }} data-tap>×</button>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        {pill("✏️ Rename", onRename, false)}
-        {pill("↻ Status", onCycleStatus, false)}
-        {pill(isConnecting ? "✕ Cancel" : "→ Connect", onConnect, isConnecting)}
-        {pill("🗑 Delete", onDelete, false)}
+        {pill(<Pencil size={16} strokeWidth={2} />, "Rename", onRename, false)}
+        {pill(<RotateCw size={16} strokeWidth={2} />, "Status", onCycleStatus, false)}
+        {pill(isConnecting ? <X size={16} strokeWidth={2} /> : <ArrowRight size={16} strokeWidth={2} />, isConnecting ? "Cancel" : "Connect", onConnect, isConnecting)}
+        {pill(<Trash2 size={16} strokeWidth={2} />, "Delete", onDelete, false)}
       </div>
     </div>
   );

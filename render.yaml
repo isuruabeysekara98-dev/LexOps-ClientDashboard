@@ -1,0 +1,31 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+# Deploy: Render dashboard → New → Blueprint → pick this repo.
+# Secret values are NOT stored here (sync: false) — set them in the Render dashboard.
+services:
+  - type: web
+    name: lexops-client-portal
+    runtime: node
+    plan: free # bump to "starter" ($7/mo) to avoid cold-start spin-down
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # --- secrets: set these in the Render dashboard ---
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # VITE_* are baked into the client at BUILD time — must be set before first deploy
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      # Set to the deployed URL, e.g. https://lexops-client-portal.onrender.com
+      - key: SITE_URL
+        sync: false

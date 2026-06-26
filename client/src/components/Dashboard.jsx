@@ -2725,8 +2725,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
         client_summary: det.client_summary || null,
       },{id: project.id});
       setDetOk(true);
-      setTimeout(() => setDetOk(false), 2500);
       onRefresh?.();
+      // Saving details completes the setup flow — briefly show the tick, then
+      // close the drawer so the setup "bubble" disappears.
+      setTimeout(() => { setDetOk(false); onClose?.(); }, 700);
     } catch(err) {
       console.error("[ProjectSetupDrawer] saveDetails error:", err.message);
     }
@@ -4531,42 +4533,6 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
 }
 
 // ---------------------------------------------------------------------------
-// Manager inline editor (click-to-edit pencil)
-// ---------------------------------------------------------------------------
-function ManagerEditor({ projectId, value, t, onSaved }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value || "");
-  const [saving, setSaving] = useState(false);
-  async function save() {
-    setSaving(true);
-    try {
-      await dbWrite("projects","update",{ manager: draft.trim() || null },{id: projectId});
-      setEditing(false);
-      onSaved?.(draft.trim());
-    } catch(err){console.error("[ManagerField] save error:",err.message);}
-    setSaving(false);
-  }
-  if (editing) return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-      <span style={{ color:t.textSub, fontSize:12 }}>Manager:</span>
-      <input autoFocus value={draft} onChange={e=>setDraft(e.target.value)}
-        onKeyDown={e=>{ if(e.key==="Enter") save(); if(e.key==="Escape") setEditing(false); }}
-        onBlur={save}
-        style={{ background:"#fff", border:`1.5px solid ${t.accent}`, borderRadius:5, padding:"2px 8px", fontSize:12, color:t.text, fontFamily:"inherit", width:150 }}
-      />
-      {saving&&<span style={{fontSize:11,color:t.textSub}}>…</span>}
-    </span>
-  );
-  return (
-    <button onClick={()=>{ setDraft(value||""); setEditing(true); }}
-      style={{ background:"transparent", border:"none", padding:0, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:4 }}>
-      <span style={{color:t.textSub,fontSize:12}}>Manager: </span>
-      <span style={{color:t.accentLight,fontSize:12}}>{value||"—"}</span>
-      <Pencil size={10} color={t.textSub} strokeWidth={1.75} style={{opacity:0.5,marginLeft:2,flexShrink:0}} />
-    </button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Internal Actions Tab (phase-grouped, admin-editable version)
 // ---------------------------------------------------------------------------
@@ -5481,14 +5447,14 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                   <div style={{color:t.textSub,fontSize:12,marginBottom:5,letterSpacing:"0.02em"}}>{selected.client}</div>
                   <h1 style={{margin:"0 0 7px",fontSize:mobile?22:28,fontWeight:600,letterSpacing:"-0.01em",color:t.text,lineHeight:1.2,fontFamily:"'Satoshi', sans-serif"}}>{selected.project}</h1>
                   <div style={{display:"flex",gap:mobile?10:18,alignItems:"center",flexWrap:"wrap"}}>
-                    {!isClientView&&<ManagerEditor projectId={selected.id} value={selected.manager} t={t} onSaved={()=>refreshProject(selected.id)}/>}
+                    {!isClientView&&selected.manager&&<span style={{color:t.textSub,fontSize:12}}>Manager: <span style={{color:t.text}}>{selected.manager}</span></span>}
                     <span style={{color:t.textSub,fontSize:12}}>Updated {selected.lastUpdate}</span>
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
                   <Pill t={t} status={selected.status} label={selected.status==="complete"?"Complete":selected.phase}/>
-                  {!isClientView&&<button onClick={()=>setSetupOpen(true)} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:mobile?"6px 12px":"7px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap",flexShrink:0}}>
-                    <Settings size={14} strokeWidth={1.75} />{!mobile&&" Setup"}
+                  {!isClientView&&<button onClick={()=>setSetupOpen(true)} title="Project setup" aria-label="Project setup" style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:mobile?"7px 9px":"7px 10px",cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <Settings size={16} strokeWidth={1.75} />
                   </button>}
                 </div>
               </div>

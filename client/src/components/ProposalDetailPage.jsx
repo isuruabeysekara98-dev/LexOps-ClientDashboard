@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import {
+  Check, PartyPopper, Rocket, ClipboardList, Settings, MessageSquare,
+  FileText, Paperclip, Download, Zap, Copy, Mail, Link as LinkIcon,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
@@ -30,13 +34,17 @@ const t = {
 const STATUS_CFG = {
   draft:             { label: "Draft",             bg: "transparent",  color: t.textSub,  border: t.border },
   sent:              { label: "Sent",              bg: "#E4F1F8",      color: "#375971",  border: "rgba(55,89,113,0.18)" },
-  in_review:         { label: "In review",         bg: t.yellowSoft,   color: t.yellow,   border: t.yellowBorder },
-  submitted:         { label: "Feedback received", bg: t.accent,       color: "#FFFFFF",  border: t.accent },
-  feedback_received: { label: "Feedback received", bg: t.accent,       color: "#FFFFFF",  border: t.accent },
-  viewed:            { label: "Viewed",            bg: "#E4F1F8",      color: "#375971",  border: "rgba(55,89,113,0.18)" },
+  changes_requested: { label: "Changes requested", bg: t.yellowSoft,   color: t.yellow,   border: t.yellowBorder },
+  updated:           { label: "Updated",           bg: t.accent,       color: "#FFFFFF",  border: t.accent },
+  accepted:          { label: "Accepted",          bg: t.greenSoft,    color: t.green,    border: t.greenBorder },
   won:               { label: "Won",               bg: t.greenSoft,    color: t.green,    border: t.greenBorder },
   lost:              { label: "Lost",              bg: t.redSoft,      color: t.red,      border: t.redBorder },
-  converted:         { label: "Converted",         bg: t.accent,       color: "#FFFFFF",  border: t.accent },
+  converted:         { label: "Won",               bg: t.greenSoft,    color: t.green,    border: t.greenBorder },
+  // legacy statuses — kept so older proposals still render
+  in_review:         { label: "Changes requested", bg: t.yellowSoft,   color: t.yellow,   border: t.yellowBorder },
+  submitted:         { label: "Accepted",          bg: t.greenSoft,    color: t.green,    border: t.greenBorder },
+  feedback_received: { label: "Accepted",          bg: t.greenSoft,    color: t.green,    border: t.greenBorder },
+  viewed:            { label: "Sent",              bg: "#E4F1F8",      color: "#375971",  border: "rgba(55,89,113,0.18)" },
 };
 
 function StatusPill({ status }) {
@@ -104,7 +112,7 @@ function CheckDot({ done, label }) {
         border: `1.5px solid ${done ? t.green : t.border}`,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {done && <span style={{ color: "#fff", fontSize: 9 }}>✓</span>}
+        {done && <Check size={10} color="#fff" strokeWidth={3} />}
       </div>
       <span style={{ fontSize: 12, color: done ? t.text : t.textMeta }}>{label}</span>
     </div>
@@ -151,7 +159,7 @@ function WorkflowCard({ wf, index }) {
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 11, color: complete ? "#fff" : t.textSub, fontWeight: 700,
             }}>
-              {complete ? "✓" : index + 1}
+              {complete ? <Check size={14} color="#fff" strokeWidth={3} /> : index + 1}
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 2 }}>
@@ -250,47 +258,20 @@ function WorkflowCard({ wf, index }) {
 function DecisionPanel({ proposal, onMarkWon, onMarkLost, onConvert, marking }) {
   const status = proposal.status;
 
-  if (status === "converted") {
+  // Won and Converted are the same terminal outcome — the proposal became a project.
+  if (status === "won" || status === "converted") {
     return (
       <div style={{
         background: t.surfaceHigh, border: `1px solid ${t.accent}`,
         borderRadius: 12, padding: "20px 24px", textAlign: "center",
       }}>
-        <div style={{ fontSize: 24, marginBottom: 8 }}>🎉</div>
+        <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><PartyPopper size={26} color={t.accent} strokeWidth={1.75} /></div>
         <div style={{ fontWeight: 700, fontSize: 15, color: t.accent, marginBottom: 4 }}>
-          Converted to Active Project
+          Won — Active Project
         </div>
         <div style={{ fontSize: 12, color: t.textSub }}>
-          Converted {fmtDate(proposal.converted_at)}
+          {proposal.converted_at ? `Set up ${fmtDate(proposal.converted_at)}` : "Now in Active Projects"}
         </div>
-      </div>
-    );
-  }
-
-  if (status === "won") {
-    return (
-      <div style={{
-        background: t.greenSoft, border: `1px solid ${t.greenBorder}`,
-        borderRadius: 12, padding: "20px 24px",
-      }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: t.green, marginBottom: 6 }}>
-          ✓ Marked as Won
-        </div>
-        <div style={{ fontSize: 12, color: t.textSub, marginBottom: 16, lineHeight: 1.6 }}>
-          Ready to convert this proposal into an active project. This will freeze the proposal and create a new project workspace.
-        </div>
-        <button
-          onClick={onConvert}
-          disabled={marking}
-          style={{
-            width: "100%", padding: "10px 24px", borderRadius: 8, border: "none",
-            background: marking ? t.textSub : t.accent, color: "#fff",
-            fontFamily: "inherit", fontWeight: 500, fontSize: 16, cursor: marking ? "default" : "pointer",
-            transition: "all 0.2s",
-          }}
-        >
-          {marking ? "Converting…" : "Convert to active project →"}
-        </button>
       </div>
     );
   }
@@ -311,7 +292,9 @@ function DecisionPanel({ proposal, onMarkWon, onMarkLost, onConvert, marking }) 
     );
   }
 
-  const canDecide = status === "feedback_received" || status === "submitted";
+  // Won/Lost is an admin decision available any time after the proposal is live
+  // (sent, the client sent it back, updated, or accepted) — plus legacy states.
+  const canDecide = ["sent", "changes_requested", "updated", "accepted", "feedback_received", "submitted", "viewed"].includes(status);
   if (!canDecide) return null;
 
   return (
@@ -319,9 +302,11 @@ function DecisionPanel({ proposal, onMarkWon, onMarkLost, onConvert, marking }) 
       background: t.card, border: `1px solid ${t.yellowBorder}`,
       borderRadius: 12, padding: "20px 24px", boxShadow: t.shadow,
     }}>
-      <Eyebrow label="Admin decision required" />
+      <Eyebrow label="Admin decision" />
       <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.6, marginBottom: 20 }}>
-        The client has submitted this proposal. Review the workflow outputs above, then mark it as Won or Lost.
+        {status === "accepted"
+          ? "The client has accepted this proposal. Mark it as Won or Lost."
+          : "Mark this proposal as Won or Lost whenever you're ready."}
       </div>
       <div style={{ display: "flex", gap: 10 }}>
         <button
@@ -334,7 +319,7 @@ function DecisionPanel({ proposal, onMarkWon, onMarkLost, onConvert, marking }) 
             transition: "all 0.2s",
           }}
         >
-          {marking === "won" ? "Saving…" : "Mark as Won ✓"}
+          {marking === "converted" ? "Setting up…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Mark as Won <Check size={14} strokeWidth={3} /></span>}
         </button>
         <button
           onClick={onMarkLost}
@@ -367,7 +352,7 @@ function ProjectStarterScreen({ proposal, navigate }) {
         body { font-family: 'Satoshi', sans-serif; }
       `}</style>
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center" }}>
-        <div style={{ fontSize: 56, marginBottom: 24 }}>🚀</div>
+        <div style={{ marginBottom: 24, display: "flex", justifyContent: "center" }}><Rocket size={52} color={t.accent} strokeWidth={1.5} /></div>
         <h1 style={{
           fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em",
           color: t.text, marginBottom: 12,
@@ -386,15 +371,15 @@ function ProjectStarterScreen({ proposal, navigate }) {
           <Eyebrow label="What's been captured" />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              { icon: "📋", label: "Proposal name & client context", done: true },
-              { icon: "⚙️", label: `${proposal.workflows?.length || 0} workflow${(proposal.workflows?.length || 0) !== 1 ? "s" : ""} with demo outputs & feedback`, done: (proposal.workflows?.length || 0) > 0 },
-              { icon: "💬", label: "Client feedback for each workflow", done: true },
-              { icon: "📄", label: "Submitted proposal snapshot (frozen)", done: true },
+              { Icon: ClipboardList, label: "Proposal name & client context", done: true },
+              { Icon: Settings, label: `${proposal.workflows?.length || 0} workflow${(proposal.workflows?.length || 0) !== 1 ? "s" : ""} with demo outputs & feedback`, done: (proposal.workflows?.length || 0) > 0 },
+              { Icon: MessageSquare, label: "Client feedback for each workflow", done: true },
+              { Icon: FileText, label: "Submitted proposal snapshot (frozen)", done: true },
             ].map((item, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                <item.Icon size={18} color={t.accent} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: 13, color: t.textSub }}>{item.label}</span>
-                <span style={{ marginLeft: "auto", color: t.green, fontSize: 12, fontWeight: 600 }}>✓</span>
+                <Check size={14} color={t.green} strokeWidth={3} style={{ marginLeft: "auto", flexShrink: 0 }} />
               </div>
             ))}
           </div>
@@ -418,7 +403,7 @@ function ProjectStarterScreen({ proposal, navigate }) {
               transition: "all 0.2s",
             }}
           >
-            ⚡ Go to Active Projects
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Zap size={16} strokeWidth={2} /> Go to Active Projects</span>
           </button>
           <button
             onClick={() => navigate("/admin/proposals")}
@@ -464,7 +449,7 @@ function ClientFilesPanel({ proposalId, workflows }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {files.map(f => (
           <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 14px" }}>
-            <span style={{ fontSize: 18 }}>📎</span>
+            <Paperclip size={16} color={t.textSub} strokeWidth={1.75} style={{ flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
               <div style={{ fontSize: 11, color: t.textMeta }}>
@@ -477,8 +462,8 @@ function ClientFilesPanel({ proposalId, workflows }) {
             </div>
             {f.file_url && (
               <a href={f.file_url} target="_blank" rel="noreferrer" download
-                style={{ fontSize: 12, fontWeight: 600, color: t.accent, textDecoration: "none", border: `1px solid ${t.greenBorder}`, borderRadius: 7, padding: "6px 12px", background: t.accentLight, flexShrink: 0 }}>
-                ⬇ Download
+                style={{ fontSize: 12, fontWeight: 600, color: t.accent, textDecoration: "none", border: `1px solid ${t.greenBorder}`, borderRadius: 7, padding: "6px 12px", background: t.accentLight, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <Download size={13} strokeWidth={2} /> Download
               </a>
             )}
           </div>
@@ -594,11 +579,10 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
     }
   }
 
-  // Marking a proposal Won immediately spins up the project and drops the admin
-  // into its setup window (per the won -> setup flow).
+  // Won = converted: marking a proposal Won spins up the project and drops the
+  // admin into its setup dialog in Active Projects (per the won -> setup flow).
   async function markWonAndSetup() {
-    const ok = await setStatus("won");
-    if (ok) await convert();
+    await convert();
   }
 
   function copyLink() {
@@ -650,7 +634,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
       if (!res.ok) {
         setSendMsg({ ok: false, text: j.message || "Failed to send." });
       } else {
-        setSendMsg({ ok: true, text: "Invite sent ✓" });
+        setSendMsg({ ok: true, text: "Invite sent" });
         setProposal(p => ({ ...p, status: p.status === "draft" ? "sent" : p.status }));
       }
     } catch {
@@ -709,7 +693,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
             >
-              ⚡ Active Projects
+              <Zap size={15} strokeWidth={2} /> Active Projects
             </button>
           )}
           {!mobile && (
@@ -718,7 +702,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
             >
-              📋 Proposals
+              <ClipboardList size={15} strokeWidth={2} /> Proposals
             </button>
           )}
           <button
@@ -790,7 +774,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               title="Duplicate this proposal as a new draft"
               style={{ ...btnBase, border: `1px solid ${t.border}`, color: t.text, background: hovBtn === "dup" ? "#F0EDE6" : t.card, opacity: duplicating ? 0.6 : 1 }}
             >
-              {duplicating ? "Duplicating…" : "⎘ Duplicate"}
+              {duplicating ? "Duplicating…" : <><Copy size={14} strokeWidth={2} /> Duplicate</>}
             </button>
             <button
               onClick={() => navigate(`/admin/proposals/${id}/preview`)}
@@ -819,7 +803,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 color: "#fff", opacity: sending ? 0.7 : 1, cursor: sending ? "default" : "pointer",
               }}
             >
-              {sending ? "Sending…" : "✉ Send invite"}
+              {sending ? "Sending…" : <><Mail size={15} strokeWidth={2} /> Send invite</>}
             </button>
             <button
               onClick={copyLink}
@@ -833,7 +817,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 fontWeight: copied ? 600 : 400,
               }}
             >
-              {copied ? "✓ Link copied" : "🔗 Copy link"}
+              {copied ? <><Check size={14} strokeWidth={3} /> Link copied</> : <><LinkIcon size={14} strokeWidth={2} /> Copy link</>}
             </button>
           </div>
         </div>
@@ -1022,8 +1006,8 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                   background: "#FFFCF0", border: `1.5px solid #F5E4A0`,
                   borderRadius: 12, padding: "16px 20px",
                 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701A", marginBottom: 6 }}>
-                    💬 Client note
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92701A", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <MessageSquare size={12} strokeWidth={2} /> Client note
                   </div>
                   <div style={{ fontSize: 13, color: "#5C4A1A", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
                     {proposal.signer_note}
@@ -1135,7 +1119,7 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                   background: t.card, border: `1.5px dashed ${t.border}`,
                   borderRadius: 12, padding: "40px 28px", textAlign: "center",
                 }}>
-                  <div style={{ fontSize: 28, marginBottom: 12 }}>📋</div>
+                  <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><ClipboardList size={30} color={t.textMeta} strokeWidth={1.5} /></div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 6 }}>No proposal content yet</div>
                   <div style={{ color: t.textMeta, fontSize: 13, lineHeight: 1.6 }}>
                     Edit this proposal to add pain points, objectives, and stages.

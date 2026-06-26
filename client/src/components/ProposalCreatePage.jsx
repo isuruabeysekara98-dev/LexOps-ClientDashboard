@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Trash2, Zap, ClipboardList, Frown, Target, LayoutTemplate, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
@@ -91,8 +92,8 @@ function SubRow({ label, items, onAdd, onDel, onSet, addLabel, renderItem }) {
           {renderItem(item, i)}
           <button onClick={() => onDel(i)} style={{
             background: "transparent", border: "none", cursor: "pointer",
-            color: t.red, fontSize: 14, padding: "2px 4px", flexShrink: 0, lineHeight: 1,
-          }}>🗑</button>
+            color: t.red, padding: "2px 4px", flexShrink: 0, lineHeight: 1, display: "flex", alignItems: "center",
+          }}><Trash2 size={14} strokeWidth={1.75} /></button>
         </div>
       ))}
     </div>
@@ -220,10 +221,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────
-  async function save({ send = false } = {}) {
+  async function save() {
     setSaveMsg(null);
     if (!form.name.trim()) { setSaveMsg({ ok: false, text: "Proposal name is required." }); return; }
-    if (send && !form.client_email.trim()) { setSaveMsg({ ok: false, text: "Client email is required before sending." }); return; }
     setSaving(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -249,20 +249,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
       const { id } = await saveRes.json();
       if (!proposalId) setProposalId(id);
 
-      if (!send) {
-        setSaveMsg({ ok: true, text: "Draft saved ✓" });
-        setTimeout(() => setSaveMsg(null), 3000);
-        return;
-      }
-
-      const sendRes = await fetch(`/api/proposals/v2/${id}/send`, { method: "POST", headers: { Authorization: `Bearer ${session?.access_token}` } });
-      if (!sendRes.ok) {
-        const j = await sendRes.json().catch(() => ({}));
-        setSaveMsg({ ok: false, text: j.message || "Saved but failed to send." });
-        return;
-      }
-      setSaveMsg({ ok: true, text: "Marked as sent ✓" });
-      setTimeout(() => navigate("/admin/proposals"), 1200);
+      setSaveMsg({ ok: true, text: "Saved" });
+      setTimeout(() => setSaveMsg(null), 3000);
     } catch {
       setSaveMsg({ ok: false, text: "Network error. Please try again." });
     } finally {
@@ -307,7 +295,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
               onMouseEnter={() => setHovBtn("projects")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
             >
-              ⚡ Active Projects
+              <Zap size={15} strokeWidth={2} /> Active Projects
             </button>
           )}
           {!mobile && (
@@ -316,7 +304,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
               onMouseEnter={() => setHovBtn("proposals")} onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.accent, fontWeight: 600, background: hovBtn === "proposals" ? t.accentLight : "transparent" }}
             >
-              📋 Proposals
+              <ClipboardList size={15} strokeWidth={2} /> Proposals
             </button>
           )}
           <div style={{ width: 1, height: 18, background: t.border, margin: "0 6px" }} />
@@ -386,7 +374,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             {/* Pain points */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: t.text }}>😣 Pain points</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: t.text, display: "inline-flex", alignItems: "center", gap: 6 }}><Frown size={14} strokeWidth={2} /> Pain points</label>
                 <button
                   onClick={() => setForm(f => ({ ...f, pain_points: [...f.pain_points, ""] }))}
                   style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.accent, fontWeight: 600, padding: 0 }}
@@ -406,8 +394,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                     {form.pain_points.length > 1 && (
                       <button
                         onClick={() => setForm(f => ({ ...f, pain_points: f.pain_points.filter((_, j) => j !== i) }))}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, fontSize: 14, padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
-                      >🗑</button>
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, padding: "2px 4px", flexShrink: 0, lineHeight: 1, display: "flex", alignItems: "center" }}
+                      ><Trash2 size={14} strokeWidth={1.75} /></button>
                     )}
                   </div>
                 ))}
@@ -417,7 +405,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             {/* Objectives */}
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: t.text }}>🎯 Objectives</label>
+                <label style={{ fontSize: 12, fontWeight: 600, color: t.text, display: "inline-flex", alignItems: "center", gap: 6 }}><Target size={14} strokeWidth={2} /> Objectives</label>
                 <button
                   onClick={() => setForm(f => ({ ...f, objectives: [...f.objectives, ""] }))}
                   style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.accent, fontWeight: 600, padding: 0 }}
@@ -437,8 +425,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                     {form.objectives.length > 1 && (
                       <button
                         onClick={() => setForm(f => ({ ...f, objectives: f.objectives.filter((_, j) => j !== i) }))}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, fontSize: 14, padding: "2px 4px", flexShrink: 0, lineHeight: 1 }}
-                      >🗑</button>
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: t.red, padding: "2px 4px", flexShrink: 0, lineHeight: 1, display: "flex", alignItems: "center" }}
+                      ><Trash2 size={14} strokeWidth={1.75} /></button>
                     )}
                   </div>
                 ))}
@@ -471,7 +459,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                       padding: "6px 16px",
                     }}
                   >
-                    🗂 Use default template
+                    <LayoutTemplate size={14} strokeWidth={1.75} /> Use default template
                   </button>
                   <button
                     onClick={() => addStage(wi)}
@@ -500,7 +488,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                       onClick={() => useDefaultTemplate(wi)}
                       style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, fontSize: 13, padding: "10px 24px", background: "transparent" }}
                     >
-                      🗂 Use default template
+                      <LayoutTemplate size={14} strokeWidth={1.75} /> Use default template
                     </button>
                     <button
                       onClick={() => addStage(wi)}
@@ -559,7 +547,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                           {/* Move down */}
                           <button onClick={() => moveStage(wi, si, 1)} disabled={si === stages.length - 1} style={{ background: "none", border: "none", cursor: si === stages.length - 1 ? "default" : "pointer", color: si === stages.length - 1 ? t.border : t.textSub, fontSize: 14, padding: 2 }}>↓</button>
                           {/* Delete */}
-                          <button onClick={() => delStage(wi, si)} style={{ background: "none", border: "none", cursor: "pointer", color: t.red, fontSize: 14, padding: 2 }}>🗑</button>
+                          <button onClick={() => delStage(wi, si)} style={{ background: "none", border: "none", cursor: "pointer", color: t.red, padding: 2, display: "flex", alignItems: "center" }}><Trash2 size={14} strokeWidth={1.75} /></button>
                           {/* Expand */}
                           <button onClick={() => toggleExpanded(key)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textSub, fontSize: 14, padding: 2, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>∧</button>
                         </div>
@@ -623,7 +611,7 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
                               onDel={di => delSub(wi, si, "outputs", di)}
                               renderItem={(item, di) => (
                                 <>
-                                  <span style={{ fontSize: 16, flexShrink: 0 }}>✅</span>
+                                  <CheckCircle2 size={16} color="#3C7A52" strokeWidth={2} style={{ flexShrink: 0 }} />
                                   <input value={item.label} onChange={e => setSub(wi, si, "outputs", di, "label", e.target.value)} placeholder="Label" style={{ ...inp, flex: 1 }} />
                                   <input value={item.detail} onChange={e => setSub(wi, si, "outputs", di, "detail", e.target.value)} placeholder="Detail" style={{ ...inp, flex: 1 }} />
                                 </>
@@ -661,24 +649,16 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             Cancel
           </button>
           <button
-            onClick={() => save({ send: false })}
+            onClick={() => save()}
             disabled={saving}
-            onMouseEnter={() => setHovBtn("draft")} onMouseLeave={() => setHovBtn(null)}
-            style={{ ...btnBase, border: "1px solid rgba(0,0,0,0.2)", color: t.text, background: hovBtn === "draft" ? t.accentLight : "transparent", opacity: saving ? 0.6 : 1 }}
-          >
-            Save as draft
-          </button>
-          <button
-            onClick={() => save({ send: true })}
-            disabled={saving}
-            onMouseEnter={() => setHovBtn("send")} onMouseLeave={() => setHovBtn(null)}
+            onMouseEnter={() => setHovBtn("save")} onMouseLeave={() => setHovBtn(null)}
             style={{
               ...btnBase, fontWeight: 500, fontSize: 16,
-              background: saving ? t.textSub : hovBtn === "send" ? t.accentHover : t.accent,
+              background: saving ? t.textSub : hovBtn === "save" ? t.accentHover : t.accent,
               color: "#fff", opacity: saving ? 0.7 : 1,
             }}
           >
-            Save & mark as sent
+            Save
           </button>
         </div>
       </div>

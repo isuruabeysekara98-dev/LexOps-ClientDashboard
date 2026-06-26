@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ClipboardList, Zap } from "lucide-react";
 
 const t = {
   bg: "#FAFBFC", surface: "#F4F8FB", surfaceHigh: "#E4F1F8",
@@ -21,14 +22,14 @@ function Logo() {
 const TILES = [
   {
     key: "proposals",
-    icon: "📋",
+    Icon: ClipboardList,
     title: "Proposals",
     desc: "Build and send interactive proposals to prospective clients.",
     path: "/admin/proposals",
   },
   {
     key: "projects",
-    icon: "⚡",
+    Icon: Zap,
     title: "Active Projects",
     desc: "Manage ongoing client engagements, milestones, and deliverables.",
     path: "/active-projects",
@@ -99,7 +100,7 @@ export default function LandingPage({ navigate, userProfile, onLogout }) {
                   gap: 12,
                 }}
               >
-                <div style={{ fontSize: 28 }}>{tile.icon}</div>
+                <div style={{ display: "flex" }}><tile.Icon size={28} color={t.accent} strokeWidth={1.75} /></div>
                 <div>
                   <div style={{
                     fontSize: 17, fontWeight: 600, color: t.text,

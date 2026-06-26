@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Eye } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 import ProposalPage from "./ProposalPage.jsx";
 
@@ -43,7 +44,7 @@ export default function ProposalPreviewPage({ id, navigate }) {
         fontSize: 13, fontWeight: 500, position: "sticky", top: 0, zIndex: 200,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ opacity: 0.7 }}>👁</span>
+          <Eye size={15} strokeWidth={2} style={{ opacity: 0.7, flexShrink: 0 }} />
           <span>Preview mode — this is exactly what the client will see</span>
         </div>
         <button

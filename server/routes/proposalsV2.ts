@@ -107,6 +107,12 @@ router.post("/", requireAdmin, async (req, res) => {
   let proposalId = isUUID(rawId) ? rawId : null;
 
   if (proposalId) {
+    // If the admin is editing a proposal the client sent back for changes,
+    // clear the change-request card and move it to "updated" (ready to re-send).
+    const { data: current } = await adminSupabase
+      .from("proposals").select("status, change_request_note").eq("id", proposalId).single();
+    const resolvingChangeRequest =
+      current?.status === "changes_requested" || !!current?.change_request_note;
     const { error } = await adminSupabase.from("proposals").update({
       name: name.trim(),
       client_name: client_name?.trim() || null,
@@ -114,6 +120,7 @@ router.post("/", requireAdmin, async (req, res) => {
       client_email: client_email?.trim() || null,
       pain_points: pain_points || [],
       objectives: objectives || [],
+      ...(resolvingChangeRequest ? { status: "updated", change_request_note: null } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", proposalId);
     if (error) { res.status(500).json({ message: error.message }); return; }
@@ -243,9 +250,6 @@ router.get("/by-token/:token", async (req, res) => {
     };
   });
 
-  if (proposal.status === "sent") {
-    await adminSupabase.from("proposals").update({ status: "viewed", updated_at: new Date().toISOString() }).eq("id", proposal.id);
-  }
 
   res.json({ ...proposal, workflows: enriched });
 });
@@ -590,11 +594,12 @@ router.post("/:id/submit-final", async (req, res) => {
     }
   }
 
-  await adminSupabase.from("proposals").update({
-    status: "feedback_received",
+  const { error: submitErr } = await adminSupabase.from("proposals").update({
+    status: "accepted",
     submitted_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", id);
+  if (submitErr) { res.status(500).json({ message: submitErr.message }); return; }
 
   // Fetch workflow completion summary for the email
   let workflowSummaryRows = "";
@@ -752,16 +757,17 @@ router.post("/:id/request-changes", async (req, res) => {
   const proposal = await getProposalByToken(token);
   if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Forbidden" }); return; }
 
-  const frozen = ["won", "lost", "converted"];
+  const frozen = ["accepted", "won", "lost", "converted"];
   if (frozen.includes(proposal.status)) {
     res.status(409).json({ message: "Proposal is closed and cannot be modified" }); return;
   }
 
-  await adminSupabase.from("proposals").update({
-    status: "sent",
+  const { error: changeErr } = await adminSupabase.from("proposals").update({
+    status: "changes_requested",
     change_request_note: note?.trim() || null,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
+  if (changeErr) { res.status(500).json({ message: changeErr.message }); return; }
 
   const baseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
   const adminLink = `${baseUrl}/admin/proposals/${id}`;
@@ -1394,7 +1400,8 @@ router.post("/:id/convert", requireAdmin, async (req, res) => {
     }
   }
 
-  await adminSupabase.from("proposals").update({ status: "converted", project_id: project.id, converted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
+  const { error: convStatusErr } = await adminSupabase.from("proposals").update({ status: "converted", project_id: project.id, converted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
+  if (convStatusErr) { res.status(500).json({ message: `Project created but could not finalise the proposal: ${convStatusErr.message}` }); return; }
   res.json({ project_id: project.id });
 });
 
@@ -1496,6 +1503,7 @@ router.post("/:id/send", requireAdmin, async (req, res) => {
 
   await adminSupabase.from("proposals").update({
     status: "sent",
+    change_request_note: null,
     updated_at: new Date().toISOString(),
   }).eq("id", id);
 
@@ -1512,16 +1520,17 @@ router.post("/:id/accept", async (req, res) => {
   const proposal = await getProposalByToken(token);
   if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Forbidden" }); return; }
 
-  const frozen = ["feedback_received", "won", "lost", "converted"];
+  const frozen = ["accepted", "feedback_received", "won", "lost", "converted"];
   if (frozen.includes(proposal.status)) {
     res.json({ success: true, alreadyAccepted: true }); return;
   }
 
-  await adminSupabase.from("proposals").update({
-    status: "feedback_received",
+  const { error: acceptErr } = await adminSupabase.from("proposals").update({
+    status: "accepted",
     submitted_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", id);
+  if (acceptErr) { res.status(500).json({ message: acceptErr.message }); return; }
 
   // Notify LexOps team
   const baseUrl = process.env.SITE_URL || `https://${process.env.REPLIT_DEV_DOMAIN}`;
@@ -1562,7 +1571,7 @@ router.post("/:id/accept", async (req, res) => {
 router.post("/:id/status", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  const allowed = ["draft", "sent", "viewed", "feedback_received", "won", "lost", "converted"];
+  const allowed = ["draft", "sent", "changes_requested", "updated", "accepted", "viewed", "feedback_received", "won", "lost", "converted"];
   if (!allowed.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
   const { error } = await adminSupabase.from("proposals").update({
     status,

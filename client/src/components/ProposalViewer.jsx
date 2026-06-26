@@ -1,3 +1,5 @@
+import { ClipboardList } from "lucide-react";
+
 const t = {
   bg: "#FAFBFC",
   card: "#FFFFFF",
@@ -295,7 +297,7 @@ export default function ProposalViewer({ proposal, footer }) {
             background: t.card, border: `1.5px dashed ${t.border}`, borderRadius: 14,
             padding: "60px 40px", textAlign: "center",
           }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
+            <div style={{ marginBottom: 14, display: "flex", justifyContent: "center" }}><ClipboardList size={32} strokeWidth={1.5} color={t.textSub} /></div>
             <div style={{ fontSize: 15, fontWeight: 600, color: t.text, marginBottom: 6 }}>No stages yet</div>
             <div style={{ color: t.textMeta, fontSize: 13 }}>Add stages in the proposal editor to populate this view.</div>
           </div>

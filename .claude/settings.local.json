@@ -49,7 +49,21 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(bash scripts/commit.sh \"Rewrite commit script to accept optional description argument\")",
-      "Bash(bash scripts/commit.sh \"Fixed RLS infinite recursion on profiles table, fixed phase grouping in Plan tab List and Kanban views, fixed phases ordering by created_at, added assignee dropdown showing all project members and internal team, fixed duplicate phase prefix in column headers, added Software tab to client view, commit script now accepts manual descriptions\")"
+      "Bash(bash scripts/commit.sh \"Fixed RLS infinite recursion on profiles table, fixed phase grouping in Plan tab List and Kanban views, fixed phases ordering by created_at, added assignee dropdown showing all project members and internal team, fixed duplicate phase prefix in column headers, added Software tab to client view, commit script now accepts manual descriptions\")",
+      "Bash(ls -la .env*)",
+      "Bash(grep -oE '^[A-Z_]+=' .env)",
+      "Bash(npx tsx *)",
+      "Bash(git add *)",
+      "WebFetch(domain:lex-ops.io)",
+      "Bash(PYTHONIOENCODING=utf-8 python -c ' *)",
+      "Bash(npm run *)",
+      "PowerShell($c = Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; if \\($c\\) { $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue; \"PID $\\($c.OwningProcess\\) : $\\($p.ProcessName\\) — $\\($p.Path\\)\" } else { \"nothing on 5000\" }; \"--- probe ---\"; try { $r = Invoke-WebRequest -Uri \"http://localhost:5000/\" -UseBasicParsing -TimeoutSec 5; \"HTTP $\\($r.StatusCode\\), length $\\($r.Content.Length\\)\" } catch { \"probe error: $\\($_.Exception.Message\\)\" })",
+      "Bash(npx esbuild *)",
+      "Bash(node seed_proposals.mjs)",
+      "Bash(rm -f seed_proposals.mjs)",
+      "Bash(git check-ignore *)",
+      "Bash(grep -nE \"env\" .gitignore)",
+      "Bash(git rev-list *)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Check, ClipboardList, Bookmark, Upload, Paperclip, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import ProposalViewer, { Logo } from "./ProposalViewer.jsx";
 
@@ -76,6 +77,46 @@ const GLOBAL_CSS = `
   @keyframes dotBounce { 0%,80%,100%{transform:scale(0.8);opacity:0.4} 40%{transform:scale(1.2);opacity:1} }
 `;
 
+// ─── Full-page thank-you screen (after accept / request changes) ──────────────
+function CompletionScreen({ kind }) {
+  const accepted = kind === "accepted";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 500, background: t.bg, fontFamily: "'Satoshi', sans-serif", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      <style>{`
+        @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
+        ${GLOBAL_CSS}
+      `}</style>
+      <div style={{ padding: "15px 24px", borderBottom: `1px solid ${t.border}`, background: t.card }}>
+        <Logo />
+      </div>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
+        <div style={{ maxWidth: 460, textAlign: "center", animation: "fadeUp 0.4s ease-out" }}>
+          <div style={{
+            width: 76, height: 76, borderRadius: "50%", margin: "0 auto 26px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: accepted ? t.greenSoft : t.amberSoft,
+            border: `1px solid ${accepted ? t.greenBorder : t.amberBorder}`,
+          }}>
+            {accepted ? <Check size={36} color={t.green} strokeWidth={2.5} /> : <Clock size={32} color={t.amber} strokeWidth={2} />}
+          </div>
+          <h1 style={{ margin: "0 0 12px", fontSize: 27, fontWeight: 700, letterSpacing: "-0.02em", color: t.text, lineHeight: 1.2 }}>
+            {accepted ? "Thank you — proposal accepted" : "Thanks — your request is in"}
+          </h1>
+          <p style={{ margin: "0 auto", maxWidth: 400, fontSize: 15, color: t.textSub, lineHeight: 1.75 }}>
+            {accepted
+              ? "Your acceptance has been sent to the LexOps team. We'll be in touch shortly with next steps."
+              : "Your change request has been sent to the LexOps team. We'll review your feedback and get back to you shortly."}
+          </p>
+          <div style={{ marginTop: 30, fontSize: 12, color: t.textMeta }}>You can safely close this page.</div>
+        </div>
+      </div>
+      <div style={{ borderTop: `1px solid ${t.border}`, padding: "16px 24px", textAlign: "center", color: t.textMeta, fontSize: 11, background: t.card }}>
+        © 2026 LexOps · A Teams Squared Company
+      </div>
+    </div>
+  );
+}
+
 // ─── Simple response panel ────────────────────────────────────────────────────
 function SimpleResponsePanel({ proposal, token, onRefresh }) {
   // Saved per-workflow feedback (from the "Try your case" wizard) so it can be
@@ -90,26 +131,20 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const isFrozen = ["feedback_received", "won", "lost", "converted"].includes(proposal.status);
+  const isFrozen = ["accepted", "feedback_received", "won", "lost", "converted"].includes(proposal.status);
 
-  if (isFrozen || mode === "done-accept") {
+  // Just completed this session → full-page thank-you screen.
+  if (mode === "done-accept") return <CompletionScreen kind="accepted" />;
+  if (mode === "done-request") return <CompletionScreen kind="changes" />;
+
+  // Returning to an already-accepted proposal → inline acknowledgement.
+  if (isFrozen) {
     return (
       <div style={{ background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 14, padding: "24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: "#fff", border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✓</div>
+        <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: "#fff", border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}><Check size={20} color={t.green} strokeWidth={2.5} /></div>
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, color: t.green, marginBottom: 5, fontFamily: "'Satoshi', sans-serif" }}>Proposal Accepted</div>
           <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>Thank you — your acceptance has been sent to the LexOps team. We'll be in touch shortly.</div>
-        </div>
-      </div>
-    );
-  }
-  if (mode === "done-request") {
-    return (
-      <div style={{ background: t.amberSoft, border: `1px solid ${t.amberBorder}`, borderRadius: 14, padding: "24px", display: "flex", gap: 16, alignItems: "flex-start" }}>
-        <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, background: "#fff", border: `1px solid ${t.amberBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>↩</div>
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: t.amber, marginBottom: 5, fontFamily: "'Satoshi', sans-serif" }}>Change request sent</div>
-          <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>The LexOps team has been notified and will reach out to discuss your feedback.</div>
         </div>
       </div>
     );
@@ -139,7 +174,7 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
   return (
     <div style={{ background: t.card, border: `1px solid ${t.accentBorder}`, borderRadius: 14, overflow: "hidden", boxShadow: t.shadowMd }}>
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, background: t.accentLight, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: t.card, border: `1px solid ${t.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>📋</div>
+        <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, background: t.card, border: `1px solid ${t.accentBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}><ClipboardList size={18} color={t.accent} strokeWidth={2} /></div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Ready to respond?</div>
           <div style={{ fontSize: 12, color: t.textSub, marginTop: 1 }}>Accept this proposal or let us know what you'd like changed.</div>
@@ -150,7 +185,7 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
         {mode === "idle" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button onClick={() => setMode("accepting")} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={e => e.currentTarget.style.background = t.accentHover} onMouseLeave={e => e.currentTarget.style.background = t.accent}>
-              <span style={{ fontSize: 16 }}>✓</span> Accept this proposal
+              <Check size={16} strokeWidth={3} /> Accept this proposal
             </button>
             <button onClick={() => setMode("requesting")} style={{ background: "transparent", color: t.text, border: `1px solid rgba(0,0,0,0.2)`, borderRadius: 8, padding: "10px 24px", fontSize: 16, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 9, transition: "all 0.2s" }} onMouseEnter={e => { e.currentTarget.style.background = t.text; e.currentTarget.style.color = "#fff"; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = t.text; }}>
               <span style={{ fontSize: 16 }}>↩</span> Request changes
@@ -387,7 +422,7 @@ function StageResultBlock({ stage, aiOutput, stageIndex, stageTotal }) {
           <div style={{ fontSize: 11, color: t.textMeta, marginBottom: 1 }}>Stage {stageIndex + 1} of {stageTotal}</div>
           <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{stage.title}</div>
         </div>
-        <div style={{ fontSize: 11, color: t.accent, fontWeight: 600, background: t.accentLight, padding: "3px 10px", borderRadius: 20, border: `1px solid ${t.accentBorder}`, flexShrink: 0 }}>✓ Generated</div>
+        <div style={{ fontSize: 11, color: t.accent, fontWeight: 600, background: t.accentLight, padding: "3px 10px", borderRadius: 20, border: `1px solid ${t.accentBorder}`, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }}><Check size={12} strokeWidth={3} /> Generated</div>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={t.textMeta} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s", flexShrink: 0 }}><polyline points="6 9 12 15 18 9" /></svg>
       </button>
       {expanded && (
@@ -663,7 +698,7 @@ function TryMatterWizard({ wf, token, proposal }) {
                     onClick={() => handleApplyTemplate(tpl)}
                     style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", border: `1px solid ${t.accentBorder}`, borderRadius: 20, background: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, color: t.accent, transition: "background 0.12s", paddingRight: hovTemplate === tpl.id ? 26 : 10 }}
                   >
-                    <span>📋</span>{tpl.name}
+                    <ClipboardList size={13} strokeWidth={2} />{tpl.name}
                   </button>
                   {hovTemplate === tpl.id && (
                     <button
@@ -739,7 +774,7 @@ function TryMatterWizard({ wf, token, proposal }) {
                     onMouseEnter={e => e.currentTarget.style.color = t.accent}
                     onMouseLeave={e => e.currentTarget.style.color = t.textMeta}
                   >
-                    <span style={{ fontSize: 14 }}>🔖</span> Save these values as a reusable example
+                    <Bookmark size={14} strokeWidth={2} /> Save these values as a reusable example
                   </button>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 14px", background: t.surface, border: `1px solid ${t.accentBorder}`, borderRadius: 9 }}>
@@ -784,7 +819,7 @@ function TryMatterWizard({ wf, token, proposal }) {
           </div>
           <input ref={fileInputRef} type="file" multiple onChange={handleFileAdd} style={{ display: "none" }} />
           <div onClick={() => fileInputRef.current?.click()} style={{ border: `2px dashed ${t.border}`, borderRadius: 10, padding: "28px 20px", textAlign: "center", cursor: "pointer", background: t.surface, transition: "border-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.borderColor = t.accentBorder} onMouseLeave={e => e.currentTarget.style.borderColor = t.border}>
-            <div style={{ fontSize: 26, marginBottom: 8 }}>⬆️</div>
+            <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><Upload size={26} color={t.accent} strokeWidth={1.5} /></div>
             <div style={{ fontSize: 13, color: t.textSub, fontWeight: 500 }}>Click to upload documents</div>
             <div style={{ fontSize: 11, color: t.textMeta, marginTop: 4 }}>PDF, DOCX, TXT, CSV, XLSX — up to 10 MB each</div>
           </div>
@@ -792,7 +827,7 @@ function TryMatterWizard({ wf, token, proposal }) {
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 7 }}>
               {uploadedFiles.map((f, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 13px" }}>
-                  <span style={{ fontSize: 16 }}>📎</span>
+                  <Paperclip size={15} color={t.textMeta} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: t.text, flex: 1 }}>{f.name} <span style={{ color: t.textMeta }}>({(f.size / 1024).toFixed(0)} KB)</span></span>
                   <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 14, padding: 2 }}>✕</button>
                 </div>
@@ -849,7 +884,7 @@ function TryMatterWizard({ wf, token, proposal }) {
                 {feedbackError && <div style={{ color: t.red, fontSize: 12, marginTop: 6 }}>{feedbackError}</div>}
                 <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
                   <button onClick={handleSaveFeedback} disabled={savingFeedback || !feedback.trim()} style={{ background: feedbackSaved && !feedbackChanged ? t.greenSoft : t.accent, color: feedbackSaved && !feedbackChanged ? t.green : "#fff", border: `1px solid ${feedbackSaved && !feedbackChanged ? t.greenBorder : t.accent}`, borderRadius: 8, padding: "9px 20px", fontSize: 12, fontWeight: 600, cursor: savingFeedback || !feedback.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: !feedback.trim() ? 0.5 : 1 }}>
-                    {savingFeedback ? "Saving…" : feedbackSaved && !feedbackChanged ? "✓ Feedback saved" : "Save feedback"}
+                    {savingFeedback ? "Saving…" : feedbackSaved && !feedbackChanged ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={14} strokeWidth={3} /> Feedback saved</span> : "Save feedback"}
                   </button>
                   <button onClick={() => setStep(1)} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Try again</button>
                 </div>
@@ -870,12 +905,6 @@ function TryMatterWizard({ wf, token, proposal }) {
 
 // ─── Simple submit/expected tabs (when try-matter is disabled) ────────────────
 function SimpleWorkflowTabs({ wf, token, proposal }) {
-  const [activeTab, setActiveTab] = useState("expected");
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const fileInputRef = useRef(null);
-
   const stages = wf.stages || [];
 
   // Per-stage client uploads ("expected outputs by page") persisted to storage.
@@ -934,26 +963,13 @@ function SimpleWorkflowTabs({ wf, token, proposal }) {
     if (f?.id) fetch(`/api/proposals/v2/${proposal.id}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
   }
 
-  function handleFileAdd(e) { setUploadedFiles(prev => [...prev, ...Array.from(e.target.files || [])]); }
-  function removeFile(i) { setUploadedFiles(prev => prev.filter((_, j) => j !== i)); }
-
-  const tabStyle = (active) => ({
-    padding: "9px 16px", background: "none", border: "none",
-    fontFamily: "inherit", fontSize: 12, fontWeight: active ? 700 : 500,
-    color: active ? t.accent : t.textSub, cursor: "pointer",
-    borderBottom: active ? `2px solid ${t.accent}` : "2px solid transparent",
-    transition: "all 0.15s",
-  });
-
   return (
     <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", background: t.card }}>
-      <div style={{ display: "flex", borderBottom: `1px solid ${t.border}`, padding: "0 18px", gap: 4 }}>
-        <button style={tabStyle(activeTab === "expected")} onClick={() => setActiveTab("expected")}>Expected outputs</button>
-        <button style={tabStyle(activeTab === "submit")} onClick={() => setActiveTab("submit")}>Submit documents</button>
+      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Expected outputs</div>
       </div>
 
-      {activeTab === "expected" && (
-        <div style={{ padding: "18px 20px" }}>
+      <div style={{ padding: "18px 20px" }}>
           <div style={{ fontSize: 12, color: t.textSub, marginBottom: 14, lineHeight: 1.6 }}>
             Upload the output you'd expect at each stage — a sample deliverable, a precedent, or the format you want. This shows us your target so we can match it.
           </div>
@@ -983,7 +999,7 @@ function SimpleWorkflowTabs({ wf, token, proposal }) {
                         disabled={uploadingStage === i}
                         style={{ background: t.accentLight, color: t.accent, border: `1px solid ${t.accentBorder}`, borderRadius: 7, padding: "6px 13px", fontSize: 12, fontWeight: 600, cursor: uploadingStage === i ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}
                       >
-                        {uploadingStage === i ? "Uploading…" : "⬆ Upload"}
+                        {uploadingStage === i ? "Uploading…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Upload size={12} strokeWidth={2} /> Upload</span>}
                       </button>
                     </div>
                     {hints.length > 0 && (
@@ -995,7 +1011,7 @@ function SimpleWorkflowTabs({ wf, token, proposal }) {
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {files.map((f, idx) => (
                           <div key={idx} style={{ display: "flex", alignItems: "center", gap: 9, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 7, padding: "7px 11px" }}>
-                            <span style={{ fontSize: 14 }}>📎</span>
+                            <Paperclip size={14} color={t.textMeta} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                             <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.accent, textDecoration: "none" }}>{f.name}</a>
                             <button onClick={() => removeStageFile(i, idx)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13 }}>✕</button>
                           </div>
@@ -1007,60 +1023,7 @@ function SimpleWorkflowTabs({ wf, token, proposal }) {
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === "submit" && (
-        <div style={{ padding: "18px 20px" }}>
-          {submitted ? (
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <div style={{ fontSize: 24, marginBottom: 10 }}>✓</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: t.green }}>Documents submitted</div>
-              <div style={{ fontSize: 12, color: t.textSub, marginTop: 4 }}>The LexOps team has been notified.</div>
-            </div>
-          ) : (
-            <div>
-              <div style={{ fontSize: 12, color: t.textSub, marginBottom: 14, lineHeight: 1.6 }}>Upload any documents relevant to this workflow — reference files, precedent templates, or client data.</div>
-              <input ref={fileInputRef} type="file" multiple onChange={handleFileAdd} style={{ display: "none" }} />
-              <div onClick={() => fileInputRef.current?.click()} style={{ border: `2px dashed ${t.border}`, borderRadius: 9, padding: "22px", textAlign: "center", cursor: "pointer", background: t.surface }} onMouseEnter={e => e.currentTarget.style.borderColor = t.accentBorder} onMouseLeave={e => e.currentTarget.style.borderColor = t.border}>
-                <div style={{ fontSize: 20, marginBottom: 6 }}>⬆️</div>
-                <div style={{ fontSize: 12, color: t.textSub }}>Click to upload</div>
-                <div style={{ fontSize: 10, color: t.textMeta, marginTop: 3 }}>PDF, DOCX, TXT, CSV</div>
-              </div>
-              {uploadedFiles.length > 0 && (
-                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {uploadedFiles.map((f, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 7, padding: "8px 12px" }}>
-                      <span style={{ fontSize: 14 }}>📎</span>
-                      <span style={{ fontSize: 12, flex: 1, color: t.text }}>{f.name}</span>
-                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13 }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {uploadErr && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, padding: "8px 12px", color: t.red, fontSize: 12, marginTop: 12 }}>{uploadErr}</div>}
-              <button disabled={submitting || uploadedFiles.length === 0} onClick={async () => {
-                setSubmitting(true); setUploadErr("");
-                try {
-                  for (const file of uploadedFiles) {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    fd.append("token", token);
-                    fd.append("workflow_id", wf.id);
-                    fd.append("kind", "submitted");
-                    const res = await fetch(`/api/proposals/v2/${proposal?.id}/client-files`, { method: "POST", body: fd });
-                    if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || "Upload failed"); }
-                  }
-                  setSubmitted(true);
-                } catch (e) { setUploadErr(e.message || "Submission failed — please try again."); }
-                finally { setSubmitting(false); }
-              }} style={{ marginTop: 14, background: uploadedFiles.length === 0 ? t.surface : t.accent, color: uploadedFiles.length === 0 ? t.textMeta : "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 12, fontWeight: 600, cursor: uploadedFiles.length === 0 ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
-                {submitting ? "Submitting…" : "Submit documents"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -1133,7 +1096,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
 // ─── V2 client review flow ────────────────────────────────────────────────────
 function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
   const workflows = proposal.workflows || [];
-  const isFrozen = ["feedback_received", "won", "lost", "converted"].includes(proposal.status);
+  const isFrozen = ["accepted", "feedback_received", "won", "lost", "converted"].includes(proposal.status);
   const painPoints = Array.isArray(proposal.pain_points) ? proposal.pain_points : [];
   const objectives = Array.isArray(proposal.objectives) ? proposal.objectives : [];
 
@@ -1189,7 +1152,7 @@ function ClientReviewFlow({ proposal, token, onRefresh, previewMode }) {
         {/* Submitted banner */}
         {isFrozen && (
           <div style={{ background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 14, padding: "22px", marginBottom: 28, display: "flex", gap: 16, alignItems: "flex-start" }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>✓</div>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Check size={19} color={t.green} strokeWidth={2.5} /></div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: t.green, marginBottom: 4, fontFamily: "'Satoshi', sans-serif" }}>Proposal Submitted</div>
               <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.7 }}>Thank you — your review has been submitted to Lex Ops. We'll be in touch shortly with next steps.</div>

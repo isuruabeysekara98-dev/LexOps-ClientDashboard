@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Zap, ClipboardList, FileText, ScrollText, AlertTriangle, FileUp } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 
 const t = {
@@ -20,15 +21,19 @@ const t = {
 };
 
 const STATUS_CFG = {
-  draft:          { label: "Draft",             bg: "transparent",          color: t.textSub,   border: t.border },
-  sent:           { label: "Sent",              bg: "#E4F1F8",              color: "#375971",   border: "rgba(55,89,113,0.18)" },
-  in_review:      { label: "In review",         bg: "rgba(180,83,9,0.07)",  color: "#B45309",   border: "rgba(180,83,9,0.2)" },
-  submitted:          { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
-  feedback_received:  { label: "Feedback received", bg: t.accent,  color: "#FFFFFF", border: t.accent },
-  viewed:             { label: "Viewed",             bg: "#E4F1F8", color: "#375971", border: "rgba(55,89,113,0.18)" },
-  won:                { label: "Won / Graduated",   bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  draft:              { label: "Draft",             bg: "transparent",          color: t.textSub,   border: t.border },
+  sent:               { label: "Sent",              bg: "#E4F1F8",              color: "#375971",   border: "rgba(55,89,113,0.18)" },
+  changes_requested:  { label: "Changes requested", bg: "rgba(180,83,9,0.07)",  color: "#B45309",   border: "rgba(180,83,9,0.2)" },
+  updated:            { label: "Updated",           bg: t.accent,  color: "#FFFFFF", border: t.accent },
+  accepted:           { label: "Accepted",          bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  won:                { label: "Won",               bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
   lost:               { label: "Lost",              bg: "rgba(201,84,46,0.08)", color: "#C9542E", border: "rgba(201,84,46,0.2)" },
-  converted:          { label: "Converted",         bg: t.accent,  color: "#FFFFFF", border: t.accent },
+  converted:          { label: "Won",               bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  // legacy statuses — kept so older proposals still render
+  in_review:          { label: "Changes requested", bg: "rgba(180,83,9,0.07)",  color: "#B45309",   border: "rgba(180,83,9,0.2)" },
+  submitted:          { label: "Accepted",          bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  feedback_received:  { label: "Accepted",          bg: "#E7F3EC", color: "#3C7A52", border: "rgba(60,122,82,0.22)" },
+  viewed:             { label: "Sent",              bg: "#E4F1F8", color: "#375971", border: "rgba(55,89,113,0.18)" },
 };
 
 function StatusPill({ status }) {
@@ -349,7 +354,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
               onMouseLeave={() => setHovBtn(null)}
               style={{ ...btnBase, color: t.textSub, background: hovBtn === "projects" ? "#F0EDE6" : "transparent" }}
             >
-              ⚡ Active Projects
+              <Zap size={15} strokeWidth={2} /> Active Projects
             </button>
           )}
           {!mobile && (
@@ -390,9 +395,9 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                 minWidth: 220, zIndex: 200, overflow: "hidden",
               }}>
                 {[
-                  { icon: "📋", label: "Fill in a form", sub: "Manually enter proposal details", action: () => { setNewMenuOpen(false); navigate("/admin/proposals/new"); } },
-                  { icon: "📄", label: "Import from PDF", sub: "AI reads a PDF proposal", action: () => { setNewMenuOpen(false); openImportModal("pdf"); } },
-                  { icon: "📝", label: "Import from transcript", sub: "AI reads meeting notes or a call transcript", action: () => { setNewMenuOpen(false); openImportModal("transcript"); } },
+                  { Icon: ClipboardList, label: "Fill in a form", sub: "Manually enter proposal details", action: () => { setNewMenuOpen(false); navigate("/admin/proposals/new"); } },
+                  { Icon: FileText, label: "Import from PDF", sub: "AI reads a PDF proposal", action: () => { setNewMenuOpen(false); openImportModal("pdf"); } },
+                  { Icon: ScrollText, label: "Import from transcript", sub: "AI reads meeting notes or a call transcript", action: () => { setNewMenuOpen(false); openImportModal("transcript"); } },
                 ].map((item, i) => (
                   <button
                     key={i}
@@ -407,7 +412,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                     onMouseEnter={e => e.currentTarget.style.background = t.accentLight}
                     onMouseLeave={e => e.currentTarget.style.background = "none"}
                   >
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>{item.icon}</span>
+                    <item.Icon size={18} color={t.accent} strokeWidth={1.75} style={{ flexShrink: 0 }} />
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{item.label}</div>
                       <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>{item.sub}</div>
@@ -470,7 +475,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             background: t.card, border: `1.5px solid rgba(201,84,46,0.25)`, borderRadius: 14,
             padding: "48px 0", textAlign: "center",
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><AlertTriangle size={28} color="#C9542E" strokeWidth={1.75} /></div>
             <div style={{ color: t.text, fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{loadError}</div>
             <button
               onClick={load}
@@ -484,7 +489,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             background: t.card, border: `1.5px dashed ${t.border}`, borderRadius: 14,
             padding: "64px 0", textAlign: "center",
           }}>
-            <div style={{ fontSize: 28, marginBottom: 12 }}>📋</div>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><ClipboardList size={30} color={t.textMeta} strokeWidth={1.5} /></div>
             <div style={{ color: t.text, fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No proposals yet</div>
             <div style={{ color: t.textMeta, fontSize: 13, marginBottom: 24 }}>Create your first proposal to get started.</div>
             <button
@@ -660,8 +665,8 @@ export default function ProposalsListPage({ navigate, onLogout }) {
               borderBottom: `1px solid ${t.border}`,
             }}>
               {[
-                { id: "pdf", label: "📄 PDF" },
-                { id: "transcript", label: "📝 Transcript" },
+                { id: "pdf", Icon: FileText, label: "PDF" },
+                { id: "transcript", Icon: ScrollText, label: "Transcript" },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -674,9 +679,10 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                     padding: "8px 16px",
                     borderBottom: importTab === tab.id ? `2px solid ${t.accent}` : "2px solid transparent",
                     marginBottom: -1, transition: "all 0.12s",
+                    display: "inline-flex", alignItems: "center", gap: 6,
                   }}
                 >
-                  {tab.label}
+                  <tab.Icon size={14} strokeWidth={2} /> {tab.label}
                 </button>
               ))}
             </div>
@@ -703,13 +709,13 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                 >
                   {pdfFile ? (
                     <>
-                      <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
+                      <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><FileText size={32} color={t.accent} strokeWidth={1.5} /></div>
                       <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>{pdfFile.name}</div>
                       <div style={{ fontSize: 12, color: t.textMeta }}>{(pdfFile.size / 1024).toFixed(0)} KB · Click to change</div>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 32, marginBottom: 10 }}>📑</div>
+                      <div style={{ marginBottom: 10, display: "flex", justifyContent: "center" }}><FileUp size={32} color={t.textMeta} strokeWidth={1.5} /></div>
                       <div style={{ fontWeight: 600, fontSize: 14, color: t.text, marginBottom: 4 }}>Drop a PDF here or click to browse</div>
                       <div style={{ fontSize: 12, color: t.textMeta }}>Up to 20 MB · Text-based PDFs only (not scanned)</div>
                     </>

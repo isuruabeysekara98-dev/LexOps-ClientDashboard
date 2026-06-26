@@ -119,6 +119,8 @@ function RolePill({ role, mode }) {
 const STATUS_PILL_COLORS = {
   draft:    { bg: "transparent", color: "#8b96a4", b: "rgba(255,255,255,0.07)" },
   sent:     { bg: "rgba(74,127,165,0.1)", color: "#6a9fc0", b: "#4a7fa530" },
+  changes_requested: { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
+  updated:  { bg: "rgba(74,127,165,0.16)", color: "#6a9fc0", b: "#4a7fa540" },
   viewed:   { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
   accepted: { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
   feedback_received: { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
@@ -130,8 +132,17 @@ const STATUS_PILL_COLORS = {
   "on-hold": { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
 };
 
+const STATUS_PILL_LABELS = {
+  changes_requested: "Changes requested",
+  feedback_received: "Accepted",
+  submitted: "Accepted",
+  viewed: "Sent",
+  converted: "Won",
+};
+
 function StatusPill({ status }) {
   const v = STATUS_PILL_COLORS[status] || STATUS_PILL_COLORS.draft;
+  const label = STATUS_PILL_LABELS[status] || (status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " "));
   return (
     <span style={{
       background: v.bg, color: v.color, border: `1px solid ${v.b}`,
@@ -139,7 +150,7 @@ function StatusPill({ status }) {
       display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap",
     }}>
       <span style={{ width: 4, height: 4, borderRadius: "50%", background: v.color, flexShrink: 0 }} />
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {label}
     </span>
   );
 }
@@ -167,6 +178,14 @@ function XIcon({ color }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+    </svg>
+  );
+}
+
+function CheckIcon({ color, size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
     </svg>
   );
 }
@@ -958,11 +977,11 @@ function ClientsTab({ t, mode }) {
                       <CopyIcon color={t.textSub} />
                     </button>
                     <button onClick={() => sendProposalEmail(pr)} disabled={emailSending === pr.id} title={emailSent === pr.id ? "Sent!" : "Send via email"} style={{ ...iconBtnStyle, color: emailSent === pr.id ? t.green : t.textSub, opacity: emailSending === pr.id ? 0.5 : 1, cursor: emailSending === pr.id ? "not-allowed" : "pointer" }}>
-                      {emailSent === pr.id ? <span style={{ color: t.green, fontSize: 13, fontWeight: 700 }}>✓</span> : <MailIcon color={emailSent === pr.id ? t.green : t.textSub} />}
+                      {emailSent === pr.id ? <CheckIcon color={t.green} /> : <MailIcon color={emailSent === pr.id ? t.green : t.textSub} />}
                     </button>
                     {pr.status !== "accepted" && (
                       <button onClick={() => markAccepted(pr)} title="Mark as accepted" style={{ ...iconBtnStyle, color: t.green }}>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>✓</span>
+                        <CheckIcon color={t.green} />
                       </button>
                     )}
                     <button onClick={() => deleteProposal(pr.id)} disabled={deletingProposal === pr.id} title="Delete" style={{ ...iconBtnStyle, color: t.red, opacity: deletingProposal === pr.id ? 0.4 : 1 }}>
@@ -1460,7 +1479,7 @@ function ProjectsTab({ t }) {
                     borderRadius: 10, padding: "14px 16px",
                   }}>
                     <div style={{ color: t.text, fontSize: 13, fontWeight: 500, marginBottom: 8 }}>
-                      {f.resolved && <span style={{ color: t.green, marginRight: 6 }}>✓</span>}
+                      {f.resolved && <span style={{ marginRight: 6, display: "inline-flex", alignItems: "center", verticalAlign: "-2px" }}><CheckIcon color={t.green} size={14} /></span>}
                       {f.question}
                     </div>
                     {!f.resolved && (

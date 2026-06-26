@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase.js";
+import { Check } from "lucide-react";
 
 const t = {
   bg: "#FFFFFF",
@@ -140,8 +141,8 @@ export default function LoginPage({ authError: externalError } = {}) {
           {forgotMode ? (
             resetSent ? (
               <div style={{ textAlign: "center", padding: "12px 0" }}>
-                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.green }}>
-                  ✓
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.25)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: t.green }}>
+                  <Check size={22} strokeWidth={2.5} />
                 </div>
                 <div style={{ color: t.text, fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Check your email</div>
                 <div style={{ color: t.textSub, fontSize: 13, marginBottom: 20 }}>We've sent a password reset link to <strong style={{ color: t.text }}>{resetEmail}</strong></div>
