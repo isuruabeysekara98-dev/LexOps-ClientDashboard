@@ -492,6 +492,22 @@ async function dbWrite(table, operation, data, match) {
   return adminFetch("/db", { method: "POST", body: { table, operation, data: data ?? null, match: match ?? null } });
 }
 
+// Fetch a short-lived signed URL for a private file and open it.
+// kind: "documents" | "invoices". download:true forces a download instead of inline view.
+async function openSignedFile(kind, id, { download = false } = {}) {
+  if (!id) return;
+  try {
+    const res = await adminFetch(`/${kind}/${id}/signed-url${download ? "?download=1" : ""}`);
+    if (res?.url) window.open(res.url, "_blank", "noopener,noreferrer");
+    else throw new Error("No URL returned");
+  } catch (e) {
+    console.error("[openSignedFile] failed:", e?.message);
+    alert("Could not open file — please try again.");
+  }
+}
+const openDocument = (id, opts) => openSignedFile("documents", id, opts);
+const openInvoice = (id, opts) => openSignedFile("invoices", id, opts);
+
 async function autoCompletePhaseIfDone(projectId, phaseId) {
   if (!phaseId) return;
   try {
@@ -857,8 +873,9 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     e.target.value="";
     setUploadError("");
     setUploading(true);
-    const storagePath=`${projectId}/${file.name}`;
-    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:true});
+    const safeName=file.name.replace(/[^a-zA-Z0-9._\-]/g,"_");
+    const storagePath=`${projectId}/${Date.now()}_${safeName}`;
+    const {error:upErr}=await supabase.storage.from("project-documents").upload(storagePath,file,{upsert:false});
     if(upErr){setUploadError(upErr.message);setUploading(false);return;}
     const {data:{publicUrl}}=supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext=file.name.split(".").pop().toUpperCase();
@@ -989,9 +1006,9 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
                   </div>
                 </div>
                 <div style={{display:"flex",gap:8,flexShrink:0}}>
-                  <a href={doc.file_url} target="_blank" rel="noreferrer" download={doc.name} style={{background:"transparent",color:t.accentLight,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 14px",fontSize:12,fontWeight:500,textDecoration:"none",display:"inline-flex",alignItems:"center"}}>
+                  <button onClick={()=>openDocument(doc.id,{download:true})} style={{background:"transparent",color:t.accentLight,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 14px",fontSize:12,fontWeight:500,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center"}}>
                     Download
-                  </a>
+                  </button>
                   <button onClick={()=>deleteDoc(doc)} disabled={deletingId===doc.id} title="Delete" style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:7,width:30,height:30,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:t.red,fontSize:15,opacity:deletingId===doc.id?0.4:1}}>
                     ×
                   </button>
@@ -1634,9 +1651,8 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
         :invoices.map((inv,i)=>{
           const isEditing=editingId===inv.id;
           const invName=inv.description||inv.invoice_number;
-          const dlHref=inv.file_url?`${inv.file_url}${inv.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(invName+".pdf")}`:"#";
           const label=inv.file_url
-            ?<a href={inv.file_url} target="_blank" rel="noreferrer" style={{color:t.accentLight,textDecoration:"none",fontWeight:500,fontSize:13}}>{invName}</a>
+            ?<button onClick={()=>openInvoice(inv.id)} style={{background:"transparent",border:"none",padding:0,color:t.accentLight,fontWeight:500,fontSize:13,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>{invName}</button>
             :<span style={{color:t.text,fontSize:13,fontWeight:500}}>{invName}</span>;
           return(
             <div key={inv.id}>
@@ -1666,7 +1682,7 @@ function InvoicesTab({projectId,initialInvoices,isInternal,onRefresh,project,t,m
                     {!mobile&&<span style={{color:t.text,fontFamily:"'Satoshi',sans-serif",fontWeight:400,fontSize:20,letterSpacing:"-0.03em"}}>${(inv.amount||0).toLocaleString()}</span>}
                     <Pill t={t} status={inv.status} label={inv.status==="paid"?"Paid":inv.status==="pending"?"Due":"Upcoming"}/>
                     {inv.file_url&&(
-                      <a href={dlHref} target="_blank" rel="noreferrer" style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,textDecoration:"none",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</a>
+                      <button onClick={()=>openInvoice(inv.id,{download:true})} style={{background:t.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>↓ PDF</button>
                     )}
                     {isInternal&&(
                       <>
@@ -3227,10 +3243,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                           <div style={{ color: t.text, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.name}</div>
                           <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{fmtBytes(doc.file_size)} · {fmtDate(doc.uploaded_at)}</div>
                         </div>
-                        <a href={doc.file_url} target="_blank" rel="noreferrer"
-                          style={{ color: t.accentLight, fontSize: 12, textDecoration: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 12px", flexShrink: 0 }}>
+                        <button onClick={()=>openDocument(doc.id,{download:true})}
+                          style={{ background:"transparent", color: t.accentLight, fontSize: 12, cursor:"pointer", fontFamily:"inherit", border: `1px solid ${t.border}`, borderRadius: 6, padding: "4px 12px", flexShrink: 0 }}>
                           Download
-                        </a>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -3318,10 +3334,10 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
                         </div>
                         <Pill t={t} status={inv.status === "paid" ? "paid" : "upcoming"} label={inv.status === "paid" ? "Paid" : inv.status === "pending" ? "Pending" : "Upcoming"} />
                         {inv.file_url && (
-                          <a href={inv.file_url} target="_blank" rel="noreferrer"
-                            style={{ color: t.accentLight, fontSize: 11, textDecoration: "none", border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 10px", flexShrink: 0 }}>
+                          <button onClick={()=>openInvoice(inv.id)}
+                            style={{ background:"transparent", color: t.accentLight, fontSize: 11, cursor:"pointer", fontFamily:"inherit", border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 10px", flexShrink: 0 }}>
                             PDF
-                          </a>
+                          </button>
                         )}
                         <button onClick={() => deleteInvoice(inv.id)}
                           style={{ background: "transparent", border: "none", color: t.textSub, cursor: "pointer", fontSize: 16, padding: "2px 4px", opacity: 0.4, lineHeight: 1, flexShrink: 0 }}>×</button>
@@ -3794,7 +3810,7 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
         {docs.slice(0, 6).map(doc => {
           const ext = (doc.file_type || "").toUpperCase();
           return (
-            <a key={doc.id} href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+            <div key={doc.id} onClick={()=>openDocument(doc.id,{download:true})} style={{ cursor:"pointer" }}>
               <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, transition: "border-color 0.15s, box-shadow 0.15s", boxShadow: t.shadow }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: `${extColor[ext] || t.accent}18`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>
                   {extIcon[ext] || "📁"}
@@ -3807,7 +3823,7 @@ function ClientDocsInline({ projectId, initialDocuments, t, mobile }) {
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, color: t.accent, flexShrink: 0 }}>↓ Download</span>
               </div>
-            </a>
+            </div>
           );
         })}
       </div>
@@ -4002,18 +4018,19 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         console.error("[ClientActionsTab] markComplete failed:", err);
-        // Still reflect locally so UI doesn't snap back
-        setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status: "done" } : tk));
-      } else {
-        await autoCompletePhaseIfDone(projectId, task.phase_id);
-        await loadData();
+        setCompleting(null);
+        showToast("⚠️ Could not mark complete — please try again.");
+        return;
       }
+      await autoCompletePhaseIfDone(projectId, task.phase_id);
+      await loadData();
+      setCompleting(null);
+      showToast("✅ Marked complete — LexOps will verify shortly.");
     } catch (e) {
       console.error("[ClientActionsTab] markComplete error:", e);
-      setTasks(prev => prev.map(tk => tk.id === task.id ? { ...tk, status: "done" } : tk));
+      setCompleting(null);
+      showToast("⚠️ Could not mark complete — please try again.");
     }
-    setCompleting(null);
-    showToast("✅ Marked complete — LexOps will verify shortly.");
   }
 
   const allDeliverables = tasks.filter(tk => tk.is_deliverable);
@@ -4226,8 +4243,9 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
     setUploadError("");
     setUploading(req.id);
 
-    const storagePath = `${projectId}/${file.name}`;
-    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
+    const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, "_");
+    const storagePath = `${projectId}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: false });
     if (upErr) { setUploadError(upErr.message); setUploading(null); return; }
 
     const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
@@ -4267,8 +4285,9 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
     e.target.value = "";
     setUploadError("");
     setSelfUploading(true);
-    const storagePath = `${projectId}/${file.name}`;
-    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: true });
+    const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, "_");
+    const storagePath = `${projectId}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await supabase.storage.from("project-documents").upload(storagePath, file, { upsert: false });
     if (upErr) { setUploadError(upErr.message); setSelfUploading(false); return; }
     const { data: { publicUrl } } = supabase.storage.from("project-documents").getPublicUrl(storagePath);
     const ext = file.name.split(".").pop().toUpperCase();
@@ -4356,9 +4375,9 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
                       <div style={{ color: t.textSub, fontSize: 11, marginTop: 1 }}>{fmtBytes(doc.file_size)} · {fmtDate(doc.uploaded_at)}</div>
                     </div>
                   </div>
-                  <a href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                  <button onClick={()=>openDocument(doc.id,{download:true})} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 7, padding: "5px 14px", fontSize: 12, fontWeight: 600, cursor:"pointer", fontFamily:"inherit", display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                     ↓ Download
-                  </a>
+                  </button>
                 </div>
                 {i < docs.length - 1 && <Line t={t} />}
               </div>
@@ -4448,8 +4467,8 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
                 <span style={{ fontSize: 10, padding: "2px 8px", background: "#e8f2f1", color: t.accent, borderRadius: 99, fontWeight: 500, flexShrink: 0 }}>{doc.phase_name}</span>
               )}
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${t.border}`, color: t.textSub, textDecoration: "none", fontWeight: 500 }}>View</a>
-                <a href={doc.file_url ? `${doc.file_url}${doc.file_url.includes("?")?"&":"?"}download=${encodeURIComponent(doc.name||"file")}` : "#"} target="_blank" rel="noreferrer" style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", textDecoration: "none", fontWeight: 600 }}>↓ Download</a>
+                <button onClick={()=>openDocument(doc.id)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${t.border}`, background:"transparent", color: t.textSub, cursor:"pointer", fontFamily:"inherit", fontWeight: 500 }}>View</button>
+                <button onClick={()=>openDocument(doc.id,{download:true})} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight: 600 }}>↓ Download</button>
               </div>
             </div>
           );
@@ -5088,7 +5107,7 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
             <div key={doc.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#fff", borderRadius:8, border:`1px solid ${t.border}`, padding:"12px 14px", marginBottom:8, boxShadow:"0 1px 3px rgba(26,74,71,0.06)" }}>
               <div style={{ width:34, height:34, borderRadius:7, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15, flexShrink:0, background:icon.bg }}>{icon.emoji}</div>
               <div style={{ flex:1, minWidth:0 }}>
-                <a href={doc.file_url} target="_blank" rel="noreferrer" style={{ fontSize:13, fontWeight:600, color:t.text, textDecoration:"none", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block" }}>{doc.name}</a>
+                <button onClick={()=>openDocument(doc.id)} style={{ fontSize:13, fontWeight:600, color:t.text, background:"transparent", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit", textAlign:"left", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", display:"block", width:"100%" }}>{doc.name}</button>
                 <div style={{ fontSize:11, color:t.textSub }}>{doc.uploaded_at?new Date(doc.uploaded_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):""}{doc.file_type?` · ${doc.file_type}`:""}</div>
               </div>
               {doc.phase_name&&<span style={{ fontSize:10, padding:"2px 8px", background:"#e8f2f1", color:t.accent, borderRadius:99, fontWeight:500, flexShrink:0 }}>{doc.phase_name}</span>}

@@ -77,10 +77,10 @@ export async function sendSupportTicketNotification(
     heading("New support ticket") +
     bodyText(`A new support ticket has been submitted on <strong>${projectName}</strong> by ${ticket.created_by === "client" ? "the client" : "your team"}.`) +
     `<table cellpadding="0" cellspacing="0" style="width:100%;border-radius:8px;border:1px solid #e9ecef;overflow:hidden;margin:18px 0">
-      <tr><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Subject</td><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${ticket.title}</td></tr>
+      <tr><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Subject</td><td style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${ticket.title.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</td></tr>
       <tr><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Priority</td><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${priorityLabel}</td></tr>
       <tr><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Category</td><td style="padding:10px 16px;border-bottom:1px solid #e9ecef;font-size:14px;color:#1a2235">${ticket.category}</td></tr>
-      ${ticket.description ? `<tr><td style="padding:10px 16px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Details</td><td style="padding:10px 16px;font-size:14px;color:#1a2235">${ticket.description}</td></tr>` : ""}
+      ${ticket.description ? `<tr><td style="padding:10px 16px;font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Details</td><td style="padding:10px 16px;font-size:14px;color:#1a2235">${ticket.description.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</td></tr>` : ""}
     </table>` +
     ctaButton("View in portal", `${PORTAL_URL}/`)
   ));
@@ -198,7 +198,7 @@ export async function sendProposalAccepted(adminEmail: string, clientName: strin
 // ---------------------------------------------------------------------------
 export async function sendDocumentRequest(email: string, clientName: string, projectName: string, requestTitle: string, requestDescription: string) {
   const name = firstName(clientName);
-  const desc = requestDescription ? `<br><span style="color:#6b7280;font-size:14px">${requestDescription}</span>` : "";
+  const desc = requestDescription ? `<br><span style="color:#6b7280;font-size:14px">${requestDescription.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</span>` : "";
   await send(email, `Document needed: ${requestTitle}`, emailWrapper(
     heading("We need a document from you") +
     bodyText(`Hi ${name}, your team needs <strong>${requestTitle}</strong> for ${projectName}.${desc}`) +

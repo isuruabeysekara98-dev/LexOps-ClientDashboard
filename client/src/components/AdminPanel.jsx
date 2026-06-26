@@ -121,6 +121,13 @@ const STATUS_PILL_COLORS = {
   sent:     { bg: "rgba(74,127,165,0.1)", color: "#6a9fc0", b: "#4a7fa530" },
   viewed:   { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
   accepted: { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  feedback_received: { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  won:       { bg: "rgba(74,222,128,0.12)", color: "#22c55e", b: "#22c55e30" },
+  lost:      { bg: "rgba(248,113,113,0.08)", color: "#f87171", b: "#f8717125" },
+  converted: { bg: "rgba(139,92,246,0.08)", color: "#a78bfa", b: "#a78bfa25" },
+  active:    { bg: "rgba(74,127,165,0.1)", color: "#6a9fc0", b: "#4a7fa530" },
+  complete:  { bg: "rgba(74,222,128,0.08)", color: "#4ade80", b: "#4ade8025" },
+  "on-hold": { bg: "rgba(245,158,11,0.08)", color: "#f59e0b", b: "#f59e0b25" },
 };
 
 function StatusPill({ status }) {
@@ -177,8 +184,10 @@ function InviteModal({ onClose, onSuccess, t, mode, defaultRole }) {
   useEffect(() => {
     async function loadProjects() {
       setProjectsLoading(true);
-      const { data } = await supabase.from("projects").select("id, name, client_name").order("id");
-      setAvailableProjects((data || []).map(p => ({ id: p.id, label: p.client_name ? `${p.client_name} – ${p.name}` : p.name })));
+      try {
+        const result = await adminFetch("/db-read?table=projects&order_by=id");
+        setAvailableProjects((result.data || []).map(p => ({ id: p.id, label: p.client_name ? `${p.client_name} – ${p.name}` : p.name })));
+      } catch { setAvailableProjects([]); }
       setProjectsLoading(false);
     }
     loadProjects();
@@ -310,7 +319,14 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [teamMembers, setTeamMembers] = useState([]);
   const isEdit = !!project;
+
+  useEffect(() => {
+    adminFetch("/db-read?table=profiles&order_by=full_name")
+      .then(r => setTeamMembers((r.data || []).filter(p => p.role === "lexops_admin" || p.role === "lexops_member")))
+      .catch(() => {});
+  }, []);
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -354,8 +370,20 @@ function ProjectModal({ project, onClose, onSuccess, t }) {
             {field("Project Name", <Input t={t} value={form.name}         onChange={set("name")}         placeholder="CRM Implementation" />, true)}
             {field("Milestone",    <Input t={t} value={form.phase}       onChange={set("phase")}       placeholder="Implementation" />, true)}
             {field("Due Date",     <Input t={t} type="date" value={form.due_date} onChange={set("due_date")} />, true)}
-            {field("Manager",      <Input t={t} value={form.manager}     onChange={set("manager")}     placeholder="Jane Smith" />, true)}
-            {field("Manager Email", <Input t={t} type="email" value={form.manager_email || ""} onChange={set("manager_email")} placeholder="manager@example.com" />, true)}
+            {field("Manager",
+              <select
+                value={form.manager_email || ""}
+                onChange={e => {
+                  const m = teamMembers.find(p => p.email === e.target.value);
+                  setForm(f => ({ ...f, manager: m ? (m.full_name || m.email) : "", manager_email: e.target.value }));
+                }}
+                style={{ width: "100%", borderRadius: 8, background: "#FFFFFF", border: "1px solid rgba(0,0,0,0.12)", padding: "10px 14px", fontSize: 14, color: "#232A34", outline: "none", fontFamily: "'Satoshi', sans-serif", boxSizing: "border-box" }}
+              >
+                <option value="">— Select manager —</option>
+                {teamMembers.map(m => <option key={m.id} value={m.email}>{m.full_name || m.email}</option>)}
+              </select>,
+              true
+            )}
             {field("Budget ($)",   <Input t={t} type="number" value={form.budget} onChange={set("budget")} placeholder="5000" />, true)}
             {field("Progress (%)", <Input t={t} type="number" value={form.progress} onChange={set("progress")} placeholder="0" />, true)}
             {field("Status",
@@ -584,13 +612,13 @@ function ClientsTab({ t, mode }) {
       if (proposalFile && !pdfUrl) {
         storagePath = `proposals/${row.id}/${proposalFile.name}`;
         const { error: upErr } = await supabase.storage
-          .from("project-documents")
+          .from("proposal-assets")
           .upload(storagePath, proposalFile, { upsert: true });
 
         if (upErr) { setProposalError("PDF upload failed: " + upErr.message); setProposalSaving(false); return; }
 
         const { data: { publicUrl } } = supabase.storage
-          .from("project-documents")
+          .from("proposal-assets")
           .getPublicUrl(storagePath);
         pdfUrl = publicUrl;
       }
@@ -1331,8 +1359,8 @@ function ProjectsTab({ t }) {
   async function deleteProject(id) {
     if (!window.confirm("Delete this project? This cannot be undone.")) return;
     setDeleting(id);
-    await dbWrite("projects","delete",null,{id});
-    setProjects(p => p.filter(x => x.id !== id));
+    const result = await dbWrite("projects","delete",null,{id});
+    if (result?.ok !== false) setProjects(p => p.filter(x => x.id !== id));
     setDeleting(null);
   }
 

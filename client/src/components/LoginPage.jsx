@@ -51,9 +51,14 @@ export default function LoginPage({ authError: externalError } = {}) {
     // After successful login, honour ?next= redirect (proposal links land here)
     const params = new URLSearchParams(window.location.search);
     const next = params.get("next");
-    if (next && next.startsWith("/")) {
-      window.location.href = next;
-      return;
+    if (next) {
+      try {
+        const url = new URL(next, window.location.origin);
+        if (url.origin === window.location.origin) {
+          window.location.href = url.pathname + url.search + url.hash;
+          return;
+        }
+      } catch {}
     }
     setLoading(false);
   }

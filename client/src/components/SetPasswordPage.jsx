@@ -60,6 +60,13 @@ export default function SetPasswordPage() {
     }
 
     setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setError("Session expired. Please use the link from your invitation email again.");
+      setLoading(false);
+      return;
+    }
+
     const { error: updateErr } = await supabase.auth.updateUser({ password });
     if (updateErr) {
       setError(updateErr.message);

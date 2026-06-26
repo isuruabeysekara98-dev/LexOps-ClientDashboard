@@ -358,6 +358,12 @@ router.post("/demo/generate-fields", async (req, res) => {
   const { data: workflow } = await adminSupabase.from("workflows").select("*").eq("id", workflow_id).single();
   if (!workflow || workflow.proposal_id !== proposal.id) { res.json({ fields: [] }); return; }
 
+  const { count: fieldGenCount } = await adminSupabase
+    .from("workflow_runs").select("*", { count: "exact", head: true }).eq("workflow_id", workflow_id);
+  if ((fieldGenCount || 0) >= RUN_CAP) {
+    res.status(429).json({ message: `You've reached the ${RUN_CAP}-run limit for this workflow.` }); return;
+  }
+
   const { data: stages } = await adminSupabase.from("workflow_stages").select("*").eq("workflow_id", workflow_id).order("order_index");
   const stageList = (stages || []) as any[];
   const stageContext = stageList.map((s: any, i: number) => `Stage ${i + 1}: ${s.emoji} ${s.title} — ${s.description}`).join("\n");
@@ -620,7 +626,7 @@ router.post("/:id/submit-final", async (req, res) => {
             ${sub?.proceeded ? "✓ Complete" : "Pending"}
           </td>
         </tr>
-        ${sub?.feedback_text ? `<tr><td colspan="3" style="padding:6px 14px 12px;border-bottom:1px solid #E5E3DC;font-size:12px;color:#6B6B5F;font-style:italic;">💬 "${sub.feedback_text}"</td></tr>` : ""}
+        ${sub?.feedback_text ? `<tr><td colspan="3" style="padding:6px 14px 12px;border-bottom:1px solid #E5E3DC;font-size:12px;color:#6B6B5F;font-style:italic;">💬 "${sub.feedback_text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}"</td></tr>` : ""}
       `;
     }).join("");
   }
@@ -745,6 +751,11 @@ router.post("/:id/request-changes", async (req, res) => {
 
   const proposal = await getProposalByToken(token);
   if (!proposal || proposal.id !== id) { res.status(403).json({ message: "Forbidden" }); return; }
+
+  const frozen = ["won", "lost", "converted"];
+  if (frozen.includes(proposal.status)) {
+    res.status(409).json({ message: "Proposal is closed and cannot be modified" }); return;
+  }
 
   await adminSupabase.from("proposals").update({
     status: "sent",
@@ -1246,7 +1257,7 @@ router.post("/:id/duplicate", requireAdmin, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // Client document capture — files uploaded by the client as part of a proposal.
-// Stored in the "project-documents" bucket; metadata in proposal_client_files.
+// Stored in the "proposal-assets" bucket; metadata in proposal_client_files.
 // ---------------------------------------------------------------------------
 
 // POST /api/proposals/v2/:id/client-files — client uploads a file (token-validated)
@@ -1265,13 +1276,13 @@ router.post("/:id/client-files", upload.single("file"), async (req: any, res) =>
   const storagePath = `proposals/${id}/${workflow_id || "general"}/${kind || "expected"}/${Date.now()}_${safeName}`;
 
   const { error: storageErr } = await (adminSupabase as any).storage
-    .from("project-documents")
+    .from("proposal-assets")
     .upload(storagePath, file.buffer, { contentType: file.mimetype, upsert: true });
   if (storageErr) {
     console.error("[client-files] storage:", storageErr.message);
     res.status(500).json({ message: `Upload failed: ${storageErr.message}` }); return;
   }
-  const { data: { publicUrl } } = (adminSupabase as any).storage.from("project-documents").getPublicUrl(storagePath);
+  const { data: { publicUrl } } = (adminSupabase as any).storage.from("proposal-assets").getPublicUrl(storagePath);
 
   const row = {
     proposal_id: id,
@@ -1286,7 +1297,7 @@ router.post("/:id/client-files", upload.single("file"), async (req: any, res) =>
   };
   const { data, error } = await (adminSupabase as any).from("proposal_client_files").insert(row).select().single();
   if (error) {
-    await (adminSupabase as any).storage.from("project-documents").remove([storagePath]).catch(() => {});
+    await (adminSupabase as any).storage.from("proposal-assets").remove([storagePath]).catch(() => {});
     console.error("[client-files] insert:", error.message);
     const hint = /relation .* does not exist/i.test(error.message)
       ? "The proposal_client_files table is missing — run supabase/proposal_client_files.sql."
@@ -1335,7 +1346,7 @@ router.delete("/:id/client-files/:fileId", async (req: any, res) => {
   const { data: fileRow } = await (adminSupabase as any)
     .from("proposal_client_files").select("storage_path").eq("id", fileId).eq("proposal_id", id).single();
   if (fileRow?.storage_path) {
-    await (adminSupabase as any).storage.from("project-documents").remove([fileRow.storage_path]).catch(() => {});
+    await (adminSupabase as any).storage.from("proposal-assets").remove([fileRow.storage_path]).catch(() => {});
   }
   await (adminSupabase as any).from("proposal_client_files").delete().eq("id", fileId).eq("proposal_id", id);
   res.json({ ok: true });
@@ -1383,7 +1394,7 @@ router.post("/:id/convert", requireAdmin, async (req, res) => {
     }
   }
 
-  await adminSupabase.from("proposals").update({ status: "converted", project_id: project.id, updated_at: new Date().toISOString() }).eq("id", id);
+  await adminSupabase.from("proposals").update({ status: "converted", project_id: project.id, converted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
   res.json({ project_id: project.id });
 });
 
@@ -1398,7 +1409,7 @@ router.delete("/:id", requireAdmin, async (req, res) => {
   const { data: files } = await (adminSupabase as any)
     .from("proposal_client_files").select("storage_path").eq("proposal_id", id);
   const paths = (files || []).map((f: any) => f.storage_path).filter(Boolean);
-  if (paths.length) await (adminSupabase as any).storage.from("project-documents").remove(paths).catch(() => {});
+  if (paths.length) await (adminSupabase as any).storage.from("proposal-assets").remove(paths).catch(() => {});
 
   // Delete child rows (no-ops if a table is absent or already empty)
   await (adminSupabase as any).from("proposal_client_files").delete().eq("proposal_id", id);

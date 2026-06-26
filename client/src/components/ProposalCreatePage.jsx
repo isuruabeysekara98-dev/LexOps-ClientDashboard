@@ -117,6 +117,13 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
     workflows: [{ id: null, name: "Workflow 1", emoji: "⚙️", show_try_matter: false, stages: [] }],
   });
 
+  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   useEffect(() => {
     document.title = editId ? "LexOps | Edit Proposal" : "LexOps | New Proposal";
     if (editId) loadEdit();
@@ -270,13 +277,6 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-
-  const [mobile, setMobile] = useState(() => window.innerWidth < 640);
-  useEffect(() => {
-    const onResize = () => setMobile(window.innerWidth < 640);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   const btnBase = {
     background: "transparent", border: "none", cursor: "pointer",

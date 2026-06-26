@@ -88,6 +88,11 @@ router.post("/accept", async (req: Request, res: Response) => {
     return;
   }
 
+  if (proposal.status === "accepted") {
+    res.json({ success: true, existing: true });
+    return;
+  }
+
   const email = proposal.client_email;
   const fullName = signer_name || proposal.client_name;
 
@@ -95,7 +100,7 @@ router.post("/accept", async (req: Request, res: Response) => {
   // signer_note is stored in proposals.signer_note — requires the column to exist
   // (run: ALTER TABLE proposals ADD COLUMN IF NOT EXISTS signer_note text;).
   // If the column is missing the update fails silently so acceptance still completes.
-  const notePayload: Record<string, any> = { status: "accepted", updated_at: new Date().toISOString() };
+  const notePayload: Record<string, any> = { status: "feedback_received", updated_at: new Date().toISOString() };
   if (signer_note?.trim()) notePayload.signer_note = signer_note.trim();
 
   const { error: statusErr } = await adminSupabase
@@ -107,7 +112,7 @@ router.post("/accept", async (req: Request, res: Response) => {
     // If the column didn't exist, retry without it so acceptance still goes through
     if (signer_note && statusErr.message?.toLowerCase().includes("column")) {
       await adminSupabase.from("proposals")
-        .update({ status: "accepted", updated_at: new Date().toISOString() })
+        .update({ status: "feedback_received", updated_at: new Date().toISOString() })
         .eq("id", proposal.id);
     }
   } else {

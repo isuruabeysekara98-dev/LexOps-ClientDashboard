@@ -78,6 +78,87 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: verify Bearer token, return the Supabase user (or null)
+// ---------------------------------------------------------------------------
+async function getBearerUser(req: Request): Promise<any | null | "timeout"> {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  try {
+    const { data, error } = await Promise.race([
+      adminSupabase.auth.getUser(token),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("auth_timeout")), 5000)),
+    ]);
+    if (error || !data?.user) return null;
+    return data.user;
+  } catch (e: any) {
+    return e?.message === "auth_timeout" ? "timeout" : null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Middleware: require staff (lexops_admin OR lexops_member)
+// For project-management routes that members legitimately use.
+// ---------------------------------------------------------------------------
+async function requireStaff(req: Request, res: Response, next: NextFunction) {
+  const user = await getBearerUser(req);
+  if (user === "timeout") { res.status(503).json({ message: "Auth timeout — please retry" }); return; }
+  if (!user) { res.status(401).json({ message: "Unauthorized" }); return; }
+  const { data: profile } = await adminSupabase
+    .from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "lexops_admin" && profile?.role !== "lexops_member") {
+    res.status(403).json({ message: "Forbidden" }); return;
+  }
+  (req as any).adminUser = user;
+  (req as any).isStaff = true;
+  next();
+}
+
+// ---------------------------------------------------------------------------
+// Tables/operations a client may reach through the generic proxy,
+// always scoped to a project they belong to.
+// ---------------------------------------------------------------------------
+const CLIENT_WRITABLE: Record<string, string[]> = {
+  support_tickets: ["insert", "update", "delete"],
+  documents: ["insert"],
+  document_requests: ["update"],
+};
+const CLIENT_READABLE = ["support_tickets", "documents", "document_requests", "project_tools"];
+
+async function getUserProjectIds(userId: string): Promise<Set<string>> {
+  const { data } = await adminSupabase
+    .from("project_members").select("project_id").eq("user_id", userId);
+  return new Set((data || []).map((m: any) => String(m.project_id)));
+}
+
+// ---------------------------------------------------------------------------
+// Middleware: staff get full access; clients are allowed through but flagged
+// so each route can scope them to their own project + an allowlist.
+// ---------------------------------------------------------------------------
+async function requireProjectAccess(req: Request, res: Response, next: NextFunction) {
+  const user = await getBearerUser(req);
+  if (user === "timeout") { res.status(503).json({ message: "Auth timeout — please retry" }); return; }
+  if (!user) { res.status(401).json({ message: "Unauthorized" }); return; }
+  const { data: profile } = await adminSupabase
+    .from("profiles").select("role").eq("id", user.id).single();
+  const role = profile?.role;
+  (req as any).appUser = user;
+  if (role === "lexops_admin" || role === "lexops_member") {
+    (req as any).adminUser = user;
+    (req as any).isStaff = true;
+    next();
+    return;
+  }
+  if (role === "client") {
+    (req as any).isStaff = false;
+    (req as any).projectIds = await getUserProjectIds(user.id);
+    next();
+    return;
+  }
+  res.status(403).json({ message: "Forbidden" });
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/admin/users
 // Returns all profiles (bypasses RLS via service role key)
 // ---------------------------------------------------------------------------
@@ -104,6 +185,12 @@ router.post("/invite-user", requireAdmin, async (req: Request, res: Response) =>
 
   if (!email || !role) {
     res.status(400).json({ message: "email and role are required" });
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    res.status(400).json({ message: "Invalid email address" });
     return;
   }
 
@@ -179,7 +266,7 @@ router.post("/resend-invite", requireAdmin, async (req: Request, res: Response) 
 
   try {
     // Find existing unconfirmed auth user by email and delete them
-    const { data: { users }, error: listErr } = await adminSupabase.auth.admin.listUsers();
+    const { data: { users }, error: listErr } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
     if (!listErr && users) {
       const existing = users.find((u: any) => u.email === email);
       if (existing && !existing.email_confirmed_at) {
@@ -264,6 +351,18 @@ router.delete("/cancel-invite", requireAdmin, async (req: Request, res: Response
 // ---------------------------------------------------------------------------
 router.delete("/remove-user/:userId", requireAdmin, async (req: Request, res: Response) => {
   const userId = String(req.params.userId);
+  const caller = (req as any).adminUser;
+
+  if (userId === caller.id) {
+    res.status(400).json({ message: "You cannot remove your own account" });
+    return;
+  }
+
+  const { data: target } = await adminSupabase.from("profiles").select("role").eq("id", userId).single();
+  if (target?.role === "lexops_admin") {
+    res.status(400).json({ message: "Cannot remove another admin account" });
+    return;
+  }
 
   const { error } = await adminSupabase.auth.admin.deleteUser(userId);
   if (error) {
@@ -306,11 +405,6 @@ router.post("/generate-project", requireAdmin, upload.single("pdf"), async (req:
       return;
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = adminSupabase.storage
-      .from("project-documents")
-      .getPublicUrl(storagePath);
-
     // Run AI generation with the buffer directly (avoids re-fetching from public URL)
     await generateProjectStructure(project_id, file.buffer, adminSupabase);
 
@@ -352,7 +446,7 @@ router.post("/bulk-rename-phases", requireAdmin, async (req, res) => {
 // ---------------------------------------------------------------------------
 
 // POST /api/admin/tasks — create a task
-router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
+router.post("/tasks", requireStaff, async (req: Request, res: Response) => {
   const { project_id, title, status, is_internal, is_deliverable, due_date, phase_id, description, assignee, owner } = req.body;
   if (!project_id || !title) { res.status(400).json({ message: "project_id and title are required" }); return; }
   const { data, error } = await adminSupabase.from("tasks").insert({
@@ -371,7 +465,7 @@ router.post("/tasks", requireAuth, async (req: Request, res: Response) => {
 });
 
 // PATCH /api/admin/tasks/:id — full task update
-router.patch("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
+router.patch("/tasks/:id", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   const allowed = ["title", "status", "due_date", "phase_id", "is_internal", "is_deliverable", "description", "assignee"];
   const payload = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
@@ -382,7 +476,7 @@ router.patch("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
 });
 
 // PATCH /api/admin/tasks/:id/owner — update owner field separately (column may need manual creation)
-router.patch("/tasks/:id/owner", requireAuth, async (req: Request, res: Response) => {
+router.patch("/tasks/:id/owner", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { owner } = req.body;
   if (owner !== null && owner !== undefined && owner !== "client" && owner !== "lexops" && owner !== "") {
@@ -399,18 +493,23 @@ router.patch("/tasks/:id/owner", requireAuth, async (req: Request, res: Response
 });
 
 // PATCH /api/admin/tasks/:id/status — update status only (kept for compatibility)
-router.patch("/tasks/:id/status", requireAuth, async (req: Request, res: Response) => {
+router.patch("/tasks/:id/status", requireProjectAccess, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;
-  const valid = ["pending", "in_progress", "done", "todo", "in-progress"];
+  const valid = ["todo", "in_progress", "done"];
   if (!valid.includes(status)) { res.status(400).json({ message: "Invalid status" }); return; }
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    const { data: row } = await adminSupabase.from("tasks").select("project_id").eq("id", id).single();
+    if (!row || !projectIds.has(String(row.project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
+  }
   const { error } = await adminSupabase.from("tasks").update({ status }).eq("id", id);
   if (error) { res.status(500).json({ message: error.message }); return; }
   res.json({ ok: true });
 });
 
 // DELETE /api/admin/tasks/:id — delete a task
-router.delete("/tasks/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/tasks/:id", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { error } = await adminSupabase.from("tasks").delete().eq("id", id);
   if (error) { res.status(500).json({ message: error.message }); return; }
@@ -418,10 +517,14 @@ router.delete("/tasks/:id", requireAuth, async (req: Request, res: Response) => 
 });
 
 // POST /api/admin/phases/:id/auto-complete — mark phase complete if all tasks done
-router.post("/phases/:id/auto-complete", requireAuth, async (req: Request, res: Response) => {
+router.post("/phases/:id/auto-complete", requireProjectAccess, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { project_id } = req.body;
   if (!project_id) { res.status(400).json({ message: "project_id required" }); return; }
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    if (!projectIds.has(String(project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
+  }
   const { data: phaseTasks, error: fetchErr } = await adminSupabase
     .from("tasks").select("status").eq("project_id", project_id).eq("phase_id", id);
   if (fetchErr) { res.status(500).json({ message: fetchErr.message }); return; }
@@ -438,7 +541,7 @@ router.post("/phases/:id/auto-complete", requireAuth, async (req: Request, res: 
 // Uploads to Supabase Storage using service-role key (bypasses RLS).
 // Inserts a documents row; auto-falls-back without phase_name if column missing.
 // ---------------------------------------------------------------------------
-router.post("/upload-document", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
+router.post("/upload-document", requireStaff, upload.single("file"), async (req: Request, res: Response) => {
   const file = req.file;
   const { project_id, phase_name } = req.body as { project_id?: string; phase_name?: string };
 
@@ -503,7 +606,7 @@ router.post("/upload-document", requireAuth, upload.single("file"), async (req: 
 // ---------------------------------------------------------------------------
 // PATCH /api/admin/documents/:id/phase — update phase_name with auto-fallback
 // ---------------------------------------------------------------------------
-router.patch("/documents/:id/phase", requireAuth, async (req: Request, res: Response) => {
+router.patch("/documents/:id/phase", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { phase_name, name } = req.body as { phase_name?: string | null; name?: string };
   if (!id) { res.status(400).json({ message: "id required" }); return; }
@@ -537,7 +640,7 @@ router.patch("/documents/:id/phase", requireAuth, async (req: Request, res: Resp
 // ---------------------------------------------------------------------------
 // DELETE /api/admin/documents/:id — delete storage file + DB record server-side
 // ---------------------------------------------------------------------------
-router.delete("/documents/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/documents/:id", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   if (!id) { res.status(400).json({ message: "id required" }); return; }
 
@@ -569,12 +672,74 @@ router.delete("/documents/:id", requireAuth, async (req: Request, res: Response)
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/documents/:id/signed-url — short-lived signed download URL
+// Staff: any document. Clients: only documents in a project they belong to.
+// Lets the bucket stay private instead of relying on public URLs.
+// ---------------------------------------------------------------------------
+router.get("/documents/:id/signed-url", requireProjectAccess, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) { res.status(400).json({ message: "id required" }); return; }
+
+  const { data: doc, error: fetchErr } = await (adminSupabase as any)
+    .from("documents").select("storage_path, project_id, name").eq("id", id).single();
+  if (fetchErr || !doc) { res.status(404).json({ message: "Document not found" }); return; }
+
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    if (!projectIds.has(String(doc.project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
+  }
+
+  if (!doc.storage_path) { res.status(409).json({ message: "Document has no stored file" }); return; }
+
+  const { data: signed, error: signErr } = await (adminSupabase as any).storage
+    .from("project-documents")
+    .createSignedUrl(doc.storage_path, 300, { download: req.query.download ? (doc.name || true) : false });
+
+  if (signErr || !signed?.signedUrl) {
+    console.error("[admin/documents/signed-url]", signErr?.message);
+    res.status(500).json({ message: signErr?.message || "Could not sign URL" }); return;
+  }
+  res.json({ url: signed.signedUrl });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/invoices/:id/signed-url — short-lived signed URL for an invoice PDF
+// (invoice PDFs live in the same private bucket as documents)
+// ---------------------------------------------------------------------------
+router.get("/invoices/:id/signed-url", requireProjectAccess, async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if (!id) { res.status(400).json({ message: "id required" }); return; }
+
+  const { data: inv, error: fetchErr } = await (adminSupabase as any)
+    .from("invoices").select("storage_path, project_id, invoice_number").eq("id", id).single();
+  if (fetchErr || !inv) { res.status(404).json({ message: "Invoice not found" }); return; }
+
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    if (!projectIds.has(String(inv.project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
+  }
+
+  if (!inv.storage_path) { res.status(409).json({ message: "Invoice has no stored file" }); return; }
+
+  const dlName = inv.invoice_number ? `${inv.invoice_number}.pdf` : true;
+  const { data: signed, error: signErr } = await (adminSupabase as any).storage
+    .from("project-documents")
+    .createSignedUrl(inv.storage_path, 300, { download: req.query.download ? dlName : false });
+
+  if (signErr || !signed?.signedUrl) {
+    console.error("[admin/invoices/signed-url]", signErr?.message);
+    res.status(500).json({ message: signErr?.message || "Could not sign URL" }); return;
+  }
+  res.json({ url: signed.signedUrl });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/upload-invoice — upload PDF + create/update invoice row via service-role key
 // Accepts: multipart/form-data with optional field "file", plus body fields:
 //   project_id (required for create), invoice_id (present = update existing row's PDF)
 //   invoice_number, amount, description, phase_name, due_date, status
 // ---------------------------------------------------------------------------
-router.post("/upload-invoice", requireAuth, upload.single("file"), async (req: Request, res: Response) => {
+router.post("/upload-invoice", requireStaff, upload.single("file"), async (req: Request, res: Response) => {
   const file = req.file;
   const { project_id, invoice_id, invoice_number, amount, description, phase_name, due_date, status } = req.body as Record<string, string>;
 
@@ -637,7 +802,7 @@ router.post("/upload-invoice", requireAuth, upload.single("file"), async (req: R
 // ---------------------------------------------------------------------------
 // DELETE /api/admin/invoices/:id — delete storage PDF + DB record server-side
 // ---------------------------------------------------------------------------
-router.delete("/invoices/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/invoices/:id", requireStaff, async (req: Request, res: Response) => {
   const { id } = req.params;
   if (!id) { res.status(400).json({ message: "id required" }); return; }
 
@@ -678,10 +843,15 @@ const ALLOWED_READ_TABLES = [
   "flowchart_arrows","flowchart_comments","flowchart_templates",
 ];
 
-router.get("/db-read", requireAuth, async (req: Request, res: Response) => {
+router.get("/db-read", requireProjectAccess, async (req: Request, res: Response) => {
   const { table, project_id, order_by, ascending } = req.query as Record<string, string>;
   if (!ALLOWED_READ_TABLES.includes(table)) {
     res.status(400).json({ message: `Table "${table}" not allowed for read` }); return;
+  }
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    if (!CLIENT_READABLE.includes(table)) { res.status(403).json({ message: "Forbidden" }); return; }
+    if (!project_id || !projectIds.has(String(project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
   }
   try {
     let q: any = (adminSupabase as any).from(table).select("*");
@@ -707,7 +877,7 @@ const ALLOWED_TABLES = [
   "flowchart_nodes","flowchart_arrows","flowchart_comments","flowchart_templates",
 ];
 
-router.post("/db", requireAuth, async (req: Request, res: Response) => {
+router.post("/db", requireProjectAccess, async (req: Request, res: Response) => {
   const { table, operation, data, match } = req.body;
   if (!ALLOWED_TABLES.includes(table)) {
     res.status(400).json({ message: `Table "${table}" not allowed` }); return;
@@ -715,6 +885,41 @@ router.post("/db", requireAuth, async (req: Request, res: Response) => {
   if (!["insert","update","delete","upsert"].includes(operation)) {
     res.status(400).json({ message: `Invalid operation "${operation}"` }); return;
   }
+
+  // Non-staff (clients): restrict to an allowlist, scoped to their own projects.
+  if (!(req as any).isStaff) {
+    const projectIds: Set<string> = (req as any).projectIds || new Set();
+    const allowedOps = CLIENT_WRITABLE[table];
+    if (!allowedOps || !allowedOps.includes(operation)) {
+      res.status(403).json({ message: "Forbidden" }); return;
+    }
+    if (operation === "insert") {
+      const pid = Array.isArray(data) ? null : data?.project_id;
+      if (pid == null || !projectIds.has(String(pid))) { res.status(403).json({ message: "Forbidden" }); return; }
+    } else {
+      // update/delete: verify the targeted row belongs to one of the client's projects
+      if (match?.project_id != null && !projectIds.has(String(match.project_id))) {
+        res.status(403).json({ message: "Forbidden" }); return;
+      }
+      if (match?.id != null) {
+        const { data: row } = await (adminSupabase as any).from(table).select("project_id").eq("id", match.id).single();
+        if (!row || !projectIds.has(String(row.project_id))) { res.status(403).json({ message: "Forbidden" }); return; }
+      } else if (match?.project_id == null) {
+        res.status(403).json({ message: "Forbidden" }); return;
+      }
+    }
+  }
+  // Prevent privilege escalation via profiles table
+  if (table === "profiles" && (operation === "update" || operation === "upsert") && data) {
+    delete data.role;
+    delete data.id;
+  }
+
+  // Require at least one match key for destructive operations
+  if ((operation === "update" || operation === "delete") && (!match || Object.keys(match).length === 0)) {
+    res.status(400).json({ message: `match is required for ${operation}` }); return;
+  }
+
   try {
     const tbl = (adminSupabase as any).from(table);
     let result: any = null;

@@ -172,11 +172,28 @@ router.post("/task-assigned", async (req: Request, res: Response) => {
 // Body: { email }
 // Public endpoint — no auth required
 // ---------------------------------------------------------------------------
+const resetAttempts = new Map<string, { count: number; resetAt: number }>();
+const RESET_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const RESET_MAX = 3;
+
 router.post("/send-password-reset", async (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email) {
     res.status(400).json({ message: "email is required" });
     return;
+  }
+
+  const now = Date.now();
+  const key = email.toLowerCase();
+  const entry = resetAttempts.get(key);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= RESET_MAX) {
+      res.status(429).json({ message: "Too many reset attempts. Please wait 15 minutes." });
+      return;
+    }
+    entry.count++;
+  } else {
+    resetAttempts.set(key, { count: 1, resetAt: now + RESET_WINDOW_MS });
   }
 
   // Look up name
