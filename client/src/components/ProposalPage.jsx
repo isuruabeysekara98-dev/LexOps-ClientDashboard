@@ -288,10 +288,87 @@ function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
 }
 
 // ─── Stage detail drawer ──────────────────────────────────────────────────────
-function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
+const MAX_STAGE_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+function StageDrawer({ stage, index, total, onClose, onPrev, onNext, proposalId, token, wfId }) {
   const stats = stage.stats || [];
   const inputs = stage.inputs || [];
   const outputs = stage.outputs || [];
+
+  // Determine if any input mentions documents / files
+  const hasDocInputs = inputs.some(inp =>
+    /document|file|upload|attach|evidence|contract|letter|form|certificate/i.test(
+      `${inp.name || ""} ${inp.label || ""} ${inp.description || ""} ${inp.detail || ""}`
+    )
+  );
+  // Show upload CTA if: there are any inputs (they might need docs), or input explicitly needs docs
+  const showUploadCTA = proposalId && token && (hasDocInputs || inputs.length > 0);
+
+  // Upload state
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+  const fileInputRef = useRef(null);
+
+  // Load previously uploaded files for this stage on mount
+  useEffect(() => {
+    if (!proposalId || !token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.files)) return;
+        const stageFiles = data.files.filter(f =>
+          f.workflow_id === wfId && Number(f.stage_index) === index
+        ).map(f => ({ id: f.id, name: f.file_name, url: f.file_url }));
+        setUploadedFiles(stageFiles);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [proposalId, token, wfId, index]);
+
+  async function handleUpload(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !proposalId || !token) return;
+    const oversized = files.filter(f => f.size > MAX_STAGE_FILE_BYTES);
+    if (oversized.length) {
+      setUploadErr(`File${oversized.length > 1 ? "s" : ""} exceed the 10 MB limit: ${oversized.map(f => f.name).join(", ")}`);
+      return;
+    }
+    setUploading(true);
+    setUploadErr("");
+    const done = [];
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("token", token);
+      if (wfId) fd.append("workflow_id", wfId);
+      fd.append("stage_index", String(index));
+      fd.append("kind", "stage_input");
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files`, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          setUploadErr(data.message || "Upload failed — please try again.");
+          continue;
+        }
+        done.push({ id: data.file?.id, name: data.file?.file_name || file.name, url: data.file?.file_url });
+      } catch {
+        setUploadErr("Connection error — please check your network and try again.");
+      }
+    }
+    if (done.length) setUploadedFiles(prev => [...prev, ...done]);
+    setUploading(false);
+  }
+
+  function removeFile(i) {
+    const f = uploadedFiles[i];
+    setUploadedFiles(prev => prev.filter((_, j) => j !== i));
+    if (f?.id && proposalId && token) {
+      fetch(`/api/proposals/v2/${proposalId}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
+    }
+  }
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,24,24,0.5)", backdropFilter: "blur(3px)" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
@@ -336,7 +413,7 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
 
           {/* Inputs */}
           <div style={{ marginBottom: 26 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Inputs</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: "0 0 12px", letterSpacing: "-0.01em" }}>What we need from you</h3>
             {inputs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {inputs.map((item, i) => (
@@ -353,6 +430,78 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext }) {
               <FieldTodo label="Inputs to be completed" />
             )}
           </div>
+
+          {/* Document upload CTA — shown when stage has inputs and we have upload context */}
+          {showUploadCTA && (
+            <div style={{ marginBottom: 26, background: "rgba(55,89,113,0.05)", border: "1.5px solid rgba(55,89,113,0.2)", borderRadius: 12, padding: "18px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Upload size={16} color="#FFFFFF" strokeWidth={2} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Submit required documents</div>
+                  <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>Upload files to share with the LexOps team for this stage</div>
+                </div>
+              </div>
+
+              {/* Error message */}
+              {uploadErr && (
+                <div style={{ background: t.redSoft, border: "1px solid rgba(201,84,46,0.25)", borderRadius: 8, padding: "9px 13px", color: t.red, fontSize: 12, marginBottom: 12 }}>
+                  {uploadErr}
+                  <button onClick={() => setUploadErr("")} style={{ marginLeft: 10, background: "none", border: "none", cursor: "pointer", color: t.red, fontSize: 12, fontWeight: 600, textDecoration: "underline", fontFamily: "inherit" }}>Dismiss</button>
+                </div>
+              )}
+
+              {/* Uploaded files list */}
+              {uploadedFiles.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                  {uploadedFiles.map((f, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 8, padding: "8px 12px" }}>
+                      <Paperclip size={14} color={t.green} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+                      {f.url ? (
+                        <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.green, textDecoration: "none", fontWeight: 500 }}>{f.name}</a>
+                      ) : (
+                        <span style={{ fontSize: 12, flex: 1, color: t.green, fontWeight: 500 }}>{f.name}</span>
+                      )}
+                      <span style={{ fontSize: 10, color: t.green, fontWeight: 700, marginRight: 4 }}>✓ Uploaded</span>
+                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13, padding: 2 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Upload button */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.rtf,.png,.jpg,.jpeg"
+                style={{ display: "none" }}
+                onChange={e => { handleUpload(e.target.files); e.target.value = ""; }}
+              />
+              <button
+                onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
+                disabled={uploading}
+                style={{
+                  display: "flex", alignItems: "center", gap: 9, width: "100%", justifyContent: "center",
+                  background: uploading ? t.border : t.accent, color: uploading ? t.textMeta : "#FFFFFF",
+                  border: "none", borderRadius: 9, padding: "12px 18px",
+                  fontSize: 14, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit", transition: "background 0.15s, opacity 0.15s",
+                }}
+              >
+                {uploading ? (
+                  <>
+                    <div style={{ width: 15, height: 15, border: "2px solid rgba(0,0,0,0.15)", borderTop: `2px solid ${t.textSub}`, borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
+                    Uploading…
+                  </>
+                ) : (
+                  <><Upload size={16} strokeWidth={2} /> {uploadedFiles.length > 0 ? "Upload more documents" : "Upload documents for this stage"}</>
+                )}
+              </button>
+              <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 7 }}>PDF, DOCX, TXT, CSV, XLSX, images — up to 10 MB each</div>
+            </div>
+          )}
 
           {/* Outputs */}
           <div>
@@ -1058,7 +1207,7 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
         {stages.length > 0 ? (
           <>
             <HorizontalTimeline stages={stages} selectedIndex={selectedStage} onSelect={i => setSelectedStage(i)} />
-            <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 8, marginBottom: 14 }}>Click a step to see inputs, outputs &amp; details</div>
+            <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 8, marginBottom: 14 }}>Click a stage to see inputs, outputs &amp; submit documents</div>
           </>
         ) : (
           <div style={{ padding: "18px 4px 20px" }}>
@@ -1087,6 +1236,9 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
           onClose={() => setSelectedStage(null)}
           onPrev={() => setSelectedStage(i => Math.max(0, i - 1))}
           onNext={() => setSelectedStage(i => Math.min(stages.length - 1, i + 1))}
+          proposalId={proposal?.id}
+          token={token}
+          wfId={wf.id}
         />
       )}
     </div>
