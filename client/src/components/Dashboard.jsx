@@ -3996,6 +3996,29 @@ function ClientOverviewTab({ project, t, mobile }) {
         </div>
       )}
 
+      {/* Quick "Book a Call" card — visible from Overview so it's ≤1 click away */}
+      {project.calendly_url && (
+        <div style={{
+          background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,
+          padding:"16px 20px",boxShadow:t.shadow,
+          display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",rowGap:12,
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+            <div style={{width:38,height:38,borderRadius:"50%",background:t.accent,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              {(project.manager||"L").charAt(0).toUpperCase()}
+            </div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:1}}>Questions? Book a call with {project.manager||"your LexOps manager"}</div>
+              <div style={{fontSize:11,color:t.textSub}}>30 min · Video call · Typically responds within 2 hours</div>
+            </div>
+          </div>
+          <a href={project.calendly_url} target="_blank" rel="noreferrer"
+            style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
+            <Calendar size={15} strokeWidth={2} /> Book a Call
+          </a>
+        </div>
+      )}
+
       <ClientDeliverablesGrid deliverables={deliverables} t={t} mobile={mobile} />
       <ClientDocsInline projectId={project.id} initialDocuments={project.documents} t={t} mobile={mobile} />
     </div>
@@ -5307,6 +5330,31 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     const timer=setTimeout(()=>setLoading(false),5000);
     return()=>clearTimeout(timer);
   },[loading]);
+
+  // ── Supabase Realtime subscriptions ──────────────────────────────────────
+  // Subscribe to all project-scoped tables for the currently selected project.
+  // When the admin changes data (status, phases, tasks, docs, invoices, activity)
+  // the client view updates automatically without a manual reload.
+  // One channel per project, keyed as "project-rt-<id>". Cleaned up on
+  // project switch and on unmount so there are no duplicate handlers.
+  useEffect(()=>{
+    if(!selected?.id) return;
+    const projectId=selected.id;
+    const REALTIME_TABLES=["phases","tasks","documents","invoices","software","maintenance","activity","document_requests"];
+    const channel=supabase.channel(`project-rt-${projectId}`);
+    REALTIME_TABLES.forEach(table=>{
+      channel.on(
+        "postgres_changes",
+        {event:"*",schema:"public",table,filter:`project_id=eq.${projectId}`},
+        ()=>{ refreshProject(projectId); }
+      );
+    });
+    channel.subscribe((status)=>{
+      if(status==="CHANNEL_ERROR") console.warn(`[Realtime] channel error for project ${projectId}`);
+    });
+    return()=>{ supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[selected?.id]);
 
   useEffect(()=>{
     if(adminOpen) document.title="LexOps | Admin";
