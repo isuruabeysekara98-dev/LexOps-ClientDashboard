@@ -111,7 +111,10 @@ export default function LoginPage({ authError: externalError } = {}) {
       color: t.text,
       padding: 24,
     }}>
-      <div style={{
+      <style>{`
+        .lx-login input:focus { border-color: ${t.accent} !important; box-shadow: 0 0 0 3px rgba(55,89,113,0.10); }
+      `}</style>
+      <div className="lx-login" style={{
         width: "100%",
         maxWidth: 380,
         boxSizing: "border-box",
@@ -189,6 +192,8 @@ export default function LoginPage({ authError: externalError } = {}) {
                 <button
                   type="submit"
                   disabled={resetLoading}
+                  onMouseEnter={e => { if (!resetLoading) e.currentTarget.style.background = "#232A34"; }}
+                  onMouseLeave={e => { if (!resetLoading) e.currentTarget.style.background = t.accent; }}
                   style={{
                     marginTop: 4,
                     width: "100%",
@@ -197,8 +202,8 @@ export default function LoginPage({ authError: externalError } = {}) {
                     border: "none",
                     borderRadius: 8,
                     padding: "10px 24px",
-                    fontSize: 16,
-                    fontWeight: 500,
+                    fontSize: 15,
+                    fontWeight: 600,
                     cursor: resetLoading ? "not-allowed" : "pointer",
                     transition: "background 0.2s",
                     fontFamily: "inherit",
@@ -280,6 +285,8 @@ export default function LoginPage({ authError: externalError } = {}) {
               <button
                 type="submit"
                 disabled={loading}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#232A34"; }}
+                onMouseLeave={e => { if (!loading) e.currentTarget.style.background = t.accent; }}
                 style={{
                   marginTop: 4,
                   width: "100%",
@@ -288,8 +295,8 @@ export default function LoginPage({ authError: externalError } = {}) {
                   border: "none",
                   borderRadius: 8,
                   padding: "10px 24px",
-                  fontSize: 16,
-                  fontWeight: 500,
+                  fontSize: 15,
+                  fontWeight: 600,
                   cursor: loading ? "not-allowed" : "pointer",
                   transition: "background 0.2s",
                   fontFamily: "inherit",

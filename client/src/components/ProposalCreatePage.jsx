@@ -7,6 +7,7 @@ const t = {
   surface: "#F4F8FB",
   surfaceHigh: "#E4F1F8",
   card: "#FFFFFF",
+  nav: "#FFFFFF",
   border: "#E8E8E8",
   borderLight: "rgba(0,0,0,0.08)",
   text: "#232A34",
@@ -274,10 +275,11 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", color: t.text }}>
+    <div className="lx-create" style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", color: t.text }}>
       <style>{`
         @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
         @keyframes spin{to{transform:rotate(360deg)}}
+        .lx-create input:focus, .lx-create textarea:focus { border-color: ${t.accent} !important; box-shadow: 0 0 0 3px ${t.accentLight}; }
       `}</style>
 
       {/* Nav */}
@@ -634,12 +636,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
           paddingTop: 8,
         }}>
           {saveMsg && (
-            <span style={{ fontSize: 13, color: saveMsg.ok ? "#3C7A52" : t.red, fontWeight: 500 }}>
-              {saveMsg.text}
+            <span style={{ fontSize: 13, color: saveMsg.ok ? "#3C7A52" : t.red, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {saveMsg.ok && <CheckCircle2 size={14} strokeWidth={2} />}{saveMsg.text}
             </span>
-          )}
-          {saving && (
-            <div style={{ width: 16, height: 16, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
           )}
           <button
             onClick={() => navigate("/admin/proposals")}
@@ -653,12 +652,14 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
             disabled={saving}
             onMouseEnter={() => setHovBtn("save")} onMouseLeave={() => setHovBtn(null)}
             style={{
-              ...btnBase, fontWeight: 500, fontSize: 16,
+              ...btnBase, fontWeight: 600, padding: "8px 22px",
               background: saving ? t.textSub : hovBtn === "save" ? t.accentHover : t.accent,
-              color: "#fff", opacity: saving ? 0.7 : 1,
+              color: "#fff", opacity: saving ? 0.85 : 1, cursor: saving ? "default" : "pointer",
             }}
           >
-            Save
+            {saving
+              ? <><span style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} /> Saving…</>
+              : "Save proposal"}
           </button>
         </div>
       </div>

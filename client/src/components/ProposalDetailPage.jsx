@@ -10,6 +10,7 @@ const t = {
   surface: "#F4F8FB",
   surfaceHigh: "#E4F1F8",
   card: "#FFFFFF",
+  nav: "#FFFFFF",
   border: "#E8E8E8",
   borderLight: "rgba(0,0,0,0.08)",
   text: "#232A34",
@@ -299,36 +300,41 @@ function DecisionPanel({ proposal, onMarkWon, onMarkLost, onConvert, marking }) 
 
   return (
     <div style={{
-      background: t.card, border: `1px solid ${t.yellowBorder}`,
-      borderRadius: 12, padding: "20px 24px", boxShadow: t.shadow,
+      background: t.card, border: `1.5px solid ${t.accent}`,
+      borderRadius: 12, padding: "20px 24px", boxShadow: t.shadowMd,
     }}>
       <Eyebrow label="Admin decision" />
-      <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.6, marginBottom: 20 }}>
-        {status === "accepted"
-          ? "The client has accepted this proposal. Mark it as Won or Lost."
-          : "Mark this proposal as Won or Lost whenever you're ready."}
+      <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 4, letterSpacing: "-0.01em" }}>
+        Ready to decide?
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.6, marginBottom: 18 }}>
+        {status === "accepted"
+          ? "The client has accepted. Mark it Won to spin up the project, or Lost to close it out."
+          : "Marking Won spins up the project and opens its setup."}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <button
           onClick={onMarkWon}
-          disabled={marking}
+          disabled={!!marking}
           style={{
-            flex: 1, padding: "10px 24px", borderRadius: 8, border: "none",
-            background: marking ? "#ccc" : t.green, color: "#fff",
-            fontFamily: "inherit", fontWeight: 500, fontSize: 14, cursor: marking ? "default" : "pointer",
-            transition: "all 0.2s",
+            width: "100%", padding: "11px 24px", borderRadius: 8, border: "none",
+            background: marking ? "#9DB5C9" : t.green, color: "#fff",
+            fontFamily: "inherit", fontWeight: 600, fontSize: 14, cursor: marking ? "default" : "pointer",
+            transition: "all 0.2s", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
           }}
         >
-          {marking === "converted" ? "Setting up…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Mark as Won <Check size={14} strokeWidth={3} /></span>}
+          {marking === "converted"
+            ? <><span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} /> Setting up…</>
+            : <>Mark as Won <Check size={15} strokeWidth={3} /></>}
         </button>
         <button
           onClick={onMarkLost}
-          disabled={marking}
+          disabled={!!marking}
           style={{
-            flex: 1, padding: "10px 24px", borderRadius: 8,
-            border: `1px solid rgba(0,0,0,0.2)`, background: "transparent",
-            color: t.text,
-            fontFamily: "inherit", fontWeight: 500, fontSize: 14, cursor: marking ? "default" : "pointer",
+            width: "100%", padding: "9px 24px", borderRadius: 8,
+            border: `1px solid ${t.border}`, background: "transparent",
+            color: t.textSub,
+            fontFamily: "inherit", fontWeight: 500, fontSize: 13, cursor: marking ? "default" : "pointer",
             transition: "all 0.2s",
           }}
         >
@@ -796,14 +802,13 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
               onMouseEnter={() => setHovBtn("send")} onMouseLeave={() => setHovBtn(null)}
               style={{
                 ...btnBase,
-                fontWeight: 500,
-                fontSize: 16,
-                padding: "10px 24px",
+                fontWeight: 600,
+                padding: "8px 18px",
                 background: sending ? t.border : (hovBtn === "send" ? t.accentHover : t.accent),
                 color: "#fff", opacity: sending ? 0.7 : 1, cursor: sending ? "default" : "pointer",
               }}
             >
-              {sending ? "Sending…" : <><Mail size={15} strokeWidth={2} /> Send invite</>}
+              {sending ? <><span style={{ width: 13, height: 13, border: "2px solid rgba(255,255,255,0.4)", borderTop: "2px solid #fff", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} /> Sending…</> : <><Mail size={15} strokeWidth={2} /> Send invite</>}
             </button>
             <button
               onClick={copyLink}
@@ -922,6 +927,14 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <DecisionPanel
+                proposal={proposal}
+                onMarkWon={markWonAndSetup}
+                onMarkLost={() => setStatus("lost")}
+                onConvert={convert}
+                marking={marking}
+              />
+
               <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
                   Proposal overview
@@ -958,25 +971,19 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${t.borderLight}` }}>
                   <button
                     onClick={() => window.open(`/proposal/${proposal.token}`, "_blank")}
+                    onMouseEnter={e => { e.currentTarget.style.background = t.accentLight; e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = "rgba(55,89,113,0.25)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "#FAFAFA"; e.currentTarget.style.color = t.textSub; e.currentTarget.style.borderColor = t.border; }}
                     style={{
                       width: "100%", padding: "9px 0", borderRadius: 7,
                       border: `1px solid ${t.border}`, background: "#FAFAFA",
                       color: t.textSub, fontFamily: "inherit", fontSize: 12,
-                      cursor: "pointer", fontWeight: 500,
+                      cursor: "pointer", fontWeight: 500, transition: "all 0.15s",
                     }}
                   >
                     View as client ↗
                   </button>
                 </div>
               </div>
-
-              <DecisionPanel
-                proposal={proposal}
-                onMarkWon={markWonAndSetup}
-                onMarkLost={() => setStatus("lost")}
-                onConvert={convert}
-                marking={marking}
-              />
             </div>
           </div>
         ) : (
@@ -1140,6 +1147,14 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
 
             {/* Sidebar */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <DecisionPanel
+                proposal={proposal}
+                onMarkWon={markWonAndSetup}
+                onMarkLost={() => setStatus("lost")}
+                onConvert={convert}
+                marking={marking}
+              />
+
               {/* Overview card */}
               <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: "20px" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 14 }}>
@@ -1170,25 +1185,19 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${t.borderLight}` }}>
                   <button
                     onClick={() => window.open(`/proposal/${proposal.token}`, "_blank")}
+                    onMouseEnter={e => { e.currentTarget.style.background = t.accentLight; e.currentTarget.style.color = t.accent; e.currentTarget.style.borderColor = "rgba(55,89,113,0.25)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "#FAFAFA"; e.currentTarget.style.color = t.textSub; e.currentTarget.style.borderColor = t.border; }}
                     style={{
                       width: "100%", padding: "9px 0", borderRadius: 7,
                       border: `1px solid ${t.border}`, background: "#FAFAFA",
                       color: t.textSub, fontFamily: "inherit", fontSize: 12,
-                      cursor: "pointer", fontWeight: 500,
+                      cursor: "pointer", fontWeight: 500, transition: "all 0.15s",
                     }}
                   >
                     View as client ↗
                   </button>
                 </div>
               </div>
-
-              <DecisionPanel
-                proposal={proposal}
-                onMarkWon={markWonAndSetup}
-                onMarkLost={() => setStatus("lost")}
-                onConvert={convert}
-                marking={marking}
-              />
             </div>
           </div>
         )}
