@@ -7,7 +7,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { supabase } from "@/lib/supabase.js";
-import { Pencil, RotateCw, X, ArrowRight, Trash2, PartyPopper } from "lucide-react";
+import { Pencil, RotateCw, X, ArrowRight, Trash2, PartyPopper, Upload, Paperclip } from "lucide-react";
 import confetti from "canvas-confetti";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,6 +267,8 @@ function ParticleLayer({ enabled }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN — wrapped in ReactFlowProvider so Inner can use useReactFlow()
 // ─────────────────────────────────────────────────────────────────────────────
+// Props forwarded: projectId, isInternal, userProfile, t, mobile
+// Optional client-upload props: proposalId, token
 export default function FlowchartTab(props) {
   return (
     <ReactFlowProvider>
@@ -280,7 +282,7 @@ export default function FlowchartTab(props) {
 // ─────────────────────────────────────────────────────────────────────────────
 const NODE_TYPES = { stepNode: StepNode };
 
-function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
+function FlowchartInner({ projectId, isInternal, userProfile, t, mobile, proposalId, token }) {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -319,6 +321,8 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
       status: row.status || "pending",
       reducedMotion,
       raw: row,
+      inputs: Array.isArray(row.inputs) ? row.inputs : [],
+      outputs: Array.isArray(row.outputs) ? row.outputs : [],
     },
     draggable: true,
   }), [reducedMotion]);
@@ -339,7 +343,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
     const [nRes, aRes] = await Promise.all([
-      supabase.from("flowchart_nodes").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
+      supabase.from("flowchart_nodes").select("id,project_id,title,status,description,estimated_date,position_x,position_y,created_at,inputs,outputs").eq("project_id", projectId).order("created_at", { ascending: true }),
       supabase.from("flowchart_arrows").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
     ]);
     if (nRes.error && /relation .* does not exist|Could not find the table/i.test(nRes.error.message)) {
@@ -801,6 +805,7 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
         @keyframes fc-shine { 0%{transform:translateX(-100%);} 100%{transform:translateX(200%);} }
         @keyframes fc-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fc-slide-up { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fc-spin { to { transform: rotate(360deg); } }
         @media (prefers-reduced-motion: reduce) {
           .fc-pulse, .fc-shimmer-bg, .fc-shine { animation: none !important; }
         }
@@ -1039,6 +1044,8 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile }) {
           node={detailRaw} t={t} mobile={mobile}
           onClose={() => setDetailId(null)}
           userProfile={userProfile}
+          proposalId={proposalId}
+          token={token}
         />
       )}
 
@@ -1368,10 +1375,28 @@ function TemplatesPanel({ t, mobile, onClose, onSave, onApply, onDelete, canSave
 // ─────────────────────────────────────────────────────────────────────────────
 // CLIENT DETAIL PANEL
 // ─────────────────────────────────────────────────────────────────────────────
-function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+function NodeDetailPanel({ node, t, mobile, onClose, userProfile, proposalId, token }) {
   const [comments, setComments] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [newComment, setNewComment] = useState("");
+
+  // Document upload state (only active when proposalId + token supplied)
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+  const fileInputRef = useRef(null);
+
+  // Inputs / outputs from raw node data (present if flowchart_nodes has these columns)
+  const inputs = Array.isArray(node.inputs) ? node.inputs : [];
+  const outputs = Array.isArray(node.outputs) ? node.outputs : [];
+  // Determine if this step requires documents based on its inputs
+  const needsDocs = proposalId && token && inputs.some(inp =>
+    /document|file|upload|attach|evidence|contract|letter|form|certificate/i.test(
+      `${inp.name || ""} ${inp.label || ""} ${inp.description || ""} ${inp.detail || ""}`
+    )
+  );
 
   useEffect(() => {
     (async () => {
@@ -1396,7 +1421,52 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
     } catch(err) { console.error("[FlowchartTab] comment insert failed:", err.message); }
   }
 
+  async function handleUpload(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length || !proposalId || !token) return;
+    const oversized = files.filter(f => f.size > MAX_FILE_BYTES);
+    if (oversized.length) {
+      setUploadErr(`File${oversized.length > 1 ? "s" : ""} too large (max 10 MB): ${oversized.map(f => f.name).join(", ")}`);
+      return;
+    }
+    setUploading(true);
+    setUploadErr("");
+    const done = [];
+    for (const file of files) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("token", token);
+      fd.append("node_id", node.id);
+      fd.append("kind", "node_doc");
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files`, { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          setUploadErr(data.message || "Upload failed — please try again.");
+          continue;
+        }
+        done.push({ id: data.file?.id, name: data.file?.file_name || file.name, url: data.file?.file_url });
+      } catch {
+        setUploadErr("Connection error — please check your network and try again.");
+      }
+    }
+    if (done.length) setUploadedFiles(prev => [...prev, ...done]);
+    setUploading(false);
+  }
+
+  function removeUploaded(i) {
+    const f = uploadedFiles[i];
+    setUploadedFiles(prev => prev.filter((_, j) => j !== i));
+    if (f?.id && proposalId && token) {
+      fetch(`/api/proposals/v2/${proposalId}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
+    }
+  }
+
   const statusColor = node.status === "done" ? "#375971" : node.status === "in_progress" ? "#375971" : "#9DB5C9";
+
+  const sectionLabel = (text) => (
+    <div style={{ color: t.textSub, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8, fontWeight: 700 }}>{text}</div>
+  );
 
   return (
     <SidePanel t={t} mobile={mobile} onClose={onClose}>
@@ -1413,9 +1483,102 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
         <p style={{ color: t.text, fontSize: 14, lineHeight: 1.6, fontWeight: 300, marginBottom: 20, letterSpacing: "0.01em" }}>{node.description}</p>
       )}
 
+      {/* Inputs section */}
+      {inputs.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          {sectionLabel("What we need from you (Inputs)")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {inputs.map((inp, i) => (
+              <div key={i} style={{ background: "#FBF9F5", border: `1px solid ${t.border}`, borderRadius: 9, padding: "11px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>{inp.emoji || "📋"}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{inp.name || inp.label || "Input"}</div>
+                  {(inp.description || inp.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{inp.description || inp.detail}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Outputs section */}
+      {outputs.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          {sectionLabel("What LexOps delivers (Outputs)")}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {outputs.map((out, i) => (
+              <div key={i} style={{ background: "rgba(5,150,105,0.04)", border: "1px solid rgba(5,150,105,0.18)", borderRadius: 9, padding: "11px 14px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1 }}>{out.emoji || "✓"}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{out.name || out.label || "Output"}</div>
+                  {(out.description || out.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{out.description || out.detail}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Document upload CTA — shown when step needs docs and we have proposal context */}
+      {(needsDocs || (proposalId && token && inputs.length > 0)) && (
+        <div style={{ marginBottom: 20, background: "rgba(55,89,113,0.05)", border: "1px solid rgba(55,89,113,0.18)", borderRadius: 12, padding: "16px 18px" }}>
+          {sectionLabel("Submit required documents")}
+          {uploadErr && (
+            <div style={{ background: "rgba(201,84,46,0.08)", border: "1px solid rgba(201,84,46,0.2)", borderRadius: 7, padding: "8px 12px", color: "#C9542E", fontSize: 12, marginBottom: 10 }}>
+              {uploadErr}
+            </div>
+          )}
+          {/* Previously uploaded files */}
+          {uploadedFiles.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+              {uploadedFiles.map((f, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: "#FFFFFF", border: `1px solid ${t.border}`, borderRadius: 7, padding: "7px 11px" }}>
+                  <Paperclip size={14} color={t.textMeta} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+                  {f.url ? (
+                    <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: COLOR.accent, textDecoration: "none" }}>{f.name}</a>
+                  ) : (
+                    <span style={{ fontSize: 12, flex: 1, color: t.text }}>{f.name}</span>
+                  )}
+                  <button onClick={() => removeUploaded(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13, padding: 2 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: "none" }}
+            onChange={e => { handleUpload(e.target.files); e.target.value = ""; }}
+          />
+          <button
+            onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
+            disabled={uploading}
+            style={{
+              display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center",
+              background: uploading ? t.border : COLOR.accent, color: uploading ? t.textMeta : "#FFFFFF",
+              border: "none", borderRadius: 9, padding: "11px 18px",
+              fontSize: 13, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer",
+              fontFamily: "inherit", transition: "background 0.15s",
+            }}
+            data-tap
+          >
+            {uploading ? (
+              <>
+                <div style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTop: "2px solid #FFFFFF", borderRadius: "50%", animation: "fc-spin 0.8s linear infinite" }} />
+                Uploading…
+              </>
+            ) : (
+              <><Upload size={15} strokeWidth={2} /> Upload documents for this step</>
+            )}
+          </button>
+          <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 6 }}>PDF, DOCX, TXT, CSV, XLSX — up to 10 MB each</div>
+        </div>
+      )}
+
       {attachments.length > 0 && (
         <div style={{ marginBottom: 22 }}>
-          <div style={{ color: t.textSub, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Documents</div>
+          {sectionLabel("Documents")}
           {attachments.map(a => (
             <a key={a.id} href={a.file_url} target="_blank" rel="noreferrer" style={{ display: "block", padding: "8px 12px", background: t.surfaceHigh, border: `1px solid ${t.border}`, borderRadius: 6, color: t.accentLight, fontSize: 13, textDecoration: "none", marginBottom: 6 }}>
               ↓ {a.file_name}
@@ -1425,7 +1588,7 @@ function NodeDetailPanel({ node, t, mobile, onClose, userProfile }) {
       )}
 
       <div>
-        <div style={{ color: t.textSub, fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Discussion ({comments.length})</div>
+        {sectionLabel(`Discussion (${comments.length})`)}
         <div style={{ maxHeight: 280, overflowY: "auto", marginBottom: 10 }}>
           {comments.length === 0 && <div style={{ color: t.textDim, fontSize: 13, fontStyle: "italic", padding: "8px 0" }}>Be the first to comment on this step.</div>}
           {comments.map(c => <CommentRow key={c.id} c={c} t={t} />)}
