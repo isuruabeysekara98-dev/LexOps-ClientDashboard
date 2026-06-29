@@ -1296,7 +1296,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
                         }}>Request Resolution →</button>
                       :null
                   )
-                :isResolved?<div style={{fontSize:10,color:"#3C7A52",fontStyle:"italic",marginTop:6,display:"flex",alignItems:"center",gap:4}}><Check size={11} strokeWidth={2.5} /> Resolved by LexOps</div>
+                :isResolved?<div style={{fontSize:10,color:"#3C7A52",marginTop:6,display:"flex",alignItems:"center",gap:4}}><Check size={11} strokeWidth={2.5} /> Resolved by LexOps</div>
                 :null
               )
           }
@@ -1335,7 +1335,7 @@ function SupportTab({projectId,isInternal,project,t,mobile,onRefresh}){
               </a>
             )}
             {!isInternal&&!calendlyUrl&&(
-              <span style={{fontSize:12,color:t.textSub,fontStyle:"italic"}}>Booking link coming soon</span>
+              <span style={{fontSize:12,color:t.textSub}}>Booking link coming soon</span>
             )}
             {isInternal&&calendlyUrl&&!editingCalendly&&(
               <a href={calendlyUrl} target="_blank" rel="noreferrer"
@@ -4154,7 +4154,7 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
                           {new Date(task.due_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                         </span>
                       )}
-                      {isDoneTask && <span style={{ fontSize: 11, color: "#3C7A52", fontStyle: "italic" }}>Pending LexOps verification</span>}
+                      {isDoneTask && <span style={{ fontSize: 11, color: "#3C7A52" }}>Pending LexOps verification</span>}
                     </div>
                   </div>
                 </div>

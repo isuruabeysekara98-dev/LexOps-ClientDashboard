@@ -579,24 +579,6 @@ function StageResultBlock({ stage, aiOutput, stageIndex, stageTotal }) {
           <div style={{ fontSize: 13, color: t.text, lineHeight: 1.78, whiteSpace: "pre-wrap", marginBottom: outputs.length > 0 ? 16 : 0 }}>
             {(aiOutput?.content || "").replace(/\*\*(.*?)\*\*/g, "$1")}
           </div>
-          {outputs.length > 0 && (
-            <div>
-              <button onClick={() => setShowExpected(e => !e)} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t.accent, fontWeight: 600, padding: 0, display: "flex", alignItems: "center", gap: 5 }}>
-                {showExpected ? "▲ Hide" : "▼ Compare"} expected outputs
-              </button>
-              {showExpected && (
-                <div style={{ marginTop: 12, background: t.surface, borderRadius: 10, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: t.textMeta, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>What LexOps delivers at this stage</div>
-                  {outputs.map((o, i) => (
-                    <div key={i} style={{ display: "flex", gap: 10, marginBottom: 7, fontSize: 12, color: t.text }}>
-                      <span>{o.emoji || "✓"}</span>
-                      <div><strong>{o.name}</strong>{o.description && ` — ${o.description}`}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1019,24 +1001,9 @@ function TryMatterWizard({ wf, token, proposal }) {
                 ))}
               </div>
 
-              {/* Feedback */}
+              {/* Workflow feedback is captured via the proposal's "Request changes" flow, not here. */}
               <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 20 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>Your feedback</div>
-                <div style={{ fontSize: 12, color: t.textSub, marginBottom: 12, lineHeight: 1.6 }}>Share your thoughts on this workflow — what worked, what you'd change, or any questions for the LexOps team.</div>
-                <textarea
-                  value={feedback}
-                  onChange={e => { setFeedback(e.target.value); setFeedbackSaved(false); }}
-                  placeholder="What did you think? Were the outputs relevant to your situation? Any gaps or areas to address?"
-                  rows={4}
-                  style={{ ...inp, resize: "vertical", lineHeight: 1.6, borderColor: feedbackSaved && !feedbackChanged ? t.green : t.border, boxShadow: feedbackSaved && !feedbackChanged ? `0 0 0 3px ${t.greenSoft}` : "none", transition: "border-color 0.2s, box-shadow 0.2s" }}
-                />
-                {feedbackError && <div style={{ color: t.red, fontSize: 12, marginTop: 6 }}>{feedbackError}</div>}
-                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
-                  <button onClick={handleSaveFeedback} disabled={savingFeedback || !feedback.trim()} style={{ background: feedbackSaved && !feedbackChanged ? t.greenSoft : t.accent, color: feedbackSaved && !feedbackChanged ? t.green : "#fff", border: `1px solid ${feedbackSaved && !feedbackChanged ? t.greenBorder : t.accent}`, borderRadius: 8, padding: "9px 20px", fontSize: 12, fontWeight: 600, cursor: savingFeedback || !feedback.trim() ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: !feedback.trim() ? 0.5 : 1 }}>
-                    {savingFeedback ? "Saving…" : feedbackSaved && !feedbackChanged ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Check size={14} strokeWidth={3} /> Feedback saved</span> : "Save feedback"}
-                  </button>
-                  <button onClick={() => setStep(1)} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Try again</button>
-                </div>
+                <button onClick={() => setStep(1)} style={{ background: "transparent", color: t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 16px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>← Try again</button>
               </div>
             </div>
           )}
