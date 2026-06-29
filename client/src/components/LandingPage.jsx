@@ -54,10 +54,12 @@ export default function LandingPage({ navigate, userProfile, onLogout }) {
           <Logo />
           <button
             onClick={onLogout}
+            onMouseEnter={e => { e.currentTarget.style.background = "#F0EDE6"; e.currentTarget.style.color = t.text; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = t.textSub; }}
             style={{
               background: "transparent", border: "none", color: t.textSub,
               fontSize: 12, cursor: "pointer", fontFamily: "inherit",
-              padding: "6px 10px", borderRadius: 6,
+              padding: "6px 10px", borderRadius: 6, transition: "all 0.15s",
             }}
           >
             Sign out

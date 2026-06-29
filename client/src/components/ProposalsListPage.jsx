@@ -458,7 +458,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             style={{
               ...btnBase,
               background: hovBtn === "new2" ? t.accentHover : t.accent,
-              color: "#fff", fontWeight: 500, paddingLeft: 24, paddingRight: 24, fontSize: 16,
+              color: "#fff", fontWeight: 500, paddingLeft: 24, paddingRight: 24, fontSize: 14,
             }}
           >
             + New proposal
@@ -479,7 +479,8 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             <div style={{ color: t.text, fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{loadError}</div>
             <button
               onClick={load}
-              style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 14, margin: "16px auto 0" }}
+              onMouseEnter={() => setHovBtn("retry")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, background: hovBtn === "retry" ? t.accentHover : t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 14, margin: "16px auto 0", transition: "background 0.15s" }}
             >
               Retry
             </button>
@@ -494,7 +495,8 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             <div style={{ color: t.textMeta, fontSize: 13, marginBottom: 24 }}>Create your first proposal to get started.</div>
             <button
               onClick={() => navigate("/admin/proposals/new")}
-              style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 16, margin: "0 auto" }}
+              onMouseEnter={() => setHovBtn("empty")} onMouseLeave={() => setHovBtn(null)}
+              style={{ ...btnBase, background: hovBtn === "empty" ? t.accentHover : t.accent, color: "#fff", fontWeight: 500, padding: "10px 24px", fontSize: 14, margin: "0 auto", transition: "background 0.15s" }}
             >
               + New proposal
             </button>
@@ -504,6 +506,8 @@ export default function ProposalsListPage({ navigate, onLogout }) {
             {proposals.map(pr => {
               const isHov = hovCard === pr.id;
               const isDraft = pr.status === "draft";
+              // Proposals awaiting an admin decision/response — surface them.
+              const needsAttention = ["changes_requested", "in_review", "accepted", "submitted", "feedback_received"].includes(pr.status);
               const title = pr.name || "";
               const clientName = pr.client_name || "";
               const contact = pr.client_contact_name || "";
@@ -521,6 +525,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                   style={{
                     background: t.card,
                     border: `1px solid ${isHov ? "#C8C5BC" : t.border}`,
+                    borderLeft: needsAttention ? `3px solid ${t.accent}` : `1px solid ${isHov ? "#C8C5BC" : t.border}`,
                     borderRadius: 12, padding: "18px 22px",
                     boxShadow: isHov ? t.shadowHover : t.shadow,
                     cursor: "pointer", transition: "all 0.12s",
@@ -557,8 +562,10 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                           style={{
                             background: "transparent", border: "none", cursor: "pointer",
                             color: copied === pr.id ? t.accent : t.textMeta, padding: 4, borderRadius: 5,
-                            display: "flex", alignItems: "center",
+                            display: "flex", alignItems: "center", transition: "color 0.15s",
                           }}
+                          onMouseEnter={e => { if (copied !== pr.id) e.currentTarget.style.color = t.accent; }}
+                          onMouseLeave={e => { if (copied !== pr.id) e.currentTarget.style.color = t.textMeta; }}
                         >
                           <IconCopy />
                         </button>
@@ -568,8 +575,10 @@ export default function ProposalsListPage({ navigate, onLogout }) {
                           style={{
                             background: "transparent", border: "none", cursor: "pointer",
                             color: t.textMeta, padding: 4, borderRadius: 5,
-                            display: "flex", alignItems: "center",
+                            display: "flex", alignItems: "center", transition: "color 0.15s",
                           }}
+                          onMouseEnter={e => e.currentTarget.style.color = t.accent}
+                          onMouseLeave={e => e.currentTarget.style.color = t.textMeta}
                         >
                           <IconExternalLink />
                         </button>
