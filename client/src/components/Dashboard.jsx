@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AdminPanel from "./AdminPanel";
 import FlowchartTab from "./FlowchartTab.jsx";
 import { supabase } from "@/lib/supabase.js";
+import { withTimeout, useSlowHint } from "@/lib/loadUtils.js";
 import {
   Check, X, AlertTriangle, Package, Pencil, Calendar, Scale, ClipboardList,
   Zap, FileText, PenTool, BookOpen, Link as LinkIcon, Bug, Wrench, MessageSquare,
@@ -5216,6 +5217,8 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const allowedProjectIds = userProfile?.allowedProjectIds || [];
   const [projects,setProjects]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState(null);
+  const slowLoad=useSlowHint(loading);
   const [mode,setMode]=useState("dark");
   const [profileOpen,setProfileOpen]=useState(false);
   const [view,setView]=useState(isClient ? "client" : "internal");
@@ -5252,30 +5255,39 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   },[isClient,selected?.id]);
 
   const loadProjects=useCallback(async({silent=false}={})=>{
-    if(!silent) setLoading(true);
-    let query;
-    if(isClient){
-      if(allowedProjectIds.length===0){setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
-      query=supabase.from("projects").select("*").in("id",allowedProjectIds);
-    } else {
-      query=supabase.from("projects").select("*, clients(name)");
+    if(!silent){ setLoading(true); setLoadError(null); }
+    try {
+      let query;
+      if(isClient){
+        if(allowedProjectIds.length===0){setProjects([]);return;}
+        query=supabase.from("projects").select("*").in("id",allowedProjectIds);
+      } else {
+        query=supabase.from("projects").select("*, clients(name)");
+      }
+      const {data:rows,error:queryErr}=await withTimeout(query.order("id"),12000,"Couldn't reach the server");
+      if(queryErr) throw new Error(queryErr.message);
+      if(!rows||rows.length===0){setProjects([]);return;}
+      const full=await withTimeout(Promise.all(rows.map(async row=>{
+        const related=await fetchProjectData(row.id);
+        return normalizeProject(row,related);
+      })),12000,"Couldn't load your project details");
+      setProjects(full);
+      setSelected(prev=>{
+        if(prev){const updated=full.find(p=>p.id===prev.id);return updated||full[0]||null;}
+        return full[0]||null;
+      });
+      if(isClient && userProfile && !userProfile.has_seen_welcome){
+        setShowWelcome(true);
+      }
+    } catch(err){
+      console.error("[Dashboard] loadProjects failed:",err?.message||err);
+      // A silent background refresh must never wipe what's on screen or block it —
+      // only a foreground load surfaces a blocking error the user can retry.
+      if(!silent) setLoadError("We couldn't load your projects. Please check your connection and try again.");
+    } finally {
+      lastLoadRef.current=Date.now();
+      if(!silent) setLoading(false);
     }
-    const {data:rows,error:queryErr}=await query.order("id");
-    if(!rows||rows.length===0){setProjects([]);lastLoadRef.current=Date.now();setLoading(false);return;}
-    const full=await Promise.all(rows.map(async row=>{
-      const related=await fetchProjectData(row.id);
-      return normalizeProject(row,related);
-    }));
-    setProjects(full);
-    setSelected(prev=>{
-      if(prev){const updated=full.find(p=>p.id===prev.id);return updated||full[0]||null;}
-      return full[0]||null;
-    });
-    if(isClient && userProfile && !userProfile.has_seen_welcome){
-      setShowWelcome(true);
-    }
-    lastLoadRef.current=Date.now();
-    setLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
@@ -5324,10 +5336,13 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     };
   },[loadProjects,onLogout]);
 
-  // Safety timeout: force loading to false after 5 seconds
+  // Backstop: loadProjects now bounds itself with withTimeout (≤12s) and always clears
+  // `loading` in a finally, so the previous blind 5s flag-flip is gone — it would have
+  // fired before a legitimately in-flight load finished. This guard only catches a
+  // truly wedged state well past the request timeout.
   useEffect(()=>{
     if(!loading) return;
-    const timer=setTimeout(()=>setLoading(false),5000);
+    const timer=setTimeout(()=>{ setLoading(false); setLoadError(prev=>prev||"We couldn't load your projects. Please check your connection and try again."); },15000);
     return()=>clearTimeout(timer);
   },[loading]);
 
@@ -5372,9 +5387,18 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   }
 
   if(loading) return(
-    <div style={{minHeight:"100vh",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+    <div style={{minHeight:"100vh",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,padding:24,textAlign:"center"}}>
       <div style={{width:32,height:32,border:`2px solid ${t.border}`,borderTop:`2px solid ${t.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
       <span style={{color:t.textSub,fontSize:13}}>Loading projects…</span>
+      {slowLoad&&<span style={{color:t.textDim||t.textSub,fontSize:12,maxWidth:300,lineHeight:1.5}}>This is taking longer than usual — still working on it.</span>}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+  if(loadError && projects.length===0) return(
+    <div style={{minHeight:"100vh",background:t.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,padding:24,textAlign:"center"}}>
+      <div style={{width:46,height:46,borderRadius:"50%",background:t.redSoft||"rgba(201,84,46,0.08)",display:"flex",alignItems:"center",justifyContent:"center"}}><AlertTriangle size={22} color={t.red||"#C9542E"}/></div>
+      <div style={{color:t.text,fontSize:15,fontWeight:600,maxWidth:340,lineHeight:1.4}}>{loadError}</div>
+      <button onClick={()=>loadProjects()} style={{background:t.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px 24px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Retry</button>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

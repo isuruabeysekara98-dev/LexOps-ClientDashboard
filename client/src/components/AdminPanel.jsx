@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase.js";
 import { adminFetch, dbWrite } from "@/lib/adminFetch.js";
+import { withTimeout, useSlowHint } from "@/lib/loadUtils.js";
 
 const themes = {
   dark: {
@@ -448,6 +449,9 @@ function ClientsTab({ t, mode }) {
   const [projects, setProjects] = useState([]);
   const [memberships, setMemberships] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clientsError, setClientsError] = useState(null);
+  const [proposalsError, setProposalsError] = useState(null);
+  const slowClients = useSlowHint(loading);
   const [assignModal, setAssignModal] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [assigning, setAssigning] = useState(false);
@@ -466,6 +470,7 @@ function ClientsTab({ t, mode }) {
   const [proposals, setProposals] = useState([]);
   const [proposalProjects, setProposalProjects] = useState([]);
   const [proposalsLoading, setProposalsLoading] = useState(true);
+  const slowProposals = useSlowHint(proposalsLoading);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [proposalForm, setProposalForm] = useState({ project_name: "", client_name: "", client_contact_name: "", client_emails: [""] });
   const [proposalFile, setProposalFile] = useState(null);
@@ -479,27 +484,41 @@ function ClientsTab({ t, mode }) {
   // --- Load active clients ---
   const loadClients = useCallback(async () => {
     setLoading(true);
-    const [{ data: profiles }, { data: projs }, { data: members }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("role", "client").order("created_at"),
-      supabase.from("projects").select("id, name, client_name").order("id"),
-      supabase.from("project_members").select("*").order("id"),
-    ]);
-    setClients(profiles || []);
-    setProjects(projs || []);
-    setMemberships(members || []);
-    setLoading(false);
+    setClientsError(null);
+    try {
+      const [{ data: profiles }, { data: projs }, { data: members }] = await withTimeout(Promise.all([
+        supabase.from("profiles").select("*").eq("role", "client").order("created_at"),
+        supabase.from("projects").select("id, name, client_name").order("id"),
+        supabase.from("project_members").select("*").order("id"),
+      ]));
+      setClients(profiles || []);
+      setProjects(projs || []);
+      setMemberships(members || []);
+    } catch (err) {
+      console.error("[AdminPanel] loadClients failed:", err?.message || err);
+      setClientsError("Couldn't load clients. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // --- Load proposals ---
   const loadProposals = useCallback(async () => {
     setProposalsLoading(true);
-    const [{ data: p }, { data: pr }] = await Promise.all([
-      supabase.from("proposals").select("*").order("created_at", { ascending: false }),
-      supabase.from("projects").select("id, name, client_name").order("id"),
-    ]);
-    setProposals(p || []);
-    setProposalProjects(pr || []);
-    setProposalsLoading(false);
+    setProposalsError(null);
+    try {
+      const [{ data: p }, { data: pr }] = await withTimeout(Promise.all([
+        supabase.from("proposals").select("*").order("created_at", { ascending: false }),
+        supabase.from("projects").select("id, name, client_name").order("id"),
+      ]));
+      setProposals(p || []);
+      setProposalProjects(pr || []);
+    } catch (err) {
+      console.error("[AdminPanel] loadProposals failed:", err?.message || err);
+      setProposalsError("Couldn't load proposals. Please try again.");
+    } finally {
+      setProposalsLoading(false);
+    }
   }, []);
 
   const loadClientInviteLogs = useCallback(async () => {
@@ -817,7 +836,15 @@ function ClientsTab({ t, mode }) {
       </div>
 
       {loading ? (
-        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
+        <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>
+          Loading…
+          {slowClients && <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>This is taking longer than usual — still working on it.</div>}
+        </div>
+      ) : clientsError ? (
+        <div style={{ padding: "32px 0", textAlign: "center" }}>
+          <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{clientsError}</div>
+          <Btn t={t} onClick={loadClients}>Retry</Btn>
+        </div>
       ) : clients.length === 0 ? (
         <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>No client users found.</div>
       ) : (
@@ -939,7 +966,15 @@ function ClientsTab({ t, mode }) {
         </div>
 
         {proposalsLoading ? (
-          <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>Loading…</div>
+          <div style={{ color: t.textSub, fontSize: 13, padding: "32px 0", textAlign: "center" }}>
+            Loading…
+            {slowProposals && <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>This is taking longer than usual — still working on it.</div>}
+          </div>
+        ) : proposalsError ? (
+          <div style={{ padding: "32px 0", textAlign: "center" }}>
+            <div style={{ color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{proposalsError}</div>
+            <Btn t={t} onClick={loadProposals}>Retry</Btn>
+          </div>
         ) : proposals.length === 0 ? (
           <div style={{ background: t.surfaceHigh, border: `1px dashed ${t.border}`, borderRadius: 12, padding: "48px 0", textAlign: "center" }}>
             <div style={{ color: t.textSub, fontSize: 13, marginBottom: 16 }}>No proposals yet.</div>

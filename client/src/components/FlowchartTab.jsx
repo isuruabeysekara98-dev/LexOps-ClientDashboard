@@ -7,6 +7,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { supabase } from "@/lib/supabase.js";
+import { withTimeout, useSlowHint } from "@/lib/loadUtils.js";
 import { Pencil, RotateCw, X, ArrowRight, Trash2, PartyPopper, Upload, Paperclip } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -286,7 +287,9 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile, proposa
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [missingTables, setMissingTables] = useState(false);
+  const slowLoad = useSlowHint(loading);
   const [saveStatus, setSaveStatus] = useState("");
 
   // Builder state
@@ -341,18 +344,27 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile, proposa
   // silent=true → refresh data in background without showing the spinner (used for
   // tab-return re-fetches and realtime-triggered reloads so the UI never flashes).
   const load = useCallback(async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    const [nRes, aRes] = await Promise.all([
-      supabase.from("flowchart_nodes").select("id,project_id,title,status,description,estimated_date,position_x,position_y,created_at,inputs,outputs").eq("project_id", projectId).order("created_at", { ascending: true }),
-      supabase.from("flowchart_arrows").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
-    ]);
-    if (nRes.error && /relation .* does not exist|Could not find the table/i.test(nRes.error.message)) {
-      setMissingTables(true); if (!silent) setLoading(false); return;
+    if (!silent) { setLoading(true); setLoadError(null); }
+    try {
+      const [nRes, aRes] = await withTimeout(Promise.all([
+        supabase.from("flowchart_nodes").select("id,project_id,title,status,description,estimated_date,position_x,position_y,created_at,inputs,outputs").eq("project_id", projectId).order("created_at", { ascending: true }),
+        supabase.from("flowchart_arrows").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
+      ]));
+      if (nRes.error && /relation .* does not exist|Could not find the table/i.test(nRes.error.message)) {
+        setMissingTables(true); return;
+      }
+      if (nRes.error) throw new Error(nRes.error.message);
+      setMissingTables(false);
+      setNodes((nRes.data || []).map(toRfNode));
+      setEdges((aRes.data || []).map(toRfEdge));
+    } catch (err) {
+      console.error("[FlowchartTab] load failed:", err?.message || err);
+      // A silent background refresh keeps the current diagram on screen; only a
+      // foreground load surfaces a blocking, retryable error.
+      if (!silent) setLoadError("Couldn't load the flowchart. Please try again.");
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setMissingTables(false);
-    setNodes((nRes.data || []).map(toRfNode));
-    setEdges((aRes.data || []).map(toRfEdge));
-    if (!silent) setLoading(false);
   }, [projectId, toRfNode, toRfEdge]);
 
   useEffect(() => { load(); }, [load]);
@@ -763,6 +775,14 @@ function FlowchartInner({ projectId, isInternal, userProfile, t, mobile, proposa
   if (loading) return (
     <div style={{ padding: 40, textAlign: "center", color: t.textSub, fontSize: 14 }}>
       Loading flowchart…
+      {slowLoad && <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>This is taking longer than usual — still working on it.</div>}
+    </div>
+  );
+
+  if (loadError) return (
+    <div style={{ padding: 40, textAlign: "center", color: t.textSub, fontSize: 14 }}>
+      <div style={{ color: t.text, fontWeight: 600, marginBottom: 12 }}>{loadError}</div>
+      <button onClick={() => load()} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Retry</button>
     </div>
   );
 

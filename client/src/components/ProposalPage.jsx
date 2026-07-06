@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Check, ClipboardList, Bookmark, Upload, Paperclip, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { fetchWithTimeout, withTimeout, useSlowHint } from "@/lib/loadUtils.js";
 import ProposalViewer, { Logo } from "./ProposalViewer.jsx";
 
 const t = {
@@ -75,6 +76,8 @@ const GLOBAL_CSS = `
   @keyframes slideInRight { from { transform:translateX(48px); opacity:0 } to { transform:translateX(0); opacity:1 } }
   @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
   @keyframes dotBounce { 0%,80%,100%{transform:scale(0.8);opacity:0.4} 40%{transform:scale(1.2);opacity:1} }
+  @keyframes stepIn { from { opacity:0; transform:translateX(14px) } to { opacity:1; transform:translateX(0) } }
+  @keyframes ringPulse { 0%{box-shadow:0 0 0 0 rgba(55,89,113,0.32)} 70%{box-shadow:0 0 0 8px rgba(55,89,113,0)} 100%{box-shadow:0 0 0 0 rgba(55,89,113,0)} }
 `;
 
 // ─── Full-page thank-you screen (after accept / request changes) ──────────────
@@ -226,199 +229,304 @@ function SimpleResponsePanel({ proposal, token, onRefresh }) {
   );
 }
 
-// ─── Horizontal stage timeline ─────────────────────────────────────────────
-function HorizontalTimeline({ stages, selectedIndex, onSelect }) {
-  if (!stages || stages.length === 0) return null;
-  const circleSize = 64;
-  const half = circleSize / 2;
-
-  return (
-    <div style={{ background: t.card, borderRadius: 14, padding: "28px 24px 24px", border: `1px solid ${t.border}`, overflowX: "auto", boxShadow: t.shadow }}>
-      <div style={{ display: "flex", alignItems: "flex-start", position: "relative", minWidth: stages.length * 152 }}>
-        {/* Connecting line */}
-        {stages.length > 1 && (
-          <div style={{ position: "absolute", top: half, left: half + 8, right: half + 8, height: 2, background: "#232A34", zIndex: 0 }} />
-        )}
-        {stages.map((stage, i) => {
-          const isSelected = selectedIndex === i;
-          return (
-            <div key={i} onClick={() => onSelect(isSelected ? null : i)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", position: "relative", zIndex: 1, padding: "0 8px" }}>
-              {/* Circle */}
-              <div style={{
-                width: circleSize, height: circleSize, borderRadius: "50%",
-                background: isSelected ? t.accent : "#232A34",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 24, position: "relative", flexShrink: 0,
-                border: isSelected ? `3px solid ${t.accent}` : `3px solid #232A34`,
-                boxShadow: isSelected ? `0 0 0 5px rgba(55,89,113,0.18), ${t.shadowMd}` : `0 2px 8px rgba(0,0,0,0.18)`,
-                transition: "all 0.2s ease",
-                userSelect: "none",
-              }}>
-                {stage.emoji || "📋"}
-                {/* Number badge */}
-                <div style={{
-                  position: "absolute", top: -3, right: -3,
-                  width: 20, height: 20, borderRadius: "50%",
-                  background: "#fff", color: "#232A34",
-                  fontSize: 9, fontWeight: 800,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid rgba(35,42,52,0.15)`,
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-                }}>
-                  {i + 1}
-                </div>
-              </div>
-              {/* Label */}
-              <div style={{ textAlign: "center", marginTop: 13 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: stage.title ? t.text : t.textMeta, marginBottom: 4, lineHeight: 1.3, fontStyle: stage.title ? "normal" : "italic" }}>
-                  {stage.title || "Stage title to be completed"}
-                </div>
-                {stage.description && (
-                  <div style={{ fontSize: 10, color: t.textSub, lineHeight: 1.55, maxWidth: 120 }}>
-                    {stage.description.length > 72 ? stage.description.slice(0, 72) + "…" : stage.description}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Stage detail drawer ──────────────────────────────────────────────────────
 const MAX_STAGE_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
-function StageDrawer({ stage, index, total, onClose, onPrev, onNext, proposalId, token, wfId }) {
-  const stats = stage.stats || [];
+// Does this stage plausibly call for client documents?
+function stageDocSignal(stage) {
   const inputs = stage.inputs || [];
-  const outputs = stage.outputs || [];
+  if (inputs.length === 0) return "none"; // nothing needed from the client here
+  const blob = inputs.map(i => `${i.name || ""} ${i.label || ""} ${i.description || ""} ${i.detail || ""}`).join(" ");
+  return /document|file|upload|attach|evidence|contract|letter|form|certificate|statement|report|invoice|record|agreement|deed|passport|licen[cs]e|policy|deck|spreadsheet|filing/i.test(blob)
+    ? "required" // inputs explicitly reference documents
+    : "optional"; // inputs exist but may be answered without a file
+}
 
-  // Determine if any input mentions documents / files
-  const hasDocInputs = inputs.some(inp =>
-    /document|file|upload|attach|evidence|contract|letter|form|certificate/i.test(
-      `${inp.name || ""} ${inp.label || ""} ${inp.description || ""} ${inp.detail || ""}`
-    )
-  );
-  // Show upload CTA if: there are any inputs (they might need docs), or input explicitly needs docs
-  const showUploadCTA = proposalId && token && (hasDocInputs || inputs.length > 0);
-
-  // Upload state
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+// ─── Contextual, inline document uploader (one surface, reused per stage) ──────
+function DocumentUpload({ proposalId, token, wfId, stageIndex, initialFiles, onCountChange, signal }) {
+  const [files, setFiles] = useState(initialFiles || []);
   const [uploading, setUploading] = useState(false);
-  const [uploadErr, setUploadErr] = useState("");
-  const fileInputRef = useRef(null);
+  const [err, setErr] = useState("");
+  const inputRef = useRef(null);
 
-  // Load previously uploaded files for this stage on mount
-  useEffect(() => {
-    if (!proposalId || !token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files?token=${encodeURIComponent(token)}`);
-        const data = await res.json();
-        if (cancelled || !Array.isArray(data.files)) return;
-        const stageFiles = data.files.filter(f =>
-          f.workflow_id === wfId && Number(f.stage_index) === index
-        ).map(f => ({ id: f.id, name: f.file_name, url: f.file_url }));
-        setUploadedFiles(stageFiles);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [proposalId, token, wfId, index]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { onCountChange?.(stageIndex, files.length); }, [files.length]);
 
   async function handleUpload(fileList) {
-    const files = Array.from(fileList || []);
-    if (!files.length || !proposalId || !token) return;
-    const oversized = files.filter(f => f.size > MAX_STAGE_FILE_BYTES);
+    const picked = Array.from(fileList || []);
+    if (!picked.length || !proposalId || !token) return;
+    const oversized = picked.filter(f => f.size > MAX_STAGE_FILE_BYTES);
     if (oversized.length) {
-      setUploadErr(`File${oversized.length > 1 ? "s" : ""} exceed the 10 MB limit: ${oversized.map(f => f.name).join(", ")}`);
+      setErr(`File${oversized.length > 1 ? "s" : ""} exceed the 10 MB limit: ${oversized.map(f => f.name).join(", ")}`);
       return;
     }
-    setUploading(true);
-    setUploadErr("");
+    setUploading(true); setErr("");
     const done = [];
-    for (const file of files) {
+    for (const file of picked) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("token", token);
       if (wfId) fd.append("workflow_id", wfId);
-      fd.append("stage_index", String(index));
-      fd.append("kind", "stage_input");
+      fd.append("stage_index", String(stageIndex));
+      fd.append("kind", "submitted");
       try {
         const res = await fetch(`/api/proposals/v2/${proposalId}/client-files`, { method: "POST", body: fd });
         const data = await res.json();
-        if (!res.ok) {
-          setUploadErr(data.message || "Upload failed — please try again.");
-          continue;
-        }
+        if (!res.ok) { setErr(data.message || "Upload failed — please try again."); continue; }
         done.push({ id: data.file?.id, name: data.file?.file_name || file.name, url: data.file?.file_url });
-      } catch {
-        setUploadErr("Connection error — please check your network and try again.");
-      }
+      } catch { setErr("Connection error — please check your network and try again."); }
     }
-    if (done.length) setUploadedFiles(prev => [...prev, ...done]);
+    if (done.length) setFiles(prev => [...prev, ...done]);
     setUploading(false);
   }
 
   function removeFile(i) {
-    const f = uploadedFiles[i];
-    setUploadedFiles(prev => prev.filter((_, j) => j !== i));
+    const f = files[i];
+    setFiles(prev => prev.filter((_, j) => j !== i));
     if (f?.id && proposalId && token) {
       fetch(`/api/proposals/v2/${proposalId}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
     }
   }
 
+  const required = signal === "required";
+  const accentBg = required ? "rgba(55,89,113,0.06)" : t.surface;
+  const accentBorder = required ? "rgba(55,89,113,0.24)" : t.border;
+
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(10,24,24,0.5)", backdropFilter: "blur(3px)" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(540px,100vw)", background: t.card, overflowY: "auto", boxShadow: t.shadowLg, display: "flex", flexDirection: "column", animation: "slideInRight 0.22s ease-out" }}>
-        {/* Header */}
-        <div style={{ padding: "22px 28px 16px", borderBottom: `1px solid ${t.border}`, flexShrink: 0, position: "sticky", top: 0, background: t.card, zIndex: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 11, color: t.textMeta, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Stage {index + 1} of {total}</div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button onClick={onPrev} disabled={index === 0} title="Previous stage" style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${t.border}`, background: t.surface, cursor: index === 0 ? "not-allowed" : "pointer", color: t.textSub, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.35 : 1 }}>←</button>
-              <button onClick={onNext} disabled={index === total - 1} title="Next stage" style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${t.border}`, background: t.surface, cursor: index === total - 1 ? "not-allowed" : "pointer", color: t.textSub, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", opacity: index === total - 1 ? 0.35 : 1 }}>→</button>
-              <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${t.border}`, background: t.surface, cursor: "pointer", color: t.textSub, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+    <div style={{ background: accentBg, border: `1.5px ${required ? "solid" : "dashed"} ${accentBorder}`, borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: required ? t.accent : t.card, border: required ? "none" : `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Upload size={16} color={required ? "#FFFFFF" : t.accent} strokeWidth={2} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{required ? "Upload the documents this stage needs" : "Add supporting documents (optional)"}</div>
+          <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>We'll refine them and return another round of comments</div>
+        </div>
+        {files.length > 0 && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: t.green, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 20, padding: "3px 10px", flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Check size={12} strokeWidth={3} /> {files.length}
+          </span>
+        )}
+      </div>
+
+      {err && (
+        <div style={{ background: t.redSoft, border: "1px solid rgba(201,84,46,0.25)", borderRadius: 8, padding: "9px 13px", color: t.red, fontSize: 12, marginBottom: 12 }}>
+          {err}
+          <button onClick={() => setErr("")} style={{ marginLeft: 10, background: "none", border: "none", cursor: "pointer", color: t.red, fontSize: 12, fontWeight: 600, textDecoration: "underline", fontFamily: "inherit" }}>Dismiss</button>
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          {files.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 8, padding: "8px 12px" }}>
+              <Paperclip size={14} color={t.green} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+              {f.url
+                ? <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.green, textDecoration: "none", fontWeight: 500 }}>{f.name}</a>
+                : <span style={{ fontSize: 12, flex: 1, color: t.green, fontWeight: 500 }}>{f.name}</span>}
+              <span style={{ fontSize: 10, color: t.green, fontWeight: 700, marginRight: 4 }}>✓ Uploaded</span>
+              <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13, padding: 2 }}>✕</button>
             </div>
+          ))}
+        </div>
+      )}
+
+      <input ref={inputRef} type="file" multiple accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.rtf,.png,.jpg,.jpeg" style={{ display: "none" }} onChange={e => { handleUpload(e.target.files); e.target.value = ""; }} />
+      <button
+        onClick={() => { if (!uploading) inputRef.current?.click(); }}
+        disabled={uploading}
+        style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", justifyContent: "center", background: uploading ? t.border : (required ? t.accent : "transparent"), color: uploading ? t.textMeta : (required ? "#FFFFFF" : t.accent), border: required ? "none" : `1px solid ${t.accentBorder}`, borderRadius: 9, padding: "11px 18px", fontSize: 14, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer", fontFamily: "inherit", transition: "background 0.15s, opacity 0.15s" }}
+      >
+        {uploading ? (
+          <><div style={{ width: 15, height: 15, border: "2px solid rgba(0,0,0,0.15)", borderTop: `2px solid ${t.textSub}`, borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} /> Uploading…</>
+        ) : (
+          <><Upload size={16} strokeWidth={2} /> {files.length > 0 ? "Upload more documents" : "Upload documents"}</>
+        )}
+      </button>
+      <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 7 }}>PDF, DOCX, TXT, CSV, XLSX, images — up to 10 MB each</div>
+    </div>
+  );
+}
+
+// ─── Guided, step-by-step workflow walkthrough ────────────────────────────────
+function GuidedWorkflow({ stages, wfId, proposalId, token, frozen }) {
+  const [started, setStarted] = useState(false);
+  const [active, setActive] = useState(0);
+  const [counts, setCounts] = useState({});           // stageIndex -> uploaded file count
+  const [filesByStage, setFilesByStage] = useState({}); // persisted files, loaded once
+  const [loaded, setLoaded] = useState(false);
+  const panelRef = useRef(null);
+
+  // Load previously submitted files for this workflow (so reloads show progress).
+  useEffect(() => {
+    if (!proposalId || !token) { setLoaded(true); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/proposals/v2/${proposalId}/client-files?token=${encodeURIComponent(token)}`);
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.files)) { setLoaded(true); return; }
+        const byStage = {}; const initCounts = {};
+        data.files
+          .filter(f => f.workflow_id === wfId && f.kind === "submitted" && f.stage_index != null)
+          .forEach(f => {
+            (byStage[f.stage_index] = byStage[f.stage_index] || []).push({ id: f.id, name: f.file_name, url: f.file_url });
+          });
+        Object.keys(byStage).forEach(k => { initCounts[k] = byStage[k].length; });
+        if (!cancelled) { setFilesByStage(byStage); setCounts(initCounts); }
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setLoaded(true); }
+    })();
+    return () => { cancelled = true; };
+  }, [proposalId, token, wfId]);
+
+  if (!stages || stages.length === 0) {
+    return <div style={{ padding: "18px 4px 4px" }}><FieldTodo label="Workflow stages to be completed" /></div>;
+  }
+
+  const total = stages.length;
+  const canUpload = !!proposalId && !!token && !frozen;
+  const requiredStages = stages.map((s, i) => ({ i, sig: stageDocSignal(s) })).filter(x => x.sig === "required");
+  const requiredDone = requiredStages.filter(x => (counts[x.i] || 0) > 0).length;
+
+  function go(i) { setActive(Math.max(0, Math.min(total - 1, i))); panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }); }
+
+  // ── Intro state: overview + the "Try your own case" call to action ──────────
+  if (!started) {
+    return (
+      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, padding: "22px 22px 24px", boxShadow: t.shadow }}>
+        <Eyebrow label={`${total} stage${total !== 1 ? "s" : ""} · step by step`} />
+        <div style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 18, fontWeight: 700, color: t.text, letterSpacing: "-0.01em", marginBottom: 6 }}>See how we'd handle your case</div>
+        <div style={{ fontSize: 13, color: t.textSub, lineHeight: 1.65, marginBottom: 18, maxWidth: 560 }}>
+          Walk the workflow one stage at a time. At each step you'll see exactly what we need from you and what you'll get back — and you can upload your documents right there for us to refine.
+        </div>
+        {/* Stage mini-map */}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, marginBottom: 22 }}>
+          {stages.map((s, i) => (
+            <div key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 20, padding: "5px 12px 5px 8px" }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#232A34", color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</span>
+                <span style={{ fontSize: 12.5 }}>{s.emoji || "📋"}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: s.title ? t.text : t.textMeta, fontStyle: s.title ? "normal" : "italic", whiteSpace: "nowrap" }}>{s.title || "Stage"}</span>
+              </div>
+              {i < total - 1 && <span style={{ color: t.textMeta, fontSize: 12 }}>→</span>}
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => setStarted(true)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 9, background: t.accent, color: "#fff", border: "none", borderRadius: 10, padding: "13px 26px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", boxShadow: t.shadow, transition: "background 0.2s" }}
+          onMouseEnter={e => e.currentTarget.style.background = t.accentHover}
+          onMouseLeave={e => e.currentTarget.style.background = t.accent}
+        >
+          Try your own case <span style={{ fontSize: 16 }}>→</span>
+        </button>
+        {requiredStages.length > 0 && (
+          <div style={{ fontSize: 11.5, color: t.textMeta, marginTop: 12 }}>
+            {requiredStages.length} stage{requiredStages.length !== 1 ? "s" : ""} will ask you to upload documents.
           </div>
-          <h2 style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 22, fontWeight: 700, color: t.text, margin: 0, lineHeight: 1.2 }}>
-            {stage.title || <span style={{ color: t.textMeta, fontStyle: "italic", fontWeight: 400 }}>Stage title to be completed</span>}
-          </h2>
+        )}
+      </div>
+    );
+  }
+
+  const stage = stages[active];
+  const sig = stageDocSignal(stage);
+  const stats = stage.stats || [];
+  const inputs = stage.inputs || [];
+  const outputs = stage.outputs || [];
+  const pct = total > 1 ? Math.round((active / (total - 1)) * 100) : 100;
+
+  return (
+    <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, boxShadow: t.shadow, overflow: "hidden" }}>
+      {/* Progress header */}
+      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, marginBottom: 6 }}>Step {active + 1} of {total}</div>
+          <div style={{ height: 5, borderRadius: 3, background: t.surface, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, background: t.accent, borderRadius: 3, transition: "width 0.4s cubic-bezier(0.4,0,0.2,1)" }} />
+          </div>
+        </div>
+        {requiredStages.length > 0 && (
+          <div style={{ fontSize: 11.5, color: requiredDone === requiredStages.length ? t.green : t.textMeta, fontWeight: 600, background: requiredDone === requiredStages.length ? t.greenSoft : t.surface, border: `1px solid ${requiredDone === requiredStages.length ? t.greenBorder : t.border}`, borderRadius: 20, padding: "5px 12px", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {requiredDone} / {requiredStages.length} doc stages ready
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "stretch" }}>
+        {/* ── Progress rail ── */}
+        <div style={{ width: 210, flexShrink: 0, borderRight: `1px solid ${t.border}`, padding: "14px 10px", background: t.bg, position: "relative" }} className="gw-rail">
+          {stages.map((s, i) => {
+            const isActive = i === active;
+            const isDone = i < active;
+            const uploaded = (counts[i] || 0) > 0;
+            const rowSig = stageDocSignal(s);
+            return (
+              <button key={i} onClick={() => go(i)} style={{ position: "relative", width: "100%", textAlign: "left", background: isActive ? t.accentLight : "none", border: "none", borderRadius: 9, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", display: "flex", gap: 11, alignItems: "flex-start", marginBottom: 2, transition: "background 0.15s" }}>
+                {/* connector line */}
+                {i < total - 1 && <span style={{ position: "absolute", left: 23, top: 30, bottom: -2, width: 2, background: isDone ? t.accent : t.border, transition: "background 0.3s" }} />}
+                <span style={{
+                  width: 26, height: 26, borderRadius: "50%", flexShrink: 0, zIndex: 1,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 800,
+                  background: isActive ? t.accent : isDone ? t.accent : uploaded ? t.green : "#fff",
+                  color: (isActive || isDone || uploaded) ? "#fff" : t.textSub,
+                  border: (isActive || isDone || uploaded) ? "none" : `1.5px solid ${t.border}`,
+                  animation: isActive ? "ringPulse 1.8s ease-out infinite" : "none",
+                  transition: "background 0.2s",
+                }}>
+                  {isDone || uploaded ? <Check size={13} strokeWidth={3} /> : i + 1}
+                </span>
+                <span style={{ minWidth: 0, paddingTop: 1 }}>
+                  <span style={{ display: "block", fontSize: 12.5, fontWeight: isActive ? 700 : 500, color: isActive ? t.accent : t.text, lineHeight: 1.35 }}>{s.title || `Stage ${i + 1}`}</span>
+                  {rowSig === "required" && (
+                    <span style={{ display: "inline-block", marginTop: 4, fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: uploaded ? t.green : t.accent, background: uploaded ? t.greenSoft : t.accentLight, borderRadius: 5, padding: "2px 6px" }}>
+                      {uploaded ? "Docs added" : "Docs needed"}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 48px" }}>
-          {/* Description + stats */}
-          <div style={{ background: "rgba(55,89,113,0.05)", border: `1px solid rgba(55,89,113,0.12)`, borderRadius: 12, padding: "18px 20px", marginBottom: 24 }}>
+        {/* ── Active step panel ── */}
+        <div ref={panelRef} key={active} style={{ flex: 1, minWidth: 0, padding: "22px 24px", animation: "stepIn 0.28s ease-out" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+            <div style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, background: "#232A34", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 23 }}>{stage.emoji || "📋"}</div>
+            <div>
+              <div style={{ fontSize: 10.5, color: t.textMeta, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: 2 }}>Stage {active + 1}</div>
+              <h3 style={{ fontFamily: "'Satoshi', sans-serif", fontSize: 20, fontWeight: 700, color: stage.title ? t.text : t.textMeta, fontStyle: stage.title ? "normal" : "italic", margin: 0, lineHeight: 1.2, letterSpacing: "-0.01em" }}>{stage.title || "Stage title to be completed"}</h3>
+            </div>
+          </div>
+
+          {/* description + stats */}
+          <div style={{ background: "rgba(55,89,113,0.05)", border: `1px solid rgba(55,89,113,0.12)`, borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
             {stage.description ? (
-              <p style={{ fontSize: 14, color: t.textSub, lineHeight: 1.75, margin: stats.length > 0 ? "0 0 18px" : 0 }}>{stage.description}</p>
+              <p style={{ fontSize: 13.5, color: t.textSub, lineHeight: 1.72, margin: stats.length ? "0 0 16px" : 0 }}>{stage.description}</p>
             ) : (
-              <div style={{ marginBottom: stats.length > 0 ? 14 : 0 }}><FieldTodo label="Stage description to be completed" /></div>
+              <div style={{ marginBottom: stats.length ? 12 : 0 }}><FieldTodo label="Stage description to be completed" /></div>
             )}
-            {stats.length > 0 ? (
+            {stats.length > 0 && (
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
                 {stats.map((stat, i) => (
                   <div key={i}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: t.accent, letterSpacing: "-0.03em" }}>{stat.value}</div>
+                    <div style={{ fontSize: 21, fontWeight: 800, color: t.accent, letterSpacing: "-0.03em" }}>{stat.value}</div>
                     <div style={{ fontSize: 11, color: t.textSub, marginTop: 2 }}>{stat.label}</div>
                   </div>
                 ))}
               </div>
-            ) : !stage.description ? null : (
-              <FieldTodo label="Key stats to be added" compact />
             )}
           </div>
 
-          {/* Inputs */}
-          <div style={{ marginBottom: 26 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.text, margin: "0 0 12px", letterSpacing: "-0.01em" }}>What we need from you</h3>
+          {/* inputs — what we need */}
+          <div style={{ marginBottom: 18 }}>
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: t.text, margin: "0 0 10px", letterSpacing: "-0.01em" }}>What we need from you</h4>
             {inputs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {inputs.map((item, i) => (
-                  <div key={i} style={{ background: "#FBF9F5", border: `1px solid ${t.border}`, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "📋"}</span>
+                  <div key={i} style={{ background: "#FBF9F5", border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 15px", display: "flex", gap: 13, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "📋"}</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label || <FieldTodo compact />}</div>
                       {(item.description || item.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{item.description || item.detail}</div>}
@@ -427,90 +535,25 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext, proposalId,
                 ))}
               </div>
             ) : (
-              <FieldTodo label="Inputs to be completed" />
+              <div style={{ fontSize: 12.5, color: t.textMeta, fontStyle: "italic", padding: "2px 0" }}>Nothing required from you at this stage — we handle it.</div>
             )}
           </div>
 
-          {/* Document upload CTA — shown when stage has inputs and we have upload context */}
-          {showUploadCTA && (
-            <div style={{ marginBottom: 26, background: "rgba(55,89,113,0.05)", border: "1.5px solid rgba(55,89,113,0.2)", borderRadius: 12, padding: "18px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: t.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Upload size={16} color="#FFFFFF" strokeWidth={2} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Submit required documents</div>
-                  <div style={{ fontSize: 11, color: t.textMeta, marginTop: 1 }}>Upload files to share with the LexOps team for this stage</div>
-                </div>
-              </div>
-
-              {/* Error message */}
-              {uploadErr && (
-                <div style={{ background: t.redSoft, border: "1px solid rgba(201,84,46,0.25)", borderRadius: 8, padding: "9px 13px", color: t.red, fontSize: 12, marginBottom: 12 }}>
-                  {uploadErr}
-                  <button onClick={() => setUploadErr("")} style={{ marginLeft: 10, background: "none", border: "none", cursor: "pointer", color: t.red, fontSize: 12, fontWeight: 600, textDecoration: "underline", fontFamily: "inherit" }}>Dismiss</button>
-                </div>
-              )}
-
-              {/* Uploaded files list */}
-              {uploadedFiles.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-                  {uploadedFiles.map((f, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 8, padding: "8px 12px" }}>
-                      <Paperclip size={14} color={t.green} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-                      {f.url ? (
-                        <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.green, textDecoration: "none", fontWeight: 500 }}>{f.name}</a>
-                      ) : (
-                        <span style={{ fontSize: 12, flex: 1, color: t.green, fontWeight: 500 }}>{f.name}</span>
-                      )}
-                      <span style={{ fontSize: 10, color: t.green, fontWeight: 700, marginRight: 4 }}>✓ Uploaded</span>
-                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13, padding: 2 }}>✕</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Upload button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.rtf,.png,.jpg,.jpeg"
-                style={{ display: "none" }}
-                onChange={e => { handleUpload(e.target.files); e.target.value = ""; }}
-              />
-              <button
-                onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
-                disabled={uploading}
-                style={{
-                  display: "flex", alignItems: "center", gap: 9, width: "100%", justifyContent: "center",
-                  background: uploading ? t.border : t.accent, color: uploading ? t.textMeta : "#FFFFFF",
-                  border: "none", borderRadius: 9, padding: "12px 18px",
-                  fontSize: 14, fontWeight: 600, cursor: uploading ? "not-allowed" : "pointer",
-                  fontFamily: "inherit", transition: "background 0.15s, opacity 0.15s",
-                }}
-              >
-                {uploading ? (
-                  <>
-                    <div style={{ width: 15, height: 15, border: "2px solid rgba(0,0,0,0.15)", borderTop: `2px solid ${t.textSub}`, borderRadius: "50%", animation: "spin 0.8s linear infinite", flexShrink: 0 }} />
-                    Uploading…
-                  </>
-                ) : (
-                  <><Upload size={16} strokeWidth={2} /> {uploadedFiles.length > 0 ? "Upload more documents" : "Upload documents for this stage"}</>
-                )}
-              </button>
-              <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 7 }}>PDF, DOCX, TXT, CSV, XLSX, images — up to 10 MB each</div>
+          {/* contextual upload */}
+          {canUpload && sig !== "none" && (
+            <div style={{ marginBottom: 20 }}>
+              <DocumentUpload proposalId={proposalId} token={token} wfId={wfId} stageIndex={active} initialFiles={filesByStage[active] || []} onCountChange={(idx, n) => setCounts(c => ({ ...c, [idx]: n }))} signal={sig} />
             </div>
           )}
 
-          {/* Outputs */}
-          <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: t.green, margin: "0 0 12px", letterSpacing: "-0.01em" }}>Outputs LexOps delivers</h3>
+          {/* outputs — what you get */}
+          <div style={{ marginBottom: 22 }}>
+            <h4 style={{ fontSize: 14, fontWeight: 700, color: t.green, margin: "0 0 10px", letterSpacing: "-0.01em" }}>What you'll get back</h4>
             {outputs.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {outputs.map((item, i) => (
-                  <div key={i} style={{ background: "rgba(5,150,105,0.04)", border: `1px solid rgba(5,150,105,0.18)`, borderRadius: 10, padding: "13px 16px", display: "flex", gap: 14, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "✓"}</span>
+                  <div key={i} style={{ background: "rgba(60,122,82,0.04)", border: `1px solid ${t.greenBorder}`, borderRadius: 10, padding: "12px 15px", display: "flex", gap: 13, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{item.emoji || "✓"}</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{item.name || item.label || <FieldTodo compact />}</div>
                       {(item.description || item.detail) && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.55 }}>{item.description || item.detail}</div>}
@@ -522,8 +565,30 @@ function StageDrawer({ stage, index, total, onClose, onPrev, onNext, proposalId,
               <FieldTodo label="Outputs to be completed" />
             )}
           </div>
+
+          {/* nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px solid ${t.border}`, paddingTop: 16 }}>
+            <button onClick={() => go(active - 1)} disabled={active === 0} style={{ background: "transparent", color: active === 0 ? t.textMeta : t.textSub, border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 500, cursor: active === 0 ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: active === 0 ? 0.5 : 1 }}>← Previous</button>
+            {active < total - 1 ? (
+              <button onClick={() => go(active + 1)} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Next stage →</button>
+            ) : (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, color: t.green, fontWeight: 600 }}>
+                <Check size={15} strokeWidth={3} /> You've reached the final stage
+              </div>
+            )}
+          </div>
+
+          {/* final-step hand-off */}
+          {active === total - 1 && (
+            <div style={{ marginTop: 16, background: t.greenSoft, border: `1px solid ${t.greenBorder}`, borderRadius: 12, padding: "14px 16px", fontSize: 12.5, color: t.textSub, lineHeight: 1.6 }}>
+              {requiredStages.length > 0
+                ? <>You've uploaded documents for <strong style={{ color: t.green }}>{requiredDone} of {requiredStages.length}</strong> stages that need them. When you're ready, use <strong style={{ color: t.text }}>Accept</strong> or <strong style={{ color: t.text }}>Request changes</strong> below to send everything back for another round of comments.</>
+                : <>That's the full workflow. Use <strong style={{ color: t.text }}>Accept</strong> or <strong style={{ color: t.text }}>Request changes</strong> below to respond.</>}
+            </div>
+          )}
         </div>
       </div>
+      <style>{`@media (max-width: 640px){ .gw-rail{ display:none !important; } }`}</style>
     </div>
   );
 }
@@ -797,8 +862,8 @@ function TryMatterWizard({ wf, token, proposal }) {
       <div style={{ padding: "18px 22px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "flex-start", gap: 14 }}>
         <div style={{ width: 32, height: 32, borderRadius: 7, background: t.amber, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, flexShrink: 0, letterSpacing: "-0.05em" }}>B</div>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Try your own case</div>
-          <div style={{ fontSize: 12, color: t.textSub, marginTop: 2, lineHeight: 1.5 }}>Run a case through the workflow — then review each stage and submit your feedback</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Run a live AI demo</div>
+          <div style={{ fontSize: 12, color: t.textSub, marginTop: 2, lineHeight: 1.5 }}>Watch the workflow process a sample matter end-to-end — for context only, separate from your document submission</div>
         </div>
         {runCount > 0 && (
           <div style={{ marginLeft: "auto", fontSize: 11, color: t.textMeta, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 20, padding: "3px 10px", flexShrink: 0, whiteSpace: "nowrap" }}>
@@ -1019,136 +1084,11 @@ function TryMatterWizard({ wf, token, proposal }) {
   );
 }
 
-// ─── Simple submit/expected tabs (when try-matter is disabled) ────────────────
-function SimpleWorkflowTabs({ wf, token, proposal }) {
-  const stages = wf.stages || [];
-
-  // Per-stage client uploads ("expected outputs by page") persisted to storage.
-  const [stageFiles, setStageFiles] = useState({}); // { [stageIndex]: [{name,url,path}] }
-  const [uploadingStage, setUploadingStage] = useState(null);
-  const [uploadErr, setUploadErr] = useState("");
-  const stageInputRefs = useRef({});
-
-  // Load previously captured files for this workflow (so reloads show them).
-  useEffect(() => {
-    if (!proposal?.id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/proposals/v2/${proposal.id}/client-files?token=${encodeURIComponent(token)}`);
-        const data = await res.json();
-        if (cancelled || !Array.isArray(data.files)) return;
-        const byStage = {};
-        data.files
-          .filter(f => f.workflow_id === wf.id && f.kind === "expected" && f.stage_index != null)
-          .forEach(f => {
-            (byStage[f.stage_index] = byStage[f.stage_index] || []).push({ id: f.id, name: f.file_name, url: f.file_url });
-          });
-        setStageFiles(byStage);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [proposal?.id, wf.id]);
-
-  async function uploadForStage(i, fileList) {
-    const files = Array.from(fileList || []);
-    if (!files.length || !proposal?.id) return;
-    setUploadingStage(i); setUploadErr("");
-    const done = [];
-    for (const file of files) {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("token", token);
-      fd.append("workflow_id", wf.id);
-      fd.append("stage_index", String(i));
-      fd.append("kind", "expected");
-      try {
-        const res = await fetch(`/api/proposals/v2/${proposal.id}/client-files`, { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) { setUploadErr(data.message || "Upload failed — please try again."); continue; }
-        done.push({ id: data.file.id, name: data.file.file_name, url: data.file.file_url });
-      } catch { setUploadErr("Connection error during upload."); }
-    }
-    if (done.length) setStageFiles(prev => ({ ...prev, [i]: [...(prev[i] || []), ...done] }));
-    setUploadingStage(null);
-  }
-
-  function removeStageFile(i, idx) {
-    const f = (stageFiles[i] || [])[idx];
-    setStageFiles(prev => ({ ...prev, [i]: (prev[i] || []).filter((_, j) => j !== idx) }));
-    if (f?.id) fetch(`/api/proposals/v2/${proposal.id}/client-files/${f.id}?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
-  }
-
-  return (
-    <div style={{ border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", background: t.card }}>
-      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${t.border}` }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Expected outputs</div>
-      </div>
-
-      <div style={{ padding: "18px 20px" }}>
-          <div style={{ fontSize: 12, color: t.textSub, marginBottom: 14, lineHeight: 1.6 }}>
-            Upload the output you'd expect at each stage — a sample deliverable, a precedent, or the format you want. This shows us your target so we can match it.
-          </div>
-          {uploadErr && <div style={{ background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", borderRadius: 7, padding: "8px 12px", color: t.red, fontSize: 12, marginBottom: 12 }}>{uploadErr}</div>}
-          {stages.length === 0 ? (
-            <div style={{ color: t.textMeta, fontSize: 13 }}>No stages defined for this workflow yet.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {stages.map((stage, i) => {
-                const files = stageFiles[i] || [];
-                const hints = stage.outputs || [];
-                return (
-                  <div key={i} style={{ border: `1px solid ${t.border}`, borderRadius: 10, padding: "12px 14px", background: t.card }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: hints.length || files.length ? 10 : 0 }}>
-                      <span style={{ fontSize: 18 }}>{stage.emoji || "📋"}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, color: t.textMeta }}>Stage {i + 1}</div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{stage.title || "Untitled stage"}</div>
-                      </div>
-                      <input
-                        ref={el => { stageInputRefs.current[i] = el; }}
-                        type="file" multiple style={{ display: "none" }}
-                        onChange={e => { uploadForStage(i, e.target.files); e.target.value = ""; }}
-                      />
-                      <button
-                        onClick={() => stageInputRefs.current[i]?.click()}
-                        disabled={uploadingStage === i}
-                        style={{ background: t.accentLight, color: t.accent, border: `1px solid ${t.accentBorder}`, borderRadius: 7, padding: "6px 13px", fontSize: 12, fontWeight: 600, cursor: uploadingStage === i ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}
-                      >
-                        {uploadingStage === i ? "Uploading…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Upload size={12} strokeWidth={2} /> Upload</span>}
-                      </button>
-                    </div>
-                    {hints.length > 0 && (
-                      <div style={{ fontSize: 11, color: t.textMeta, marginBottom: files.length ? 8 : 0 }}>
-                        Suggested: {hints.map(o => o.name || o.label).filter(Boolean).join(", ")}
-                      </div>
-                    )}
-                    {files.length > 0 && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {files.map((f, idx) => (
-                          <div key={idx} style={{ display: "flex", alignItems: "center", gap: 9, background: t.surface, border: `1px solid ${t.border}`, borderRadius: 7, padding: "7px 11px" }}>
-                            <Paperclip size={14} color={t.textMeta} strokeWidth={1.75} style={{ flexShrink: 0 }} />
-                            <a href={f.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, flex: 1, color: t.accent, textDecoration: "none" }}>{f.name}</a>
-                            <button onClick={() => removeStageFile(i, idx)} style={{ background: "none", border: "none", cursor: "pointer", color: t.textMeta, fontSize: 13 }}>✕</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Single workflow block ─────────────────────────────────────────────────────
 function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, previewMode, onRefresh }) {
-  const [selectedStage, setSelectedStage] = useState(null);
   const stages = wf.stages || [];
   const showTryMatter = wf.show_try_matter === true;
+  const frozen = isFrozen && !previewMode;
 
   return (
     <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, overflow: "hidden", boxShadow: t.shadow, animation: `fadeUp ${0.3 + index * 0.07}s ease-out` }}>
@@ -1169,44 +1109,21 @@ function WorkflowBlock({ wf, index, totalWorkflows, token, proposal, isFrozen, p
         )}
       </div>
 
-      {/* Timeline */}
-      <div style={{ padding: "18px 18px 0" }}>
-        {stages.length > 0 ? (
-          <>
-            <HorizontalTimeline stages={stages} selectedIndex={selectedStage} onSelect={i => setSelectedStage(i)} />
-            <div style={{ fontSize: 11, color: t.textMeta, textAlign: "center", marginTop: 8, marginBottom: 14 }}>Click a stage to see inputs, outputs &amp; submit documents</div>
-          </>
-        ) : (
-          <div style={{ padding: "18px 4px 20px" }}>
-            <FieldTodo label="Workflow stages to be completed" />
-          </div>
-        )}
+      {/* Guided, step-by-step walkthrough + contextual document upload */}
+      <div style={{ padding: "18px 18px 18px" }}>
+        <GuidedWorkflow stages={stages} wfId={wf.id} proposalId={proposal?.id} token={token} frozen={frozen} />
       </div>
 
-      {/* Try matter wizard or simple tabs */}
-      {(!isFrozen || previewMode) && (
+      {/* Optional live AI demo — separate, clearly-labelled, opt-in per workflow */}
+      {showTryMatter && (!isFrozen || previewMode) && stages.length > 0 && (
         <div style={{ padding: "0 18px 18px" }}>
-          {showTryMatter ? (
-            <TryMatterWizard wf={wf} token={token} proposal={proposal} />
-          ) : (
-            <SimpleWorkflowTabs wf={wf} token={token} proposal={proposal} />
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 2px 12px" }}>
+            <div style={{ flex: 1, height: 1, background: t.border }} />
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: t.textMeta, whiteSpace: "nowrap" }}>Or see it run live with AI</span>
+            <div style={{ flex: 1, height: 1, background: t.border }} />
+          </div>
+          <TryMatterWizard wf={wf} token={token} proposal={proposal} />
         </div>
-      )}
-
-      {/* Stage drawer */}
-      {selectedStage !== null && stages[selectedStage] && (
-        <StageDrawer
-          stage={stages[selectedStage]}
-          index={selectedStage}
-          total={stages.length}
-          onClose={() => setSelectedStage(null)}
-          onPrev={() => setSelectedStage(i => Math.max(0, i - 1))}
-          onNext={() => setSelectedStage(i => Math.min(stages.length - 1, i + 1))}
-          proposalId={proposal?.id}
-          token={token}
-          wfId={wf.id}
-        />
       )}
     </div>
   );
@@ -1313,6 +1230,8 @@ export default function ProposalPage({ token, previewMode = false }) {
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [recoverable, setRecoverable] = useState(false); // network/timeout vs. genuinely-invalid link
+  const slowLoad = useSlowHint(loading);
 
   useEffect(() => {
     document.title = "LexOps | Review Your Proposal";
@@ -1320,18 +1239,23 @@ export default function ProposalPage({ token, previewMode = false }) {
   }, [token]);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    setRecoverable(false);
     try {
-      const res = await fetch(`/api/proposals/v2/by-token/${encodeURIComponent(token)}`);
+      const res = await fetchWithTimeout(`/api/proposals/v2/by-token/${encodeURIComponent(token)}`);
       if (!res.ok) {
-        const { data, error: err } = await supabase.from("proposals").select("*").eq("token", token).single();
-        if (err || !data) { setError("Proposal not found or link has expired."); return; }
+        const { data, error: err } = await withTimeout(supabase.from("proposals").select("*").eq("token", token).single());
+        if (err || !data) { setError("This proposal link is no longer valid or has expired."); return; }
         setProposal({ ...data, workflows: [] });
         return;
       }
       const data = await res.json();
       setProposal(data);
     } catch {
-      setError("Unable to load this proposal. Please try again.");
+      // Network failure or timeout — this is recoverable, so offer a retry.
+      setError("We couldn't load this proposal. Please check your connection and try again.");
+      setRecoverable(true);
     } finally {
       setLoading(false);
     }
@@ -1339,8 +1263,10 @@ export default function ProposalPage({ token, previewMode = false }) {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 24, textAlign: "center", fontFamily: "'Satoshi', sans-serif" }}>
         <div style={{ width: 32, height: 32, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <span style={{ color: t.textSub, fontSize: 13 }}>Loading your proposal…</span>
+        {slowLoad && <span style={{ color: t.textMeta, fontSize: 12, maxWidth: 300, lineHeight: 1.5 }}>This is taking longer than usual — still working on it.</span>}
         <style>{GLOBAL_CSS}</style>
       </div>
     );
@@ -1353,8 +1279,11 @@ export default function ProposalPage({ token, previewMode = false }) {
         <Logo />
         <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 16, padding: "40px 36px", maxWidth: 420, width: "100%", textAlign: "center", boxShadow: t.shadow }}>
           <div style={{ width: 48, height: 48, borderRadius: "50%", background: t.redSoft, border: "1px solid rgba(220,38,38,0.2)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 20, color: t.red }}>!</div>
-          <h2 style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Satoshi', sans-serif" }}>Link Invalid or Expired</h2>
-          <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>This proposal link is no longer valid. Please contact your LexOps representative for a new link.</p>
+          <h2 style={{ color: t.text, fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", margin: "0 0 8px", fontFamily: "'Satoshi', sans-serif" }}>{recoverable ? "Couldn't load your proposal" : "Link Invalid or Expired"}</h2>
+          <p style={{ color: t.textSub, fontSize: 13, lineHeight: 1.7, margin: 0 }}>{recoverable ? error : "This proposal link is no longer valid. Please contact your LexOps representative for a new link."}</p>
+          {recoverable && (
+            <button onClick={() => load()} style={{ marginTop: 20, background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Try again</button>
+          )}
         </div>
         <div style={{ color: t.textMeta, fontSize: 11 }}>© 2026 LexOps · A Teams Squared Company</div>
       </div>

@@ -63,7 +63,10 @@
       "Bash(rm -f seed_proposals.mjs)",
       "Bash(git check-ignore *)",
       "Bash(grep -nE \"env\" .gitignore)",
-      "Bash(git rev-list *)"
+      "Bash(git rev-list *)",
+      "Bash(gh auth *)",
+      "Bash(git remote *)",
+      "Bash(gh repo *)"
     ]
   }
 }

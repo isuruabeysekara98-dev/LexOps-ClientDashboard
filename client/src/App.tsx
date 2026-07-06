@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { supabase } from "@/lib/supabase.js";
+import { useSlowHint } from "@/lib/loadUtils.js";
 import Dashboard from "@/components/Dashboard";
 import LoginPage from "@/components/LoginPage";
 import ProposalPage from "@/components/ProposalPage";
@@ -146,6 +147,7 @@ function AuthenticatedApp() {
   // Only show the full-screen spinner on a genuine first-ever load (no cache).
   const [authLoading, setAuthLoading] = useState(!cached);
   const [authError, setAuthError] = useState("");
+  const authSlow = useSlowHint(authLoading, 4000);
 
   const initialLoadDone = useRef(false);
 
@@ -255,8 +257,10 @@ function AuthenticatedApp() {
   }, []);
 
   if (authLoading) return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#FFFFFF"}}>
-      <div style={{width:32,height:32,border:"2px solid #C5D4D4",borderTop:"2px solid #1A6666",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",gap:14,alignItems:"center",justifyContent:"center",background:"#FFFFFF",padding:24,textAlign:"center"}}>
+      <div style={{width:32,height:32,border:"2px solid #C5D4D4",borderTop:"2px solid #375971",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <span style={{color:"#616568",fontSize:13}}>Signing you in…</span>
+      {authSlow && <span style={{color:"#9DB5C9",fontSize:12,maxWidth:300,lineHeight:1.5}}>Still getting things ready — this is taking longer than usual.</span>}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

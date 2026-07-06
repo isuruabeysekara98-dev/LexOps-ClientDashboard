@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Trash2, Zap, ClipboardList, Frown, Target, LayoutTemplate, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
+import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 
 const t = {
   bg: "#FAFBFC",
@@ -105,6 +106,8 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
   const [proposalId, setProposalId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(!!editId);
+  const [loadEditError, setLoadEditError] = useState(null);
+  const slowLoadEdit = useSlowHint(loadingEdit);
   const [saveMsg, setSaveMsg] = useState(null);
   const [expanded, setExpanded] = useState(new Set([0]));
   const [hovBtn, setHovBtn] = useState(null);
@@ -132,10 +135,12 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
   }, [editId]);
 
   async function loadEdit() {
+    setLoadingEdit(true);
+    setLoadEditError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/proposals/v2/${editId}`, { headers: { Authorization: `Bearer ${session?.access_token}` } });
-      if (!res.ok) return;
+      const res = await fetchWithTimeout(`/api/proposals/v2/${editId}`, { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      if (!res.ok) { setLoadEditError("We couldn't load this proposal to edit. Please try again."); return; }
       const data = await res.json();
       setProposalId(data.id);
       setForm({
@@ -158,6 +163,9 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
       const expandedSet = new Set();
       if (data.workflows?.[0]?.stages?.length) expandedSet.add(`0-0`);
       setExpanded(expandedSet);
+    } catch (err) {
+      console.error("[ProposalCreatePage] loadEdit failed:", err?.message || err);
+      setLoadEditError("We couldn't load this proposal to edit. Please check your connection and try again.");
     } finally {
       setLoadingEdit(false);
     }
@@ -261,8 +269,21 @@ export default function ProposalCreatePage({ navigate, editId = null, onLogout }
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (loadingEdit) return (
-    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 24, textAlign: "center" }}>
       <div style={{ width: 28, height: 28, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <span style={{ color: t.textSub, fontSize: 13 }}>Loading proposal…</span>
+      {slowLoadEdit && <span style={{ color: t.textSub, fontSize: 12, opacity: 0.8, maxWidth: 300, lineHeight: 1.5 }}>This is taking longer than usual — still working on it.</span>}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (loadEditError) return (
+    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 14, padding: 24, textAlign: "center" }}>
+      <div style={{ color: t.text, fontSize: 15, fontWeight: 600, maxWidth: 340, lineHeight: 1.4 }}>{loadEditError}</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => loadEdit()} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Retry</button>
+        <button onClick={() => navigate("/admin/proposals")} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 18px", color: t.textSub, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>← Back to proposals</button>
+      </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

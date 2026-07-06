@@ -4,6 +4,7 @@ import {
   FileText, Paperclip, Download, Zap, Copy, Mail, Link as LinkIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
+import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 
 const t = {
   bg: "#FAFBFC",
@@ -482,6 +483,9 @@ function ClientFilesPanel({ proposalId, workflows }) {
 export default function ProposalDetailPage({ id, navigate, onLogout }) {
   const [proposal, setProposal] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [notFound, setNotFound] = useState(false);
+  const slowLoad = useSlowHint(loading);
   const [marking, setMarking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [hovBtn, setHovBtn] = useState(null);
@@ -500,33 +504,37 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
 
   async function loadAll() {
     setLoading(true);
+    setLoadError(null);
+    setNotFound(false);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const headers = { Authorization: `Bearer ${session?.access_token}` };
 
-      const prRes = await fetch(`/api/proposals/v2/${id}`, { headers });
+      let prRes = await fetchWithTimeout(`/api/proposals/v2/${id}`, { headers });
       if (prRes.status === 401) {
         // Session expired — trigger a fresh sign-in via Supabase refresh
         await supabase.auth.refreshSession();
         const { data: { session: s2 } } = await supabase.auth.getSession();
-        const prRes2 = await fetch(`/api/proposals/v2/${id}`, {
+        prRes = await fetchWithTimeout(`/api/proposals/v2/${id}`, {
           headers: { Authorization: `Bearer ${s2?.access_token}` },
         });
-        if (prRes2.ok) {
-          const pr = await prRes2.json();
-          setProposal(pr);
-          document.title = `LexOps | ${pr.name || "Proposal"}`;
-          if (pr.status === "converted") setConverted(true);
-        }
-      } else if (prRes.ok) {
+      }
+
+      if (prRes.ok) {
         const pr = await prRes.json();
         setProposal(pr);
         document.title = `LexOps | ${pr.name || "Proposal"}`;
         if (pr.status === "converted") setConverted(true);
+      } else if (prRes.status === 404) {
+        setNotFound(true);
+      } else {
+        // 401-after-refresh, 5xx, etc. — a real error the user can retry, not "not found".
+        setLoadError("We couldn't load this proposal. Please try again.");
       }
-
     } catch (e) {
+      // Network failure or the request timed out (AbortError).
       console.error("[ProposalDetailPage] loadAll error:", e);
+      setLoadError("We couldn't load this proposal. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -652,8 +660,10 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
   }
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, padding: 24, textAlign: "center", fontFamily: "'Satoshi', sans-serif" }}>
       <div style={{ width: 28, height: 28, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <span style={{ color: t.textSub, fontSize: 13 }}>Loading proposal…</span>
+      {slowLoad && <span style={{ color: t.textSub, fontSize: 12, opacity: 0.8, maxWidth: 300, lineHeight: 1.5 }}>This is taking longer than usual — still working on it.</span>}
       <style>{`
         @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
         @keyframes spin{to{transform:rotate(360deg)}}
@@ -661,7 +671,18 @@ export default function ProposalDetailPage({ id, navigate, onLogout }) {
     </div>
   );
 
-  if (!proposal) return (
+  if (loadError) return (
+    <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 14, padding: 24, textAlign: "center" }}>
+      <div style={{ color: t.text, fontSize: 15, fontWeight: 600, maxWidth: 340, lineHeight: 1.4 }}>{loadError}</div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => loadAll()} style={{ background: t.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Retry</button>
+        <button onClick={() => navigate("/admin/proposals")} style={{ background: "none", border: `1px solid ${t.border}`, borderRadius: 8, padding: "9px 18px", color: t.textSub, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>← Back to proposals</button>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (notFound || !proposal) return (
     <div style={{ minHeight: "100vh", background: t.bg, fontFamily: "'Satoshi', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
       <div style={{ color: t.textSub }}>Proposal not found.</div>
       <button onClick={() => navigate("/admin/proposals")} style={{ background: "none", border: "none", color: t.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 13 }}>← Back to proposals</button>

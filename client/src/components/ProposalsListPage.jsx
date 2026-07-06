@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Zap, ClipboardList, FileText, ScrollText, AlertTriangle, FileUp } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
+import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 
 const t = {
   bg: "#FAFBFC",
@@ -125,6 +126,7 @@ function timeAgo(iso) {
 export default function ProposalsListPage({ navigate, onLogout }) {
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const slowLoad = useSlowHint(loading);
   const [loadError, setLoadError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [copied, setCopied] = useState(null);
@@ -165,14 +167,14 @@ export default function ProposalsListPage({ navigate, onLogout }) {
     setLoadError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      let res = await fetch("/api/proposals/v2", {
+      let res = await fetchWithTimeout("/api/proposals/v2", {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       // Session may have expired — refresh once and retry before giving up.
       if (res.status === 401) {
         await supabase.auth.refreshSession();
         const { data: { session: s2 } } = await supabase.auth.getSession();
-        res = await fetch("/api/proposals/v2", {
+        res = await fetchWithTimeout("/api/proposals/v2", {
           headers: { Authorization: `Bearer ${s2?.access_token}` },
         });
       }
@@ -466,8 +468,10 @@ export default function ProposalsListPage({ navigate, onLogout }) {
         </div>
 
         {loading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "80px 0", textAlign: "center" }}>
             <div style={{ width: 26, height: 26, border: `2px solid ${t.border}`, borderTop: `2px solid ${t.accent}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <span style={{ color: t.textSub, fontSize: 13 }}>Loading proposals…</span>
+            {slowLoad && <span style={{ color: t.textSub, fontSize: 12, opacity: 0.8, maxWidth: 300, lineHeight: 1.5 }}>This is taking longer than usual — still working on it.</span>}
             <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         ) : loadError ? (
