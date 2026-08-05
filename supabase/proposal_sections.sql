@@ -1,0 +1,41 @@
+-- ---------------------------------------------------------------------------
+-- proposal_graphs.sections — the non-graph acts: roadmap, investment, UAT.
+-- ---------------------------------------------------------------------------
+-- LIVING-PROPOSAL-PLAN.md lays the proposal out in acts. The graph carries
+-- Act II (The Work). This carries III (Roadmap), IV (Investment) and V (How
+-- you'll know it works) — the acts behind the segue button.
+--
+-- The plan sketches a separate `proposal_sections` table. This is a column
+-- instead, because that is what the other three "everything the page needs in
+-- one fetch" payloads became: `deliverables`, `scenarios` and `explainers` are
+-- all jsonb on this row. A separate table would add a join and a second
+-- round-trip to `GET /p/:token`, which currently returns the whole session in
+-- one query, and would need its own RLS story for no gain while sections are
+-- authored alongside the graph. Promote it to a table when sections start
+-- being edited independently of the graph — the shape below moves across
+-- unchanged.
+--
+-- Shape:
+--   roadmap : { weeks, note, caveat,
+--               lanes: [{ id, label, deliverable, start_week, end_week, kind }] }
+--             `kind` is 'discovery' | 'build' | 'uat' | 'golive' — colour only.
+--             Weeks are half-open [start, end), read off the proposal's own
+--             Gantt grid so the bars here are the bars in the PDF.
+--   costing : { currency, note, rows: [{ item, basis, amount, deliverable, kind }],
+--               total: { label, amount, was }, recurring: [{ item, amount, per, basis }] }
+--             `kind` is 'line' | 'discount'. A discount is a stored row and the
+--             total is a stored number — never summed on the client, because a
+--             negotiated total is a quote, not arithmetic.
+--   uat     : { criteria: [{ deliverable, criterion, how_verified }] }
+--             Absent where acceptance is agreed at discovery; the page then
+--             says so rather than inventing criteria.
+--
+-- Additive and idempotent. Nothing existing is altered or dropped.
+--
+-- APPLY BY HAND: Supabase → SQL editor → Run. This repo has no DATABASE_URL and
+-- the convention (.agents/memory/proposals-v2-sql.md) is that migrations are
+-- pasted rather than applied from code.
+-- ---------------------------------------------------------------------------
+
+alter table public.proposal_graphs
+  add column if not exists sections jsonb not null default '{}'::jsonb;

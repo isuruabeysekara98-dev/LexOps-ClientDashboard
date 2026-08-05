@@ -66,7 +66,16 @@
       "Bash(git rev-list *)",
       "Bash(gh auth *)",
       "Bash(git remote *)",
-      "Bash(gh repo *)"
+      "Bash(gh repo *)",
+      "Bash(ls -la node_modules)",
+      "Bash(ls .env*)",
+      "Bash(cd \"C:\\\\Users\\\\YOGA\\\\OneDrive - Teams Squared\\\\Lex Ops\\\\1. Backend Infra\\\\4. Proposal generator\\\\ts2-proposal-creator\" && ls -la && echo \"---TEMPLATES/LAND-LAW---\" && ls -la \"templates/land-law\")",
+      "Bash(ls -d .venv venv)",
+      "Bash(py --version)",
+      "Bash(py -3.13 -c \"import flask; print\\('flask', flask.__version__\\)\")",
+      "Bash(python -c \"import flask; print\\('flask', flask.__version__\\)\")",
+      "Bash(where uv *)",
+      "Bash(gh api *)"
     ]
   }
 }

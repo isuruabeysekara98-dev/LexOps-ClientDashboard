@@ -19,13 +19,17 @@ function Logo() {
   );
 }
 
+// The living proposal is now simply *the* proposal, so it takes the name and
+// the tile. The older workflow-based builder is archived: its routes still
+// resolve and its data is untouched — see ProposalsListPage.jsx's banner — but
+// nothing links to it any more, so it can't be reached by accident.
 const TILES = [
   {
     key: "proposals",
     Icon: ClipboardList,
     title: "Proposals",
-    desc: "Build and send interactive proposals to prospective clients.",
-    path: "/admin/proposals",
+    desc: "Build the interactive map, then send the one link that tracks a client's progress.",
+    path: "/admin/living-proposals",
   },
   {
     key: "projects",

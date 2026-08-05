@@ -325,6 +325,48 @@ export async function sendV2ProposalInvite(
 }
 
 // ---------------------------------------------------------------------------
+// r-3. Living Proposal — version ready (client)
+// ---------------------------------------------------------------------------
+export async function sendLivingProposalReady(
+  email: string,
+  recipientName: string,
+  proposalName: string,
+  proposalUrl: string,
+  note?: string
+): Promise<{ ok: boolean; error?: string }> {
+  return send(email, `Your ${proposalName} proposal is ready`, emailWrapper(
+    heading(`Hi ${firstName(recipientName)} — it's ready`) +
+    bodyText(`We've mapped out <strong>${proposalName}</strong>. Open it to see how the work fits together, and answer what we still need from you as you go.`) +
+    (note ? bodyText(`<em>${note}</em>`) : "") +
+    ctaButton("Open your proposal", proposalUrl) +
+    subText("This link is yours — no account or password needed. Your answers save as you type.")
+  ));
+}
+
+// ---------------------------------------------------------------------------
+// r-4. Living Proposal — client sent it back (LexOps notification)
+// ---------------------------------------------------------------------------
+export async function sendLivingProposalSubmitted(
+  adminEmail: string,
+  clientName: string,
+  proposalName: string,
+  answered: number,
+  total: number,
+  message: string | null,
+  adminUrl: string
+): Promise<{ ok: boolean; error?: string }> {
+  return send(adminEmail, `${clientName} sent back ${proposalName}`, emailWrapper(
+    heading("The ball is back with you") +
+    bodyText(`<strong>${clientName}</strong> sent back <strong>${proposalName}</strong> with <strong>${answered} of ${total}</strong> requested items filled in.`) +
+    (message ? bodyText(`They wrote: <em>"${message}"</em>`) : "") +
+    ctaButton("Review what they sent", adminUrl) +
+    subText(answered < total
+      ? `${total - answered} item${total - answered === 1 ? "" : "s"} still outstanding — decide whether to chase or proceed.`
+      : "Everything we asked for is in.")
+  ));
+}
+
+// ---------------------------------------------------------------------------
 // r. Client Inactive (admin notification)
 // ---------------------------------------------------------------------------
 export async function sendClientInactive(adminEmail: string, clientName: string, projectName: string, daysSinceLogin: number) {

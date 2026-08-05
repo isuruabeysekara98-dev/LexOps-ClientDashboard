@@ -14,6 +14,9 @@ import ProposalsListPage from "@/components/ProposalsListPage";
 import ProposalCreatePage from "@/components/ProposalCreatePage";
 import ProposalDetailPage from "@/components/ProposalDetailPage";
 import ProposalPreviewPage from "@/components/ProposalPreviewPage";
+import LivingProposalPage from "@/components/LivingProposalPage";
+import LivingProposalsListPage from "@/components/LivingProposalsListPage";
+import LivingProposalEditorPage from "@/components/LivingProposalEditorPage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -64,6 +67,12 @@ function App() {
     return <ProposalPage token={proposalMatch[1]} />;
   }
 
+  // Public route: /p/:token — the living proposal (graph, needs, send-back)
+  const livingMatch = pathname.match(/^\/p\/([A-Za-z0-9_-]+)$/);
+  if (livingMatch) {
+    return <LivingProposalPage token={livingMatch[1]} />;
+  }
+
   // ── Auth flow (only runs for non-public routes) ──
   return <AuthenticatedApp />;
 }
@@ -71,6 +80,16 @@ function App() {
 const ADMIN_ROLES = ["lexops_admin", "lexops_member"];
 
 function initAdminPage(pathname: string) {
+  // Living-proposal admin — a wholly separate path space from /admin/proposals
+  // below on purpose. Both operate on the same `proposals` table, but the two
+  // products (this graph-based one and the older v2/workflow one) are shaped
+  // too differently to share a detail page — see LivingProposalsListPage.jsx's
+  // header comment for why the v2 list can't just grow a few columns instead.
+  if (pathname.startsWith("/admin/living-proposals/new")) return { name: "living-proposal-new", id: null as string | null };
+  const lpEditMatch = pathname.match(/^\/admin\/living-proposals\/([^/]+)(?:\/edit)?$/);
+  if (lpEditMatch) return { name: "living-proposal-edit", id: lpEditMatch[1] };
+  if (pathname.startsWith("/admin/living-proposals")) return { name: "living-proposals", id: null as string | null };
+
   if (pathname.startsWith("/admin/proposals/new")) return { name: "proposal-new", id: null as string | null };
   const editMatch = pathname.match(/^\/admin\/proposals\/([^/]+)\/edit$/);
   if (editMatch) return { name: "proposal-edit", id: editMatch[1] };
@@ -100,11 +119,12 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
   const isDashboard = page.name === "dashboard";
   const isLanding = page.name === "landing";
   const isProposals = page.name === "proposals";
-  const isDynamic = !isDashboard && !isLanding && !isProposals;
+  const isLivingProposals = page.name === "living-proposals";
+  const isDynamic = !isDashboard && !isLanding && !isProposals && !isLivingProposals;
 
   return (
     <>
-      {/* These three pages stay mounted so navigating between them never triggers a reload */}
+      {/* These pages stay mounted so navigating between them never triggers a reload */}
       <div style={{ display: isDashboard ? "contents" : "none" }}>
         <Dashboard onLogout={onLogout} userProfile={userProfile} navigate={navigate} />
       </div>
@@ -114,12 +134,17 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
       <div style={{ display: isProposals ? "contents" : "none" }}>
         <ProposalsListPage navigate={navigate} onLogout={onLogout} />
       </div>
+      <div style={{ display: isLivingProposals ? "contents" : "none" }}>
+        <LivingProposalsListPage navigate={navigate} onLogout={onLogout} />
+      </div>
 
       {isDynamic && (() => {
         if (page.name === "proposal-new") return <ProposalCreatePage navigate={navigate} onLogout={onLogout} />;
         if (page.name === "proposal-edit") return <ProposalCreatePage navigate={navigate} editId={page.id} onLogout={onLogout} />;
         if (page.name === "proposal-detail") return <ProposalDetailPage id={page.id} navigate={navigate} onLogout={onLogout} />;
         if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
+        if (page.name === "living-proposal-new") return <LivingProposalEditorPage navigate={navigate} onLogout={onLogout} />;
+        if (page.name === "living-proposal-edit") return <LivingProposalEditorPage navigate={navigate} editId={page.id} onLogout={onLogout} />;
         return null;
       })()}
     </>

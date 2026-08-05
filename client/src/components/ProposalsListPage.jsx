@@ -438,6 +438,31 @@ export default function ProposalsListPage({ navigate, onLogout }) {
 
       {/* Body */}
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "44px 24px" }}>
+        {/* Archived, 5 Aug 2026. Nothing navigates here any more — the landing
+            tile and the Dashboard button both point at /admin/living-proposals,
+            which now carries the name "Proposals". This page and its routes are
+            deliberately left working rather than deleted: these rows are real,
+            some have live client links at /proposal/:token, and an admin who
+            reaches this URL from a bookmark needs to be told where the product
+            went rather than shown a 404. */}
+        <div style={{
+          marginBottom: 24, padding: "12px 16px", borderRadius: 10,
+          background: "rgba(180,83,9,0.07)", border: "1px solid rgba(180,83,9,0.2)",
+          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        }}>
+          <AlertTriangle size={16} color="#B45309" strokeWidth={2} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 220, lineHeight: 1.5 }}>
+            <strong>Archived.</strong> This is the older workflow-based builder. New proposals are
+            built as interactive maps — this page is kept only so existing client links keep working.
+          </span>
+          <button
+            onClick={() => navigate("/admin/living-proposals")}
+            style={{ ...btnBase, background: t.accent, color: "#fff", fontWeight: 500 }}
+          >
+            Go to Proposals
+          </button>
+        </div>
+
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 28 }}>
           <div>
             <h1 style={{
@@ -445,7 +470,7 @@ export default function ProposalsListPage({ navigate, onLogout }) {
               color: t.text,
               lineHeight: 1.15,
             }}>
-              Proposals
+              Proposals <span style={{ fontSize: 15, fontWeight: 500, color: t.textMeta }}>(archived)</span>
             </h1>
             {!loading && (
               <p style={{ margin: "4px 0 0", color: t.textMeta, fontSize: 13 }}>
