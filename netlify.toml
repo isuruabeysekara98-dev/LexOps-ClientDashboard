@@ -15,7 +15,17 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "20"
+  # 22, not 20. `createClient()` in @supabase/supabase-js builds a
+  # RealtimeClient eagerly, and that asks for a WebSocket constructor at module
+  # load. Node 20 has no global WebSocket — it arrived in 22 — so on 20 the
+  # function threw before a single route ran and every /api/* call came back as
+  # an identical 502. The alternative is passing `ws` as a transport at all
+  # seven createClient sites; raising the runtime fixes it in one place and
+  # matches what the code already assumes.
+  NODE_VERSION = "22"
+  # Netlify derives the function runtime from NODE_VERSION on current builds,
+  # but this is the explicit lever and costs nothing to be sure of.
+  AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
 
   # Vite compiles VITE_* values into the client bundle by design — that is what
   # makes them reachable from the browser. Netlify's secrets scanner then finds
