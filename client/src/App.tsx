@@ -176,6 +176,15 @@ function AuthenticatedApp() {
 
   const initialLoadDone = useRef(false);
 
+  // The auth effect below runs once ([] deps), so anything it closes over is
+  // frozen at first render. `userProfile` read directly in that callback is
+  // therefore always the initial value — which made its "are we already signed
+  // in?" check permanently false, and flashed "Signing you in…" over the whole
+  // app every time the tab regained focus. A ref is read live, so the callback
+  // sees the profile that actually exists now.
+  const userProfileRef = useRef(userProfile);
+  useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
+
   function doLogout() {
     clearCachedProfile();
     supabase.auth.signOut();
@@ -253,10 +262,15 @@ function AuthenticatedApp() {
       // ignore silently so we never flash a spinner for a token renewal.
       if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
 
+      // SIGNED_IN is re-emitted when a tab regains focus, not only on a real
+      // sign-in. With a profile already in hand there is nothing to fetch and
+      // nothing to show a spinner for.
+      if (event === 'SIGNED_IN' && userProfileRef.current) return;
+
       if (session?.user) {
         // Genuine re-auth (e.g. sign in from another tab) — update silently if we already
         // have a profile, otherwise show spinner for the fresh fetch.
-        const alreadyAuthed = !!userProfile;
+        const alreadyAuthed = !!userProfileRef.current;
         if (!alreadyAuthed) setAuthLoading(true);
         const profile = await fetchUserProfile(session.user.id);
         if (!mounted) return;

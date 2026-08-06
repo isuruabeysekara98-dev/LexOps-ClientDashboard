@@ -2,9 +2,21 @@ import { Resend } from "resend";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const FROM = "LexOps Portal <no-reply@lex-ops.io>";
-const REPLY_TO = "isuru@lex-ops.io";
-const PORTAL_URL = "https://client.lex-ops.io";
+// All three are overridable, because all three were wrong somewhere.
+//
+// EMAIL_FROM: a `no-reply@` address on a domain whose SPF names only Microsoft
+// 365 is a poor sender. Mail actually leaves through Resend, so the recipient's
+// Exchange sees an outside server claiming to be lex-ops.io and files it as
+// junk. A real, monitored mailbox scores better and gives people something to
+// reply to. Set it to whatever you want proposals to come from.
+const FROM = process.env.EMAIL_FROM || "LexOps Portal <no-reply@lex-ops.io>";
+const REPLY_TO = process.env.EMAIL_REPLY_TO || "isuru@lex-ops.io";
+
+// PORTAL_URL was pinned to client.lex-ops.io while SITE_URL pointed at the
+// deployed host — so every "View in portal" button in these templates sent
+// people to a domain that wasn't serving the app. It follows SITE_URL now,
+// like every other link the server builds.
+const PORTAL_URL = process.env.SITE_URL || "https://client.lex-ops.io";
 
 // ---------------------------------------------------------------------------
 // Shared HTML helpers — Light theme
