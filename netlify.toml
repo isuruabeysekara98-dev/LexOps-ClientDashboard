@@ -1,0 +1,56 @@
+# Netlify deployment. Committed so the settings live with the code rather than
+# in a dashboard nobody can diff — this file wins over the UI for everything it
+# declares.
+
+[build]
+  # Only the client. `npm run build` also esbuilds server/index.ts into
+  # dist/index.cjs for hosts that run a process; on Netlify that bundle is dead
+  # weight, and the API is served by the function in netlify/functions instead.
+  command = "npm install --include=dev && npx vite build"
+
+  # Vite writes here (vite.config.ts: outDir = dist/public). Publishing `dist`
+  # serves a directory with no index.html at its root.
+  publish = "dist/public"
+
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+  # Vite compiles VITE_* values into the client bundle by design — that is what
+  # makes them reachable from the browser. Netlify's secrets scanner then finds
+  # those values inside dist/public/assets/*.js and fails the deploy. Both are
+  # public by nature: the URL is a hostname, and the anon key is the key the
+  # browser is supposed to hold, with row-level security as the real boundary.
+  #
+  # SUPABASE_SERVICE_ROLE_KEY is deliberately NOT listed. It bypasses RLS
+  # entirely, it must never reach the client bundle, and if the scanner ever
+  # finds it the build SHOULD fail.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
+
+# Express owns everything under /api — one function, the app's own router does
+# the rest. force = true so this wins over any static file that shares a path.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+# SPA fallback. Client routes like /p/<token> and /admin/living-proposals/<id>
+# exist only in the browser router, so a cold load or a refresh on one of those
+# has to return index.html rather than 404. Listed last: redirects match top
+# down, so /api/* is claimed above before this catches everything else.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  # esbuild, and bundle serverless-http rather than resolving it at runtime.
+  node_bundler = "esbuild"
+  external_node_modules = ["pdfkit", "pdfjs-dist", "unpdf", "pg"]
+
+[functions."api"]
+  # PDF upload and generation are the slow paths; the 10s default is not enough.
+  # 26s is the ceiling on Netlify's standard plan.
+  timeout = 26
