@@ -4,4 +4,7 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
-.env
+# Every .env variant, not just `.env` — a `.env.netlify` or `.env.production`
+# holding the same service-role key was committable until this line.
+.env*
+!.env.example
