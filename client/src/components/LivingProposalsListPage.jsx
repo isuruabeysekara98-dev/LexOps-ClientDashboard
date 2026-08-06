@@ -195,6 +195,16 @@ export default function LivingProposalsListPage({ navigate, onLogout }) {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.message || "Couldn't send the link."); setLinkModal(m => ({ ...m, sending: false })); return; }
+      // A 200 here means the link exists and the proposal moved to sent — it
+      // does NOT mean the email left. Resend can fail on its own, and reporting
+      // that as success is how a client ends up never hearing from us while the
+      // admin list insists it was sent.
+      if (data.emailed === false) {
+        alert(
+          "The link was created and the proposal is marked sent, but the email did not go out.\n\n" +
+          "Copy the link and send it manually, then check RESEND_API_KEY."
+        );
+      }
       setLinkModal(null);
       load();
     } catch (err) {

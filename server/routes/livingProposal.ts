@@ -867,6 +867,19 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
     emailed = result.ok;
     if (!result.ok) console.error("[lp] ready email:", result.error);
 
+    // Record the send. Every client action lands in proposal_events, but the
+    // one thing the *admin* does did not — so there was no way to answer "was
+    // this ever actually sent, to whom, and did the email leave?" other than
+    // reading a server log that had already rotated. `emailed: false` is the
+    // interesting case: the proposal still moves to `sent` because the link is
+    // live and valid, so without this row a silent Resend failure is invisible.
+    await logEvent(proposal.id, recipient.id, "sent", null, {
+      to: email,
+      cc: CLIENT_RELATIONS_EMAIL,
+      emailed: result.ok,
+      error: result.ok ? null : (result.error || "unknown"),
+    });
+
     // Sending is the deliberate act that starts the turn engine — and, on every
     // send after the first, the act that continues it. A proposal the client has
     // already responded to comes back as `revised`, not `sent`: re-using `sent`
@@ -880,7 +893,7 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
     }).eq("id", id);
   }
 
-  res.json({ recipient, url, emailed });
+  res.json({ recipient, url, emailed, cc: send !== false ? CLIENT_RELATIONS_EMAIL : null });
 });
 
 // ---------------------------------------------------------------------------
