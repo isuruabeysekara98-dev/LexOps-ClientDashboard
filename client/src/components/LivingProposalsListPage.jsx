@@ -215,10 +215,11 @@ export default function LivingProposalsListPage({ navigate, onLogout }) {
     if (!deleteConfirm) return;
     setBusyId(deleteConfirm.id);
     try {
-      // The v2 delete route operates on the shared `proposals` table and
-      // cascades every FK — including `proposal_graphs` — so it's correct to
-      // reuse rather than duplicate here.
-      const res = await fetchWithTimeout(`/api/proposals/v2/${deleteConfirm.id}`, {
+      // This used to call the archived v2 route. The row cascade was fine, but
+      // v2 only clears storage paths recorded in `proposal_client_files` — so
+      // the proposal PDF survived every delete, publicly downloadable, in a
+      // public bucket. The living-proposal route owns its own cleanup.
+      const res = await fetchWithTimeout(`/api/lp/admin/proposals/${deleteConfirm.id}`, {
         method: "DELETE", headers: await authHeaders(),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.message || "Couldn't delete this proposal."); return; }

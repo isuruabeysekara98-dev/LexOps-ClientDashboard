@@ -669,6 +669,97 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
   res.json({ recipient, url, emailed });
 });
 
+// ---------------------------------------------------------------------------
+// The proposal PDF — the file the client's Download button serves.
+// ---------------------------------------------------------------------------
+// `pdf_url` was read-only here until now: it could only be set by running
+// scripts/attach-proposal-pdfs.mjs with the service-role key, which put the
+// one remaining piece of proposal authoring back in a developer's hands. These
+// two routes close that.
+//
+// The object path is keyed by the proposal's uuid and is fixed, so re-uploading
+// replaces in place rather than orphaning the previous file. It is deliberately
+// *not* keyed by firm name: `proposal-assets` is a public bucket, and a
+// guessable path would let anyone holding one firm's URL construct another's.
+// ---------------------------------------------------------------------------
+const pdfPath = (id: string) => `living-proposals/${id}/proposal.pdf`;
+
+// POST /api/lp/admin/proposals/:id/pdf — attach or replace it.
+router.post("/admin/proposals/:id/pdf", requireAdmin, upload.single("file"), async (req: any, res) => {
+  const { id } = req.params;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) { res.status(400).json({ message: "No file uploaded" }); return; }
+
+  // Trust the bytes, not the extension or the browser-supplied mime type —
+  // this URL is handed to a client, so a mislabelled file is a broken download
+  // discovered by the wrong person.
+  if (file.buffer.subarray(0, 5).toString("ascii") !== "%PDF-") {
+    res.status(400).json({ message: "That file isn't a PDF." }); return;
+  }
+
+  const { data: proposal } = await adminSupabase
+    .from("proposals").select("id").eq("id", id).single();
+  if (!proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
+
+  const path = pdfPath(id);
+  const { error: upErr } = await (adminSupabase as any).storage
+    .from("proposal-assets")
+    .upload(path, file.buffer, { contentType: "application/pdf", upsert: true });
+  if (upErr) {
+    console.error("[lp] pdf upload:", upErr.message);
+    res.status(500).json({ message: `Upload failed: ${upErr.message}` }); return;
+  }
+
+  const { data: { publicUrl } } = (adminSupabase as any).storage
+    .from("proposal-assets").getPublicUrl(path);
+
+  const { error } = await adminSupabase
+    .from("proposals").update({ pdf_url: publicUrl }).eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+
+  res.json({ pdf_url: publicUrl, size: file.buffer.length });
+});
+
+// DELETE /api/lp/admin/proposals/:id/pdf — detach it.
+router.delete("/admin/proposals/:id/pdf", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  await (adminSupabase as any).storage
+    .from("proposal-assets").remove([pdfPath(String(id))]).catch(() => {});
+  const { error } = await adminSupabase
+    .from("proposals").update({ pdf_url: null }).eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/lp/admin/proposals/:id — delete a living proposal outright.
+// ---------------------------------------------------------------------------
+// The list page used to call the archived v2 product's DELETE for this. That
+// worked only by accident: every living-proposal child table declares
+// `on delete cascade` (supabase/living_proposal.sql), so the rows went. What
+// did *not* go was the PDF — v2 only clears paths recorded in
+// proposal_client_files, and this one isn't — leaving a deleted proposal's
+// pricing publicly downloadable forever in a public bucket.
+//
+// Owning the route here also removes a live dependency on a product that is
+// archived and expected to be deleted eventually.
+// ---------------------------------------------------------------------------
+router.delete("/admin/proposals/:id", requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  // Client-uploaded files answering `file` needs live under a different prefix
+  // and are not covered by the row cascade either.
+  const { data: inputs } = await (adminSupabase as any)
+    .from("proposal_inputs").select("file_path").eq("proposal_id", id);
+  const paths = [pdfPath(String(id)), ...(inputs || []).map((i: any) => i.file_path).filter(Boolean)];
+  await (adminSupabase as any).storage.from("proposal-assets").remove(paths).catch(() => {});
+
+  // proposal_graphs, _inputs, _notes, _recipients and _events all cascade.
+  const { error } = await adminSupabase.from("proposals").delete().eq("id", id);
+  if (error) { res.status(500).json({ message: error.message }); return; }
+  res.json({ ok: true });
+});
+
 // GET /api/lp/admin/stalled — the three buckets, computed on load
 router.get("/admin/stalled", requireAdmin, async (_req, res) => {
   const { data, error } = await (adminSupabase as any)
