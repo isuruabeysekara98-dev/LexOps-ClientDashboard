@@ -5,6 +5,11 @@
 // handler instead, which is why `createApp()` was split out of that file: the
 // routes are defined once and both runtimes mount the identical set. If a route
 // works locally it exists here too, by construction.
+// First, deliberately. ES module side effects run in import order, and this one
+// has to install globalThis.WebSocket before `createApp` pulls in the route
+// modules that call createClient() at module scope. Moving it below the others
+// puts the runtime back to 502-on-every-request.
+import "./ws-polyfill";
 import serverlessHttp from "serverless-http";
 import type { Handler } from "@netlify/functions";
 import { createApp } from "../../server/app";
