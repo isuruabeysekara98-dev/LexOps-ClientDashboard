@@ -423,8 +423,46 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
     }
     try { const parsed = JSON.parse(g.explainersRaw || "[]"); if (!Array.isArray(parsed)) throw new Error(); }
     catch { issues.push("The explainers JSON isn't valid — it must be an array (or left as [])."); }
+
+    // The quoted total is authored, never computed — Act IV animates towards a
+    // number a person typed and must never invent one (ProposalActs.jsx:19),
+    // because a discount or a rounded figure is a real decision the code can't
+    // make. That's also why a typo in either field survives all the way to the
+    // client, who sees the rows and the total side by side. Flagged, not
+    // blocked: a deliberate gap is legitimate, an unnoticed one isn't.
+    const costing = g.sections.costing;
+    if (costing?.rows?.length && costing.total?.amount != null) {
+      const sum = costing.rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+      const quoted = Number(costing.total.amount) || 0;
+      if (Math.round((sum - quoted) * 100) !== 0) {
+        const cur = costing.currency || "";
+        const fmt = (v) => `${cur ? cur + " " : ""}${v.toLocaleString()}`;
+        issues.push(
+          `Act IV's rows add up to ${fmt(sum)} but the quoted total says ${fmt(quoted)}. ` +
+          `The client sees both. If the ${fmt(Math.abs(sum - quoted))} gap is a discount, add it as its own row so it reads as one.`
+        );
+      }
+    }
+    // The roadmap's lanes are the only thing Act III draws now — it no longer
+    // borrows the deliverables' week metrics, so a timeline is either authored
+    // here or absent, never inferred from a field that meant something else.
+    // That makes an empty lane list worth saying out loud: it's the difference
+    // between the client seeing dates and seeing nothing.
+    const roadmap = g.sections.roadmap;
+    if (roadmap && !roadmap.lanes?.length) {
+      issues.push("Act III has a roadmap but no lanes, so the client sees an empty timeline. Add a lane per phase, each with a start and end week.");
+    }
+    // A lane running past the roadmap's own week count still renders — the axis
+    // stretches to fit — but the two disagreeing means one of them is a typo.
+    if (roadmap?.lanes?.length) {
+      const end = Math.max(...roadmap.lanes.map((l) => Number(l.end_week) || 0));
+      const span = Number(roadmap.weeks) || 0;
+      if (span && end > span) {
+        issues.push(`Act III's roadmap is set to ${span} week${span === 1 ? "" : "s"} but a lane runs to week ${end}, so the axis will stretch to ${end}.`);
+      }
+    }
     return issues;
-  }, [meta.name, g.nodes, g.edges, g.deliverables, g.explainersRaw, nodeIdSet, deliverableIds]);
+  }, [meta.name, g.nodes, g.edges, g.deliverables, g.explainersRaw, g.sections, nodeIdSet, deliverableIds]);
 
   // ---- advisories ----------------------------------------------------------
   // Not errors: every one of these saves and renders. They are the things that
@@ -458,6 +496,11 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
     let explainerCount = 0;
     try { const p = JSON.parse(g.explainersRaw || "[]"); if (Array.isArray(p)) explainerCount = p.length; } catch { /* invalid JSON already reported in `problems` */ }
     return [
+      // Above the acts, not inside them. The acts are the document the client
+      // reads; this is what came back from them, and it's the reason the admin
+      // reopened the editor at all — so it leads, and it carries the unread
+      // count rather than a bare item count.
+      ...(session ? [{ id: "sec-client", act: null, label: "From the client", count: (session.notes || []).length || undefined }] : []),
       { id: "sec-proposal", act: null, label: "Proposal & client" },
       { id: "sec-headline", act: "0", label: "Headline" },
       { id: "sec-deliverables", act: "II", label: "Deliverables", count: g.deliverables.length },
@@ -470,7 +513,7 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
       { id: "sec-costing", act: "IV", label: "Investment", count: g.sections.costing?.rows?.length ?? 0 },
       { id: "sec-maintenance", act: "V", label: "Keeping it running", count: g.sections.maintenance?.options?.length ?? 0 },
     ];
-  }, [g.deliverables, g.scenarios, g.nodes, g.edges, g.explainersRaw, g.sections]);
+  }, [g.deliverables, g.scenarios, g.nodes, g.edges, g.explainersRaw, g.sections, session]);
 
   const [activeSection, setActiveSection] = useState("sec-proposal");
   // The rail needs the 880px column plus its own 208 and the gaps; below that
@@ -775,6 +818,18 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
             </details>
           )}
 
+          {/* ---- From the client --------------------------------------------- */}
+          {/* Mounted first, above Act 0. `ClientResponses` existed and the
+              session data was already being fetched, but nothing ever rendered
+              it — so a client could send back a message and the admin had no
+              screen that showed it. Only rendered once `session` has loaded;
+              for a brand-new proposal there is no client and no link yet. */}
+          {session && (
+            <SectionBlock id="sec-client" title="From the client" eyebrow="What came back — answers, messages, activity">
+              <ClientResponses session={session} nodes={g.nodes} />
+            </SectionBlock>
+          )}
+
           {/* ---- Proposal & client ------------------------------------------ */}
           <SectionBlock id="sec-proposal" title="Proposal" eyebrow="Who this is for — not an act the client reads">
             <div style={grid2}>
@@ -829,10 +884,15 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
 
           {/* ---- Deliverables --------------------------------------------------- */}
           <SectionBlock id="sec-deliverables" act="II" title="Deliverables" eyebrow="The rail — disjoint pieces of work; every node belongs to exactly one">
+            {/* `newItem` starts with no unit. It used to default to "weeks",
+                which — back when Act III borrowed these metrics for its
+                timeline — made every new deliverable a duration by default and
+                put a second, unlabelled timeline input on this form. Durations
+                belong to the roadmap section now, and only there. */}
             <RepeatList
               items={g.deliverables} reorder
               onChange={(deliverables) => set({ deliverables })}
-              newItem={() => ({ id: uniqueSlug("outcome", new Set(deliverableIds)), label: "New outcome", summary: "", metric: { unit: "weeks", amount: "", basis: "" } })}
+              newItem={() => ({ id: uniqueSlug("outcome", new Set(deliverableIds)), label: "New outcome", summary: "", metric: { unit: "", amount: "", basis: "" } })}
               addLabel="Add deliverable"
               renderItem={(d, i, upd) => (
                 <Card
@@ -844,8 +904,13 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
                     <Field><label style={label}>Label</label><input style={inp} value={d.label} onChange={(e) => upd({ label: e.target.value, id: d.id || slugify(e.target.value) })} /></Field>
                     <Field wide><label style={label}>Summary</label><textarea style={{ ...inp, resize: "vertical" }} rows={2} value={d.summary || ""} onChange={(e) => upd({ summary: e.target.value })} /></Field>
                     <Field><label style={label}>Metric amount</label><input style={inp} type="number" value={d.metric?.amount ?? ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), amount: e.target.value } })} /></Field>
-                    <Field><label style={label}>Metric unit</label><input style={inp} value={d.metric?.unit || ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), unit: e.target.value } })} placeholder="weeks" /></Field>
-                    <Field wide><label style={label}>Basis</label><input style={inp} value={d.metric?.basis || ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), basis: e.target.value } })} placeholder="8-week build" /></Field>
+                    {/* Placeholders name outcomes, not durations. They read
+                        "weeks" and "8-week build" until this section stopped
+                        feeding Act III — which is how a duration came to be
+                        typed here in the first place. Set the timeline under
+                        Roadmap. */}
+                    <Field><label style={label}>Metric unit</label><input style={inp} value={d.metric?.unit || ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), unit: e.target.value } })} placeholder="hrs_month, min_per_task…" /></Field>
+                    <Field wide><label style={label}>Basis</label><input style={inp} value={d.metric?.basis || ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), basis: e.target.value } })} placeholder="What the number measures — not how long it takes" /></Field>
                   </div>
                 </Card>
               )}

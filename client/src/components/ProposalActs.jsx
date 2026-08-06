@@ -128,14 +128,19 @@ export function ActsPill({ open, onToggle, seen }) {
 
 /* ------------------------------- the acts -------------------------------- */
 
-export default function ProposalActs({ sections, deliverables, nodes, proposal, scrollRoot, rootRef, onFeedback, onEvent }) {
+// `deliverables` is no longer a prop: Act III was the only consumer, and it now
+// reads the roadmap section alone.
+export default function ProposalActs({ sections, nodes, proposal, scrollRoot, rootRef, onFeedback, onEvent }) {
   const roadmap = sections?.roadmap || null;
   const costing = sections?.costing || null;
 
   return (
     <div ref={rootRef} style={wrap}>
       <style>{ACTS_CSS}</style>
-      <RoadmapAct roadmap={roadmap} deliverables={deliverables} scrollRoot={scrollRoot} />
+      {/* `deliverables` is deliberately not passed — Act III reads the roadmap
+          section and nothing else, so a deliverable's metric can't become a
+          timeline the client reads as a commitment. */}
+      <RoadmapAct roadmap={roadmap} scrollRoot={scrollRoot} />
       <InvestmentAct costing={costing} scrollRoot={scrollRoot} onEvent={onEvent} />
       <MaintenanceAct maintenance={sections?.maintenance || null} scrollRoot={scrollRoot} />
       <FeedbackAct onSubmit={onFeedback} />
@@ -194,29 +199,32 @@ const ACTS_CSS = `
 `;
 
 /* Act III — the Gantt draws itself in, bar by bar, then the weeks explain themselves. */
-function RoadmapAct({ roadmap, deliverables, scrollRoot }) {
+function RoadmapAct({ roadmap, scrollRoot }) {
   const ref = useRef(null);
   const shown = useRevealed(ref, scrollRoot);
 
-  // Falls back to the deliverable week metrics when no roadmap is authored, so
-  // a proposal without sections still gets an honest Act III rather than a gap.
-  const lanes = roadmap?.lanes?.length
-    ? roadmap.lanes
-    : (deliverables || [])
-        .filter((d) => d.metric?.unit === "weeks")
-        .reduce((acc, d) => {
-          const start = acc.length ? acc[acc.length - 1].end_week : 0;
-          acc.push({ id: d.id, label: d.label, deliverable: d.id, kind: "build",
-                     start_week: start, end_week: start + d.metric.amount });
-          return acc;
-        }, []);
+  // The roadmap section is the only source of the timeline.
+  //
+  // This used to fall back to the deliverables' week metrics when no lanes were
+  // authored, on the theory that a half-filled proposal should still get an
+  // Act III rather than a gap. In practice it meant two fields meant the same
+  // thing and neither said so: a "100" typed as a deliverable metric became a
+  // 100-week bar on the client's timeline, silently overriding the `weeks: 4`
+  // set on the roadmap itself. A guessed timeline a client might commit to is
+  // worse than an absent one, so an unauthored roadmap now says so plainly.
+  const lanes = roadmap?.lanes?.length ? roadmap.lanes : [];
 
-  const weeks = roadmap?.weeks || (lanes.length ? Math.max(...lanes.map((l) => l.end_week)) : 0);
+  // The axis still has to cover its lanes — an authored `weeks` smaller than an
+  // authored lane's `end_week` would otherwise push the bar outside the plot.
+  const laneEnd = lanes.length
+    ? Math.max(...lanes.map((l) => Number(l.end_week) || 0))
+    : 0;
+  const weeks = Math.max(1, Number(roadmap?.weeks) || 0, laneEnd);
 
   if (!lanes.length) {
     return (
       <Act anchorRef={ref} n="III" title="Roadmap" gloss="When each piece lands.">
-        <Pending>Build duration isn&apos;t set on this proposal yet.</Pending>
+        <Pending>The delivery timeline isn&apos;t set on this proposal yet.</Pending>
       </Act>
     );
   }
@@ -242,8 +250,14 @@ function RoadmapAct({ roadmap, deliverables, scrollRoot }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={plotArea(weeks)}>
             {lanes.map((l, i) => {
-              const left = (l.start_week / weeks) * 100;
-              const width = ((l.end_week - l.start_week) / weeks) * 100;
+              // Clamped as well as scaled. `weeks` above guarantees the axis
+              // covers every lane, but a lane with a negative or missing
+              // start/end — or an end before its start — would still compute a
+              // stray offset, and one bad row shouldn't break the page layout.
+              const s = Math.max(0, Number(l.start_week) || 0);
+              const e = Math.max(s, Number(l.end_week) || 0);
+              const left = Math.min(100, (s / weeks) * 100);
+              const width = Math.min(100 - left, ((e - s) / weeks) * 100);
               const tone = LANE_TONE[l.kind] || ACCENT;
               return (
                 <div key={l.id} style={laneRow}>

@@ -392,6 +392,10 @@ export default function LivingProposalPage({ token }) {
   // are what make people stop checking (LIVING-PROPOSAL-PLAN.md §6b).
   if (approved || sentBack) {
     const pdf = data?.proposal?.pdf_url || null;
+    // Counted here, not reused from `total` below — this return sits above where
+    // `total` is declared, so reading it there is a temporal dead zone crash, not
+    // a stale value. Whole graph, never the rail's slice, same as `total`.
+    const sent = countNeeds(data?.graph?.nodes || [], data?.inputs);
     return (
       <Shell>
         <div style={{ maxWidth: 560, margin: "0 auto", padding: "64px 0 40px", textAlign: "center" }}>
@@ -420,7 +424,7 @@ export default function LivingProposalPage({ token }) {
               </>
             ) : (
               <>
-                You sent {total.answered} of {total.required}. We'll read through it and come back
+                You sent {sent.answered} of {sent.required}. We'll read through it and come back
                 with an updated version within two working days.
               </>
             )}
@@ -907,7 +911,6 @@ export default function LivingProposalPage({ token }) {
 
       <ProposalActs
         sections={graph.sections || null}
-        deliverables={deliverables}
         nodes={allNodes}
         proposal={proposal}
         scrollRoot={null}
@@ -1337,7 +1340,6 @@ export default function LivingProposalPage({ token }) {
       {actsOpen && (
         <ProposalActs
           sections={graph.sections || null}
-          deliverables={deliverables}
           nodes={allNodes}
           proposal={proposal}
           scrollRoot={scrollRef}
