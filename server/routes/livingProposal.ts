@@ -355,10 +355,18 @@ router.post("/p/:token/event", async (req, res) => {
 });
 
 // POST /api/lp/p/:token/send-back — always available, however incomplete.
+// The loop runs until one of these three. After that the client's page is a
+// record, not a form — see the guard in send-back and approve below.
+const TERMINAL = ["approved", "won", "lost"];
+
 router.post("/p/:token/send-back", async (req, res) => {
   const resolved = await resolveToken(req.params.token);
   if (!resolved) { res.status(404).json({ message: "Not found" }); return; }
   const { proposal, recipient } = resolved;
+
+  if (TERMINAL.includes(proposal.state)) {
+    res.status(409).json({ message: "This proposal is closed.", state: proposal.state }); return;
+  }
 
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
 
@@ -405,6 +413,67 @@ router.post("/p/:token/send-back", async (req, res) => {
   // The client is told what happens next and by when — unset expectations are
   // what make people stop checking (LIVING-PROPOSAL-PLAN.md §6b).
   res.json({ ok: true, progress, emailed: emailResult.ok });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/lp/p/:token/approve — the client is happy. This ends the loop.
+// ---------------------------------------------------------------------------
+// `approved` is not `won`. Approved is the client saying they're satisfied with
+// what they read; won is the firm's commercial record, and only an admin sets
+// it. Collapsing the two would let a client click book revenue.
+//
+// Requires supabase/proposal_approval.sql — without it `proposals_state_check`
+// rejects the write and this returns a 500 naming the script.
+// ---------------------------------------------------------------------------
+router.post("/p/:token/approve", async (req, res) => {
+  const resolved = await resolveToken(req.params.token);
+  if (!resolved) { res.status(404).json({ message: "Not found" }); return; }
+  const { proposal, recipient } = resolved;
+
+  if (TERMINAL.includes(proposal.state)) {
+    res.status(409).json({ message: "This proposal is already closed.", state: proposal.state }); return;
+  }
+
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  const now = new Date().toISOString();
+
+  const { error } = await adminSupabase.from("proposals").update({
+    state: "approved",
+    ball_in_court: "lexops",
+    approved_at: now,
+    last_client_activity_at: now,
+  }).eq("id", proposal.id);
+  if (error) {
+    console.error("[lp] approve:", error.message);
+    const hint = /proposals_state_check|approved_at/.test(error.message)
+      ? "Approval isn't enabled on this database yet — run supabase/proposal_approval.sql."
+      : error.message;
+    res.status(500).json({ message: hint }); return;
+  }
+
+  if (message) {
+    await (adminSupabase as any).from("proposal_notes").insert({
+      proposal_id: proposal.id, node_id: null, kind: "comment",
+      body: message, author_email: recipient?.email || null,
+    });
+  }
+
+  await logEvent(proposal.id, recipient?.id || null, "approved", null, {});
+
+  // Reuses the submitted notification rather than adding a template: the admin
+  // needs to know the same things (who, which proposal, what they said) and the
+  // subject line is driven by the message we pass.
+  const emailResult = await sendLivingProposalSubmitted(
+    LEXOPS_NOTIFY_EMAIL,
+    proposal.client_name,
+    proposal.name || "your proposal",
+    0, 0,
+    message ? `APPROVED — ${message}` : "APPROVED — the client accepted this proposal.",
+    `${SITE_URL}/admin/living-proposals/${proposal.id}/edit`
+  );
+  if (!emailResult.ok) console.error("[lp] approve email:", emailResult.error);
+
+  res.json({ ok: true, state: "approved", emailed: emailResult.ok });
 });
 
 // ===========================================================================
@@ -618,6 +687,23 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
   const { data: proposal } = await adminSupabase.from("proposals").select("*").eq("id", id).single();
   if (!proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
 
+  // The loop ends exactly three ways — the admin marks won or lost, or the
+  // client approves — so a closed proposal cannot be sent back into it by
+  // accident. Without this, sending a `lost` proposal silently flipped it to
+  // `revised` and the commercial record was gone with no trace that it moved.
+  //
+  // Reopening stays possible and is deliberately two steps: change the state in
+  // the editor, then send. `send: false` is exempt because it only mints or
+  // returns the link without touching state — that is how the admin copies a
+  // link to re-read a closed proposal themselves.
+  if (send !== false && TERMINAL.includes(proposal.state)) {
+    res.status(409).json({
+      message: `This proposal is closed (${proposal.state}). Change its state in the editor before sending it again.`,
+      state: proposal.state,
+    });
+    return;
+  }
+
   let recipient: any = null;
 
   if (!invited_by) {
@@ -658,9 +744,14 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
     emailed = result.ok;
     if (!result.ok) console.error("[lp] ready email:", result.error);
 
-    // Sending is the deliberate act that starts the turn engine.
+    // Sending is the deliberate act that starts the turn engine — and, on every
+    // send after the first, the act that continues it. A proposal the client has
+    // already responded to comes back as `revised`, not `sent`: re-using `sent`
+    // would erase the fact that a round happened, and the admin list would show
+    // a second-round proposal as though it had never been opened.
+    const roundTwo = ["feedback_shared", "revised"].includes(proposal.state);
     await adminSupabase.from("proposals").update({
-      state: "sent",
+      state: roundTwo ? "revised" : "sent",
       ball_in_court: "client",
       current_version: GRAPH_VERSION,
     }).eq("id", id);

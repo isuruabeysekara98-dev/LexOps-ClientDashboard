@@ -275,7 +275,7 @@ const LABELS = {
   line: "Line item", discount: "Discount",
   // proposal state
   draft: "Draft", sent: "Sent", feedback_shared: "Feedback shared",
-  revised: "Revised", won: "Won", lost: "Lost",
+  revised: "Revised", approved: "Approved by client", won: "Won", lost: "Lost",
 };
 
 function labelFor(v) {
@@ -306,6 +306,8 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [link, setLink] = useState(null); // { url, first_opened_at } once known
+  const [session, setSession] = useState(null); // inputs, notes, events, progress
+  const [pdfBusy, setPdfBusy] = useState(false);
   // Deliberately not folded into `meta`: `meta` is exactly what the PATCH
   // writes back, and pdf_url is attached by the upload script, not this form.
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -359,11 +361,14 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
         sections: graph.sections || {},
         explainersRaw: JSON.stringify(graph.explainers || [], null, 1),
       });
-      // The one tracked link, if it's ever been minted — fetched via the
-      // session endpoint, which already carries `recipients`.
+      // The session carries the link *and* everything the client did. It was
+      // being fetched and thrown away except for the token — 767 recorded
+      // events and no way to read one. Kept whole now; the Responses section
+      // renders it.
       const sres = await fetchWithTimeout(`/api/lp/admin/proposals/${id}/session`, { headers: await authHeaders() });
       if (sres.ok) {
         const sdata = await sres.json();
+        setSession(sdata);
         const primary = (sdata.recipients || []).find((r) => !r.invited_by);
         if (primary) setLink({ url: `${window.location.origin}/p/${primary.token}`, first_opened_at: primary.first_opened_at });
       }
@@ -453,7 +458,22 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const [activeSection, setActiveSection] = useState("sec-proposal");
   // The rail needs the 880px column plus its own 208 and the gaps; below that
   // it would squeeze the form, so it drops out entirely rather than shrinking.
+  // The jump rail needs ~280px of its own before the form drops below a usable
+  // width. Read live, not once: this was initialised at mount and never updated,
+  // so a window resized down from 1200px kept the rail and squeezed the form to
+  // a column too narrow to type in — and a tablet rotated to portrait did the
+  // same. `orientationchange` is listened for separately because iOS Safari
+  // does not reliably fire `resize` on rotation.
   const [showNav, setShowNav] = useState(() => window.innerWidth >= 1160);
+  useEffect(() => {
+    const read = () => setShowNav(window.innerWidth >= 1160);
+    window.addEventListener("resize", read);
+    window.addEventListener("orientationchange", read);
+    return () => {
+      window.removeEventListener("resize", read);
+      window.removeEventListener("orientationchange", read);
+    };
+  }, []);
   useEffect(() => {
     const onResize = () => setShowNav(window.innerWidth >= 1160);
     window.addEventListener("resize", onResize);
@@ -495,6 +515,49 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const setMetric = (key, val) => set({ headline_metric: { ...g.headline_metric, [key]: val } });
   const toggle = (setState, id) => setState((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // ---- the proposal PDF ---------------------------------------------------
+  async function uploadPdf(file) {
+    if (!file) return;
+    if (!proposalId) { setSaveMsg({ ok: false, text: "Save this proposal before attaching a PDF." }); return; }
+    setPdfBusy(true); setSaveMsg(null);
+    try {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const fd = new FormData();
+      fd.append("file", file);
+      // No Content-Type header on purpose — the browser has to set it so the
+      // multipart boundary is included, and supplying it by hand breaks multer.
+      const res = await fetch(`/api/lp/admin/proposals/${proposalId}/pdf`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${s?.access_token}` },
+        body: fd,
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setSaveMsg({ ok: false, text: d.message || "Couldn't attach the PDF." }); return; }
+      setPdfUrl(d.pdf_url);
+      setSaveMsg({ ok: true, text: "PDF attached — the client's Download button now serves it." });
+    } catch (err) {
+      console.error("[LivingProposalEditorPage] pdf upload:", err?.message || err);
+      setSaveMsg({ ok: false, text: "Couldn't attach the PDF — check your connection." });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function removePdf() {
+    if (!proposalId) return;
+    setPdfBusy(true);
+    try {
+      const res = await fetchWithTimeout(`/api/lp/admin/proposals/${proposalId}/pdf`, {
+        method: "DELETE", headers: await authHeaders(),
+      });
+      if (!res.ok) { setSaveMsg({ ok: false, text: "Couldn't remove the PDF." }); return; }
+      setPdfUrl(null);
+      setSaveMsg({ ok: true, text: "PDF removed — the client sees the fallback again." });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   // ---- canvas -------------------------------------------------------------
   function moveNode(id, xy) {
     set({ nodes: g.nodes.map((n) => (n.id === id ? { ...n, editor_xy: xy } : n)) });
@@ -530,6 +593,18 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
       <style>{`
         @font-face { font-family: 'Satoshi'; src: url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700&display=swap'); }
         @keyframes spin{to{transform:rotate(360deg)}}
+
+        /* The editor's gutter ramp, on the site's breakpoints. Media queries
+           rather than JS so it can't fall out of step with showNav's listener. */
+        .lp-ed-wrap { padding: 32px 48px 120px; }
+        @media (max-width: 1023px) { .lp-ed-wrap { padding: 28px 32px 100px; } }
+        @media (max-width: 767px)  { .lp-ed-wrap { padding: 24px 20px 90px; } }
+        @media (max-width: 639px)  {
+          .lp-ed-wrap { padding: 20px 16px 80px; }
+          /* Long client emails and node ids are the strings most likely to blow
+             out a 320px column, and neither is under our control. */
+          .lp-ed-wrap { overflow-wrap: anywhere; }
+        }
       `}</style>
 
       <nav style={{
@@ -574,7 +649,7 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
           {loadError} <button onClick={() => load(editId)} style={{ ...ghostBtn, background: "none", color: t.red, textDecoration: "underline" }}>Retry</button>
         </div>
       ) : (
-        <div style={{ maxWidth: showNav ? 1140 : 880, margin: "0 auto", padding: "32px 24px 120px", display: "flex", gap: 28, alignItems: "flex-start" }}>
+        <div className="lp-ed-wrap" style={{ maxWidth: showNav ? 1140 : 880, margin: "0 auto", display: "flex", gap: 28, alignItems: "flex-start" }}>
 
           {showNav && <EditorNav sections={navSections} activeId={activeSection} onJump={jumpTo} />}
 
@@ -613,7 +688,13 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
               <Field>
                 <label style={label}>State</label>
                 <select style={inp} value={meta.state} onChange={(e) => setMeta({ ...meta, state: e.target.value })}>
-                  {options(["draft", "sent", "feedback_shared", "revised", "won", "lost"])}
+                  {/* `approved` is the client's own signal and is normally set
+                      by them, not here — but it has to be listed, or an admin
+                      opening an approved proposal sees an empty select and any
+                      save silently rewrites the state to whatever they pick.
+                      Won/lost stay the admin's to set: approved is "they're
+                      happy", won is the commercial record. */}
+                  {options(["draft", "sent", "feedback_shared", "revised", "approved", "won", "lost"])}
                 </select>
               </Field>
               <Field>
@@ -1001,6 +1082,133 @@ function analyseGraph(nodes, edges) {
 }
 
 // ---------------------------------------------------------------------------
+// What the client actually did.
+// ---------------------------------------------------------------------------
+// `GET /admin/proposals/:id/session` has always returned all of this — answers,
+// notes, the event stream, progress — and the editor fetched it only to pull
+// the token out, so none of it was ever readable. This is the half of the loop
+// that was missing: the admin reads what came back, revises, re-attaches the
+// PDF and sends again.
+//
+// Newest first everywhere. The question an admin opens this with is "what
+// changed since I last looked", not "what happened first".
+// ---------------------------------------------------------------------------
+function when(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString();
+}
+
+const EVENT_LABEL = {
+  proposal_opened: "Opened the proposal",
+  node_opened: "Opened a step",
+  need_answered: "Answered something",
+  proposal_downloaded: "Downloaded the PDF",
+  sent_back: "Sent it back",
+  approved: "Approved the proposal",
+  explainer_played: "Watched an explainer",
+};
+
+function ClientResponses({ session, nodes }) {
+  const [tab, setTab] = useState("answers");
+  const labelOf = useMemo(() => {
+    const m = new Map((nodes || []).filter((n) => n.id).map((n) => [n.id, n.label || n.id]));
+    return (id) => (id ? m.get(id) || id : "—");
+  }, [nodes]);
+
+  if (!session) {
+    return <p style={{ fontSize: 12.5, color: t.textMeta, margin: 0 }}>Nothing yet — this fills in once the client opens their link.</p>;
+  }
+
+  const { inputs = [], notes = [], events = [], progress } = session;
+  const answered = progress?.answered ?? inputs.length;
+  const required = progress?.required ?? 0;
+  const nothingYet = !inputs.length && !notes.length && !events.length;
+
+  if (nothingYet) {
+    return <p style={{ fontSize: 12.5, color: t.textMeta, margin: 0 }}>The client hasn't opened this link yet.</p>;
+  }
+
+  const tabs = [
+    ["answers", `Answers (${inputs.length})`],
+    ["notes", `Messages (${notes.length})`],
+    ["activity", `Activity (${events.length})`],
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12, fontSize: 12.5, color: t.textSub }}>
+        <span><strong style={{ color: t.text }}>{answered}</strong> of {required} needs answered</span>
+        {notes.length > 0 && <span style={{ color: t.amber }}>{notes.length} message{notes.length === 1 ? "" : "s"} to read</span>}
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+        {tabs.map(([k, lbl]) => (
+          <button key={k} onClick={() => setTab(k)} style={{
+            ...btnBase, padding: "6px 11px", fontSize: 12.5,
+            background: tab === k ? t.accentLight : "transparent",
+            color: tab === k ? t.accent : t.textSub,
+            border: `1px solid ${tab === k ? "rgba(55,89,113,0.25)" : t.border}`,
+          }}>{lbl}</button>
+        ))}
+      </div>
+
+      {tab === "answers" && (
+        inputs.length === 0
+          ? <p style={{ fontSize: 12.5, color: t.textMeta, margin: 0 }}>No answers yet.</p>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {inputs.map((i) => (
+                <div key={i.id} style={{ padding: "9px 12px", background: t.surface, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11.5, color: t.textMeta, marginBottom: 3 }}>
+                    {labelOf(i.node_id)} · {i.need_id} · {when(i.answered_at)}
+                  </div>
+                  {i.file_url ? (
+                    <a href={i.file_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: t.accent }}>
+                      {i.file_name || "Uploaded file"}
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(i.value ?? "")}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+      )}
+
+      {tab === "notes" && (
+        notes.length === 0
+          ? <p style={{ fontSize: 12.5, color: t.textMeta, margin: 0 }}>No messages.</p>
+          : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {notes.map((n) => (
+                <div key={n.id} style={{ padding: "10px 12px", background: t.amberSoft, border: "1px solid rgba(240,169,60,0.3)", borderRadius: 8 }}>
+                  <div style={{ fontSize: 11.5, color: t.textMeta, marginBottom: 4 }}>
+                    {n.author_email || "the client"}{n.node_id ? ` · on ${labelOf(n.node_id)}` : ""} · {when(n.created_at)}
+                  </div>
+                  <div style={{ fontSize: 13.5, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{n.body}</div>
+                </div>
+              ))}
+            </div>
+      )}
+
+      {tab === "activity" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto" }}>
+          {events.slice(0, 120).map((e) => (
+            <div key={e.id} style={{ display: "flex", gap: 10, fontSize: 12.5, padding: "5px 2px", borderBottom: `1px solid ${t.borderLight}` }}>
+              <span style={{ color: t.textMeta, flex: "0 0 62px" }}>{when(e.created_at)}</span>
+              <span style={{ flex: 1 }}>{EVENT_LABEL[e.type] || e.type}</span>
+              {e.node_id && <span style={{ color: t.textMeta }}>{labelOf(e.node_id)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The canvas — where relationships between nodes are actually drawn.
 // ---------------------------------------------------------------------------
 // Drag a node to move it; drag its handle onto another node to connect them;
@@ -1335,7 +1543,16 @@ function SectionBlock({ id, act, title, eyebrow, children, collapsible, defaultO
   );
 }
 
-const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
+// Two columns that collapse to one on a phone. `auto-fit` + `minmax` does this
+// without a media query: below ~2×220px the browser drops to a single column on
+// its own. It was a hard `1fr 1fr`, which at 375px gave each form field about
+// 170px — narrow enough that a client email or a node id was unreadable while
+// being typed.
+const grid2 = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
 
 // ---------------------------------------------------------------------------
 // One node — the four-question contract, in full.
