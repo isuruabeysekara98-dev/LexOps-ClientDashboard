@@ -40,7 +40,7 @@
 // authoring structure and copy, not a layout.
 // ---------------------------------------------------------------------------
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Trash2, Plus, ChevronDown, ChevronUp, ExternalLink, Send, AlertTriangle, Download } from "lucide-react";
+import { Trash2, Plus, ChevronDown, ChevronUp, ExternalLink, Send, AlertTriangle, Download, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 // The compiler's own sentence splitter and line budget, not a copy of them —
@@ -324,6 +324,7 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const [link, setLink] = useState(null); // { url, first_opened_at } once known
   const [session, setSession] = useState(null); // inputs, notes, events, progress
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [sendModal, setSendModal] = useState(null); // { email, name, note, sending }
   // Deliberately not folded into `meta`: `meta` is exactly what the PATCH
   // writes back, and pdf_url is attached by the upload script, not this form.
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -531,6 +532,50 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const setMetric = (key, val) => set({ headline_metric: { ...g.headline_metric, [key]: val } });
   const toggle = (setState, id) => setState((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
+  // ---- send it to the client ----------------------------------------------
+  // Save first, then send. Not optional: the reason an admin is on this page
+  // about to send is that they just changed something, and a link that opens
+  // the pre-edit version is worse than no link at all.
+  async function confirmSend() {
+    if (!sendModal) return;
+    if (!sendModal.email.trim()) { setSaveMsg({ ok: false, text: "An email address is required." }); return; }
+    setSendModal((m) => ({ ...m, sending: true }));
+    try {
+      const savedId = await save({ silent: true });
+      if (!savedId) { setSendModal((m) => ({ ...m, sending: false })); return; }
+
+      const res = await fetchWithTimeout(`/api/lp/admin/proposals/${savedId}/recipients`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          email: sendModal.email.trim(),
+          name: sendModal.name.trim() || null,
+          note: sendModal.note.trim() || undefined,
+          send: true,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSaveMsg({ ok: false, text: d.message || "Couldn't send the link." });
+        setSendModal((m) => ({ ...m, sending: false }));
+        return;
+      }
+      setLink({ url: d.url });
+      setSendModal(null);
+      // A 200 means the link exists and the proposal moved to sent — it does
+      // not mean the email left. Saying "Sent" either way is how a client ends
+      // up never hearing from us while this page insists they did.
+      setSaveMsg(d.emailed === false
+        ? { ok: false, text: "Saved and marked sent, but the email did not go out — copy the link and send it manually." }
+        : { ok: true, text: `Saved and sent to ${sendModal.email.trim()}${d.cc ? `, cc ${d.cc}` : ""}.` });
+      load(savedId);
+    } catch (err) {
+      console.error("[LivingProposalEditorPage] send failed:", err?.message || err);
+      setSaveMsg({ ok: false, text: "Couldn't send — check your connection." });
+      setSendModal((m) => (m ? { ...m, sending: false } : m));
+    }
+  }
+
   // ---- the proposal PDF ---------------------------------------------------
   async function uploadPdf(file) {
     if (!file) return;
@@ -635,11 +680,29 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
             <span style={{ fontSize: 12.5, color: saveMsg.ok ? t.green : t.red }}>{saveMsg.text}</span>
           )}
           {/* The document the client can download, reachable from the page that
-              authors its map — so the two can be read against each other. */}
+              authors its map — so the two can be read against each other, and
+              replaceable here because revising a proposal usually means a new
+              PDF as well as a new map. */}
           {pdfUrl && (
             <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ ...ghostBtn, textDecoration: "none" }} title="Download the proposal the client sees">
               <Download size={13} /> PDF
             </a>
+          )}
+          <label
+            style={{ ...ghostBtn, cursor: pdfBusy || isNew ? "default" : "pointer", opacity: pdfBusy || isNew ? 0.5 : 1 }}
+            title={isNew ? "Save this proposal first" : (pdfUrl ? "Replace the attached PDF" : "Attach the PDF the client downloads")}
+          >
+            <Upload size={13} />
+            {pdfBusy ? "Uploading…" : pdfUrl ? "Replace" : "Attach PDF"}
+            <input
+              type="file" accept="application/pdf,.pdf" hidden disabled={pdfBusy || isNew}
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; uploadPdf(f); }}
+            />
+          </label>
+          {pdfUrl && (
+            <button onClick={removePdf} disabled={pdfBusy} style={{ ...ghostBtn, background: "transparent", color: t.red }} title="Detach the PDF">
+              <Trash2 size={13} />
+            </button>
           )}
           {link && (
             <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>
@@ -651,6 +714,24 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
           </button>
           <button onClick={() => save({})} disabled={saving} style={{ ...btnBase, background: t.accent, color: "#fff", padding: "8px 18px" }}>
             {saving ? "Saving…" : "Save"}
+          </button>
+          {/* Sending lived only on the list page, which broke the loop this
+              editor exists to serve: read the feedback, revise, attach the new
+              PDF — then go back to another screen to actually send it. It saves
+              first, always, so the client can never open a link to the version
+              before the edits that prompted the send. */}
+          <button
+            onClick={() => setSendModal({
+              email: meta.client_email || "",
+              name: meta.client_contact_name || meta.client_name || "",
+              note: "",
+              sending: false,
+            })}
+            disabled={saving || isNew || !g.nodes.length}
+            style={{ ...btnBase, background: t.green, color: "#fff", padding: "8px 16px", opacity: (isNew || !g.nodes.length) ? 0.5 : 1 }}
+            title={isNew ? "Save this proposal first" : !g.nodes.length ? "Add at least one node before sending" : (link ? "Save, then re-send the same link" : "Save, then send the link to the client")}
+          >
+            <Send size={13} /> {link ? "Re-send" : "Send"}
           </button>
         </div>
       </nav>
@@ -885,11 +966,62 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
           </div>
         </div>
       )}
+
+      {/* Send — the other half of the loop. Same endpoint the list page uses,
+          so one proposal still only ever has one tracked link. */}
+      {sendModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(35,42,52,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 }}
+          onClick={() => !sendModal.sending && setSendModal(null)}
+        >
+          <div style={{ background: t.card, borderRadius: 16, width: "100%", maxWidth: 440, padding: 26 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <Send size={17} color={t.accent} />
+              <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>
+                {link ? "Re-send to the client" : "Send to the client"}
+              </h2>
+            </div>
+            <p style={{ fontSize: 12.5, color: t.textSub, margin: "6px 0 18px", lineHeight: 1.5 }}>
+              This saves your changes first, then emails the link.{" "}
+              {link
+                ? "The token is reused, so nothing the client has already answered is lost — they'll open the revised version at the same address."
+                : "This mints the one link this proposal will ever have, and marks it sent."}
+            </p>
+
+            {!pdfUrl && (
+              <div style={{ padding: "9px 12px", background: t.amberSoft, border: "1px solid rgba(240,169,60,0.35)", borderRadius: 8, marginBottom: 14, fontSize: 12.5, color: t.text, lineHeight: 1.5 }}>
+                No PDF is attached — the client's Download button will show its fallback. Attach one
+                first if this round is meant to include the written proposal.
+              </div>
+            )}
+
+            <label style={label}>Email</label>
+            <input type="email" value={sendModal.email} onChange={(e) => setSendModal((m) => ({ ...m, email: e.target.value }))} style={inp} placeholder="client@example.com" />
+
+            <label style={{ ...label, marginTop: 12 }}>Name</label>
+            <input value={sendModal.name} onChange={(e) => setSendModal((m) => ({ ...m, name: e.target.value }))} style={inp} />
+
+            <label style={{ ...label, marginTop: 12 }}>Note (optional)</label>
+            <textarea rows={3} value={sendModal.note} onChange={(e) => setSendModal((m) => ({ ...m, note: e.target.value }))} style={{ ...inp, resize: "vertical" }} placeholder="Anything to say alongside the link" />
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+              <button onClick={() => setSendModal(null)} disabled={sendModal.sending} style={ghostBtn}>Cancel</button>
+              <button onClick={confirmSend} disabled={sendModal.sending} style={{ ...btnBase, background: t.green, color: "#fff", padding: "9px 18px" }}>
+                {sendModal.sending ? "Saving & sending…" : link ? "Save & re-send" : "Save & send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
   // ---- save ------------------------------------------------------------
-  async function save({ andPreview } = {}) {
+  // Returns the proposal id on success, undefined on failure — `confirmSend`
+  // saves first and must not send a link to a proposal that failed to store.
+  // `silent` suppresses the "Saved." toast when the save is a step inside a
+  // bigger action that will report its own outcome.
+  async function save({ andPreview, silent } = {}) {
     if (!meta.name.trim()) { setSaveMsg({ ok: false, text: "Proposal name is required." }); return; }
     setSaving(true); setSaveMsg(null);
     try {
@@ -941,8 +1073,10 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
       const gdata = await gres.json();
       if (!gres.ok) { setSaveMsg({ ok: false, text: gdata.message || "Couldn't save the map." }); return; }
 
-      setSaveMsg({ ok: true, text: "Saved." });
-      setTimeout(() => setSaveMsg((m) => (m?.text === "Saved." ? null : m)), 2500);
+      if (!silent) {
+        setSaveMsg({ ok: true, text: "Saved." });
+        setTimeout(() => setSaveMsg((m) => (m?.text === "Saved." ? null : m)), 2500);
+      }
 
       if (andPreview) {
         const pres = await fetchWithTimeout(`/api/lp/admin/proposals/${id}/recipients`, {
@@ -952,6 +1086,7 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
         const pdata = await pres.json();
         if (pres.ok) { setLink({ url: pdata.url }); window.open(pdata.url, "_blank", "noopener"); }
       }
+      return id;
     } catch (err) {
       console.error("[LivingProposalEditorPage] save failed:", err?.message || err);
       setSaveMsg({ ok: false, text: "Couldn't save — check your connection." });
