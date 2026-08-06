@@ -44,15 +44,29 @@ const heading = (text: string) =>
 const subText = (text: string) =>
   `<p style="color:#6b7280;font-size:13px;line-height:1.6;margin:8px 0 0">${text}</p>`;
 
-export async function send(to: string, subject: string, html: string): Promise<{ ok: boolean; error?: string }> {
+/**
+ * @param cc Optional carbon copy. Omitted from the payload entirely when empty
+ *           — Resend rejects `cc: []` on some API versions, and a stray empty
+ *           array would fail sends that were previously fine.
+ */
+export async function send(
+  to: string,
+  subject: string,
+  html: string,
+  cc?: string | string[],
+): Promise<{ ok: boolean; error?: string }> {
   if (!resend) {
     const msg = `RESEND_API_KEY not set — cannot send "${subject}" to ${to}`;
     console.warn(`[email] ${msg}`);
     return { ok: false, error: msg };
   }
+  const ccList = (Array.isArray(cc) ? cc : cc ? [cc] : []).filter(Boolean);
   try {
-    const resp = await resend.emails.send({ from: FROM, replyTo: REPLY_TO, to, subject, html });
-    console.log(`[email] Sent "${subject}" to ${to}`, JSON.stringify(resp));
+    const resp = await resend.emails.send({
+      from: FROM, replyTo: REPLY_TO, to, subject, html,
+      ...(ccList.length ? { cc: ccList } : {}),
+    });
+    console.log(`[email] Sent "${subject}" to ${to}${ccList.length ? ` (cc ${ccList.join(", ")})` : ""}`, JSON.stringify(resp));
     return { ok: true };
   } catch (err: any) {
     console.error(`[email] Failed to send "${subject}" to ${to}:`, err.message);
@@ -332,7 +346,10 @@ export async function sendLivingProposalReady(
   recipientName: string,
   proposalName: string,
   proposalUrl: string,
-  note?: string
+  note?: string,
+  // Client relations is copied on the link going out so the team has the same
+  // record of what a client received, and when, without being forwarded it.
+  cc?: string | string[],
 ): Promise<{ ok: boolean; error?: string }> {
   return send(email, `Your ${proposalName} proposal is ready`, emailWrapper(
     heading(`Hi ${firstName(recipientName)} — it's ready`) +
@@ -340,7 +357,7 @@ export async function sendLivingProposalReady(
     (note ? bodyText(`<em>${note}</em>`) : "") +
     ctaButton("Open your proposal", proposalUrl) +
     subText("This link is yours — no account or password needed. Your answers save as you type.")
-  ));
+  ), cc);
 }
 
 // ---------------------------------------------------------------------------

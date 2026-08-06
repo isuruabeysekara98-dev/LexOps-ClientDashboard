@@ -144,7 +144,21 @@ function Card({ title, sub, tone, open, onToggle, onDelete, children, badge }) {
  *  through this one component, so "add a row" behaves identically everywhere
  *  in the form. */
 function RepeatList({ items, onChange, newItem, renderItem, addLabel, reorder, empty }) {
-  const add = () => onChange([...(items || []), newItem()]);
+  // A list whose caller supplies its own Add control passes no `newItem`, and
+  // then this component must not render one either. It used to render its
+  // button unconditionally, so the nodes list — which has a custom Add below
+  // it, because a new node needs an id minted against the rest of the array —
+  // was given `newItem={() => null}` and had *two* buttons. Pressing the wrong
+  // one pushed a literal `null` into `g.nodes`, and the next render died on
+  // `g.nodes.map((n) => n.id)`.
+  //
+  // The guard is belt and braces: no button without a factory, and no append
+  // of whatever a factory returns if it isn't an object.
+  const add = () => {
+    const item = newItem?.();
+    if (item == null || typeof item !== "object") return;
+    onChange([...(items || []), item]);
+  };
   const update = (i, patch) => onChange(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
   const remove = (i) => onChange(items.filter((_, j) => j !== i));
   const move = (i, dir) => {
@@ -173,7 +187,9 @@ function RepeatList({ items, onChange, newItem, renderItem, addLabel, reorder, e
           </div>
         ))}
       </div>
-      <button onClick={add} style={{ ...addBtn, marginTop: 8 }}><Plus size={13} strokeWidth={2.5} /> {addLabel}</button>
+      {newItem && (
+        <button onClick={add} style={{ ...addBtn, marginTop: 8 }}><Plus size={13} strokeWidth={2.5} /> {addLabel}</button>
+      )}
     </div>
   );
 }
@@ -745,7 +761,6 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
                 >
                   <div style={grid2}>
                     <Field><label style={label}>Label</label><input style={inp} value={d.label} onChange={(e) => upd({ label: e.target.value, id: d.id || slugify(e.target.value) })} /></Field>
-                    <Field><label style={label}>Id (referenced by nodes)</label><input style={inp} value={d.id} onChange={(e) => upd({ id: slugify(e.target.value) })} /></Field>
                     <Field wide><label style={label}>Summary</label><textarea style={{ ...inp, resize: "vertical" }} rows={2} value={d.summary || ""} onChange={(e) => upd({ summary: e.target.value })} /></Field>
                     <Field><label style={label}>Metric amount</label><input style={inp} type="number" value={d.metric?.amount ?? ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), amount: e.target.value } })} /></Field>
                     <Field><label style={label}>Metric unit</label><input style={inp} value={d.metric?.unit || ""} onChange={(e) => upd({ metric: { ...(d.metric || {}), unit: e.target.value } })} placeholder="weeks" /></Field>
@@ -765,7 +780,6 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
               addLabel="Add scenario"
               renderItem={(sc, i, upd) => (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input style={{ ...inp, maxWidth: 200 }} value={sc.id} onChange={(e) => upd({ id: slugify(e.target.value) })} placeholder="Id" />
                   <input style={inp} value={sc.label} onChange={(e) => upd({ label: e.target.value })} placeholder="Label shown on the chip" />
                 </div>
               )}
@@ -777,7 +791,9 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
             <RepeatList
               items={g.nodes}
               onChange={(nodes) => set({ nodes })}
-              newItem={() => null /* unused — Add button below is custom */}
+              /* No `newItem`: a node needs an id minted against the rest of the
+                 array, so the Add control is the custom one below. RepeatList
+                 renders no button of its own without a factory. */
               addLabel="Add node"
               empty="No nodes yet — the map will be empty until you add one."
               renderItem={(n, i, upd) => (
@@ -1573,10 +1589,6 @@ function NodeCard({ node: n, update: upd, open, onToggle, onDelete, deliverables
       }
     >
       <div style={grid2}>
-        <Field>
-          <label style={label}>Id {idClash && <span style={{ color: t.red, textTransform: "none" }}>— duplicate</span>}</label>
-          <input style={{ ...inp, borderColor: idClash ? t.red : undefined }} value={n.id} onChange={(e) => upd({ id: slugify(e.target.value) })} />
-        </Field>
         <Field><label style={label}>Kind</label><select style={inp} value={n.kind} onChange={(e) => upd({ kind: e.target.value })}>{options(KIND_OPTIONS)}</select></Field>
 
         <Field><label style={label}>Label (the thing, 1–3 words)</label><input style={inp} value={n.label} onChange={(e) => upd({ label: e.target.value })} /></Field>
@@ -1645,7 +1657,6 @@ function NodeCard({ node: n, update: upd, open, onToggle, onDelete, deliverables
             renderItem={(need, j, updNeed) => (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: 10, background: t.surface, borderRadius: 8 }}>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <input style={{ ...inp, width: "auto", flex: "0 0 120px" }} value={need.id} onChange={(e) => updNeed({ id: slugify(e.target.value) })} placeholder="Id" />
                   <select style={{ ...inp, width: "auto", flex: "0 0 130px" }} value={need.type} onChange={(e) => updNeed({ type: e.target.value })}>{options(NEED_TYPES)}</select>
                   <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
                     <input type="checkbox" checked={need.required !== false} onChange={(e) => updNeed({ required: e.target.checked })} /> Required
@@ -1730,7 +1741,6 @@ function RoadmapSection({ g, set, openLanes, setOpenLanes, toggle, deliverableId
               renderItem={(l, i, updL) => (
                 <Card title={l.label || l.id} sub={`${l.start_week}–${l.end_week}w · ${labelFor(l.kind)}`} tone="#6FA8CE" open={openLanes.has(l.id || i)} onToggle={() => toggle(setOpenLanes, l.id || i)} onDelete={() => setR({ lanes: r.lanes.filter((_, j) => j !== i) })}>
                   <div style={grid2}>
-                    <Field><label style={label}>Id</label><input style={inp} value={l.id} onChange={(e) => updL({ id: slugify(e.target.value) })} /></Field>
                     <Field><label style={label}>Label</label><input style={inp} value={l.label} onChange={(e) => updL({ label: e.target.value })} /></Field>
                     <Field>
                       <label style={label}>Deliverable</label>
@@ -1864,7 +1874,6 @@ function MaintenanceSection({ g, set, openOptions, setOpenOptions, toggle }) {
               renderItem={(o, i, updO) => (
                 <Card title={o.name || o.id} sub={`${o.amount || 0}/${o.per}`} tone="#4FBF87" open={openOptions.has(o.id || i)} onToggle={() => toggle(setOpenOptions, o.id || i)} onDelete={() => setM({ options: m.options.filter((_, j) => j !== i) })}>
                   <div style={grid2}>
-                    <Field><label style={label}>Id</label><input style={inp} value={o.id} onChange={(e) => updO({ id: slugify(e.target.value) })} /></Field>
                     <Field><label style={label}>Name</label><input style={inp} value={o.name} onChange={(e) => updO({ name: e.target.value })} /></Field>
                     <Field><label style={label}>Amount</label><input style={inp} type="number" value={o.amount} onChange={(e) => updO({ amount: e.target.value })} /></Field>
                     <Field><label style={label}>Per</label><input style={inp} value={o.per} onChange={(e) => updO({ per: e.target.value })} placeholder="month" /></Field>

@@ -26,6 +26,13 @@ const adminSupabase = createClient(
 const SITE_URL = process.env.SITE_URL || "https://client.lex-ops.io";
 const LEXOPS_NOTIFY_EMAIL = process.env.LEXOPS_NOTIFY_EMAIL || "isuru@lex-ops.io";
 
+// Copied on every proposal link that goes out to a client, first send and
+// re-send alike — the admin only has one Send action, so treating the two
+// differently would mean client relations saw revisions but not originals.
+// Env-overridable so a staging deploy can point it somewhere harmless rather
+// than copying a real inbox on test sends.
+const CLIENT_RELATIONS_EMAIL = process.env.CLIENT_RELATIONS_EMAIL || "client-relations@lex-ops.io";
+
 const GRAPH_VERSION = 1; // pilot runs one live graph per proposal — no versioning
 
 // ---------------------------------------------------------------------------
@@ -596,11 +603,122 @@ router.get("/admin/proposals/:id", requireAdmin, async (req, res) => {
   const { id } = req.params;
   const [{ data: proposal, error }, graph] = await Promise.all([
     adminSupabase.from("proposals").select("*").eq("id", id).single(),
-    getGraph(id),
+    // `req.params` is typed `string | string[]`, and getGraph takes a string.
+    getGraph(String(id)),
   ]);
   if (error || !proposal) { res.status(404).json({ message: "Proposal not found" }); return; }
   res.json({ proposal, graph });
 });
+
+// ---------------------------------------------------------------------------
+// Graph normalisation — ids are the server's job, not the author's.
+// ---------------------------------------------------------------------------
+// Every id in a graph is a *reference target*: edges point at node ids, nodes
+// point at deliverable ids, lanes point at deliverables, answers are stored
+// against `node_id::need_id`. Asking an author to type those was both confusing
+// and unsafe — a typo silently broke an edge, and a duplicate silently merged
+// two nodes' answers.
+//
+// Three rules, in order of importance:
+//
+//  1. AN ID, ONCE ASSIGNED, NEVER CHANGES. Labels are edited constantly — that
+//     is what the editor is for — so deriving a *live* id from the label would
+//     break every edge pointing at it the moment someone fixed a typo, and
+//     orphan every answer already stored against the old id. The label seeds
+//     the id at creation and has no say afterwards.
+//  2. Missing ids are filled, from the label where there is one.
+//  3. Duplicates are separated, and anything that referenced the renamed one is
+//     repointed in the same pass — a remap that misses the references is worse
+//     than the collision it fixed.
+//
+// The client already mints ids at creation, because you have to be able to
+// connect two nodes before you save. This is the guarantee behind that, not a
+// replacement for it: a graph that arrives from an older client, a script, or a
+// hand-rolled request still comes out referentially intact.
+// ---------------------------------------------------------------------------
+function slugify(s: any): string {
+  return String(s ?? "")
+    .toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+/** A slug not already in `taken`. Mutates `taken`, so sequential calls agree. */
+function uniqueId(base: string, taken: Set<string>, fallback: string): string {
+  let root = slugify(base) || fallback;
+  if (!taken.has(root)) { taken.add(root); return root; }
+  for (let i = 2; i < 10000; i++) {
+    const candidate = `${root}-${i}`;
+    if (!taken.has(candidate)) { taken.add(candidate); return candidate; }
+  }
+  const last = `${root}-${Date.now()}`;
+  taken.add(last);
+  return last;
+}
+
+/**
+ * Fill and de-duplicate the ids in one list, in place-ish.
+ * Returns the new list plus a map of {oldId -> newId} for anything that moved,
+ * so callers can repoint references.
+ */
+function ensureIds(list: any[], labelKey: string, fallback: string) {
+  const taken = new Set<string>();
+  const remap = new Map<string, string>();
+  const out = (Array.isArray(list) ? list : [])
+    // A null in one of these arrays crashes the editor on load
+    // (`nodes.map(n => n.id)`), and one could already have been persisted by a
+    // client that appended a blank row. Strip them here so a bad save can't
+    // become a permanently unopenable proposal.
+    .filter((item) => item && typeof item === "object")
+    .map((item) => {
+      const had = typeof item.id === "string" ? item.id.trim() : "";
+      const id = uniqueId(had || item[labelKey], taken, fallback);
+      if (had && had !== id) remap.set(had, id);
+      return had === id ? item : { ...item, id };
+    });
+  return { list: out, remap };
+}
+
+function normaliseGraph(body: any) {
+  const { list: deliverables } = ensureIds(body.deliverables, "label", "deliverable");
+  const { list: scenarios } = ensureIds(body.scenarios, "label", "scenario");
+  const { list: nodes, remap: nodeRemap } = ensureIds(body.nodes, "label", "node");
+
+  // Needs are scoped to their node, so their ids only have to be unique within
+  // one node's list — `node_id::need_id` is the key answers are stored under.
+  for (const n of nodes) {
+    if (Array.isArray(n.needs)) n.needs = ensureIds(n.needs, "prompt", "need").list;
+  }
+
+  // Repoint every edge whose endpoint was renamed, then drop any edge left
+  // pointing at a node that doesn't exist — a dangling edge draws a line to
+  // nowhere on the canvas.
+  //
+  // A remap entry is only honoured when the OLD id is genuinely gone. When two
+  // nodes arrive sharing an id, the first keeps it and the second becomes
+  // `<id>-2`; an existing edge naming that id is ambiguous, but the faithful
+  // reading is the node that still holds the name. Applying the remap blindly
+  // pointed those edges at the *new* node instead — silently rewiring the map
+  // to something the author never drew.
+  const nodeIds = new Set(nodes.map((n: any) => n.id));
+  const repoint = (ref: string) => (nodeIds.has(ref) ? ref : nodeRemap.get(ref) ?? ref);
+  const edges = (Array.isArray(body.edges) ? body.edges : [])
+    .filter((e: any) => e && typeof e === "object")
+    .map((e: any) => ({ ...e, from: repoint(e.from), to: repoint(e.to) }))
+    .filter((e: any) => nodeIds.has(e.from) && nodeIds.has(e.to));
+
+  // Sections carry ids of their own — roadmap lanes and maintenance options.
+  const sections = body.sections && typeof body.sections === "object" ? { ...body.sections } : {};
+  if (sections.roadmap?.lanes) {
+    sections.roadmap = { ...sections.roadmap, lanes: ensureIds(sections.roadmap.lanes, "label", "lane").list };
+  }
+  if (sections.maintenance?.options) {
+    sections.maintenance = { ...sections.maintenance, options: ensureIds(sections.maintenance.options, "name", "plan").list };
+  }
+
+  return { nodes, edges, deliverables, scenarios, sections };
+}
 
 // GET /api/lp/admin/proposals/:id/graph
 router.get("/admin/proposals/:id/graph", requireAdmin, async (req, res) => {
@@ -611,8 +729,12 @@ router.get("/admin/proposals/:id/graph", requireAdmin, async (req, res) => {
 // PUT /api/lp/admin/proposals/:id/graph — author or replace the live graph
 router.put("/admin/proposals/:id/graph", requireAdmin, async (req, res) => {
   const { id } = req.params;
-  const { preset, headline, headline_metric, nodes, edges, deliverables, scenarios, explainers, sections } = req.body || {};
-  if (!Array.isArray(nodes)) { res.status(400).json({ message: "nodes must be an array" }); return; }
+  const { preset, headline, headline_metric, explainers } = req.body || {};
+  if (!Array.isArray(req.body?.nodes)) { res.status(400).json({ message: "nodes must be an array" }); return; }
+
+  // Ids are filled, de-duplicated and re-pointed here rather than trusted from
+  // the client — see normaliseGraph() above for why the author never types one.
+  const { nodes, edges, deliverables, scenarios, sections } = normaliseGraph(req.body);
 
   const { data, error } = await (adminSupabase as any).from("proposal_graphs").upsert({
     proposal_id: id,
@@ -621,15 +743,15 @@ router.put("/admin/proposals/:id/graph", requireAdmin, async (req, res) => {
     headline: headline || null,
     headline_metric: headline_metric || null,
     nodes,
-    edges: Array.isArray(edges) ? edges : [],
-    deliverables: Array.isArray(deliverables) ? deliverables : [],
-    scenarios: Array.isArray(scenarios) ? scenarios : [],
+    edges,
+    deliverables,
+    scenarios,
     // Stored only when hand-authored. Left empty, the client compiles films
     // from the stages at read time (shared/explainerScript.ts) — so an author
     // gets explainers for free, and storing a compiled copy here would just
     // freeze a derivation that should track the graph it came from.
     explainers: Array.isArray(explainers) ? explainers : [],
-    sections: sections && typeof sections === "object" ? sections : {},
+    sections,
     published_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: "proposal_id,version" }).select().single();
@@ -739,7 +861,8 @@ router.post("/admin/proposals/:id/recipients", requireAdmin, async (req, res) =>
 
   if (send !== false) {
     const result = await sendLivingProposalReady(
-      email, name || proposal.client_name, proposal.name || "your proposal", url, note
+      email, name || proposal.client_name, proposal.name || "your proposal", url, note,
+      CLIENT_RELATIONS_EMAIL,
     );
     emailed = result.ok;
     if (!result.ok) console.error("[lp] ready email:", result.error);
