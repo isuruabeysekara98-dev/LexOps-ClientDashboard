@@ -434,3 +434,60 @@ export const segmentRule = {
   background: DARK.borderFaint,
   flexShrink: 0,
 };
+
+// ---------------------------------------------------------------------------
+// Breakpoints and fluid scales — the website's own system, not a new one.
+// ---------------------------------------------------------------------------
+// Straight off `brand-guidelines/tokens.json`: the same four breakpoints and
+// the same 20 → 32 → 48 → 80 gutter ramp the marketing site uses. A proposal
+// that scales on different numbers from lex-ops.io reads as a different
+// product on a phone even when it reads as one product on a laptop.
+//
+// The site expresses these as Tailwind variants. This app is inline-styles, so
+// they're exported as values plus `useViewport()` below — same numbers, same
+// intent, different delivery mechanism.
+export const BREAKPOINT = { sm: 640, md: 768, lg: 1024, xl: 1280 };
+
+/** Horizontal page gutter at a given width. Mirrors the site's ramp exactly. */
+export function gutterFor(w) {
+  if (w >= BREAKPOINT.lg) return 80;
+  if (w >= BREAKPOINT.md) return 48;
+  if (w >= BREAKPOINT.sm) return 32;
+  return 20;
+}
+
+/**
+ * Interpolate a value between two viewport widths, clamped at both ends.
+ *
+ * The site's headings do this with discrete Tailwind steps (`text-[32px]` →
+ * `sm:text-[44px]`). Interpolating instead avoids the jump at the breakpoint,
+ * which is much more visible on a canvas page than on a document — a heading
+ * that snaps two sizes while the map behind it scales smoothly looks broken.
+ */
+export function fluid(w, { min, max, from = BREAKPOINT.sm, to = BREAKPOINT.xl }) {
+  if (w <= from) return min;
+  if (w >= to) return max;
+  return min + (max - min) * ((w - from) / (to - from));
+}
+
+/**
+ * Live viewport size, with the brand's breakpoints already resolved.
+ *
+ * Listens to `orientationchange` as well as `resize` because iOS Safari does
+ * not reliably fire `resize` on rotation, and a proposal read on a phone that
+ * is then turned sideways is a completely ordinary thing to do.
+ */
+export function useViewport() {
+  const read = () => {
+    const w = typeof window === "undefined" ? BREAKPOINT.xl : window.innerWidth;
+    const h = typeof window === "undefined" ? 800 : window.innerHeight;
+    return {
+      w, h,
+      gutter: gutterFor(w),
+      isPhone: w < BREAKPOINT.sm,
+      isTablet: w >= BREAKPOINT.sm && w < BREAKPOINT.lg,
+      atLeast: (bp) => w >= (BREAKPOINT[bp] ?? bp),
+    };
+  };
+  return read;
+}

@@ -18,7 +18,7 @@ import { compileExplainers } from "@shared/explainerScript";
 import {
   DARK, MOTION, RADIUS, darkGlass, liquidGlass, atmosphere, grainOverlay,
   pill, pillOn, pillHuman, pillHumanOn,
-  segmentTrack, segment, segmentOn, segmentRule,
+  segmentTrack, segment, segmentOn, segmentRule, BREAKPOINT,
   solidDark, ghostDark, fieldDark, eyebrow,
 } from "./proposalCanvas/theme.js";
 
@@ -94,6 +94,10 @@ export default function LivingProposalPage({ token }) {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sentBack, setSentBack] = useState(false);
+  // Set once the client has closed the loop from their side. Drives the
+  // full-page confirmation below — `sentBack` alone can't, because a send-back
+  // is a turn in an ongoing conversation while an approval ends it.
+  const [approved, setApproved] = useState(false);
 
   // "all", or a deliverable id. Same mechanic day 3 reuses for scenario chips.
   const [deliverable, setDeliverable] = useState("all");
@@ -357,9 +361,96 @@ export default function LivingProposalPage({ token }) {
     }
   }
 
+  async function approve() {
+    setSending(true);
+    try {
+      const res = await fetch(api(token, "/approve"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "approve failed");
+      setApproved(true);
+      trackEvent("approved", null);
+    } catch (e) {
+      setError(e.message || "That didn't go through. Try again in a moment.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   if (loading) return <ProposalLoading />;
 
   if (error && !data) return <Shell><p style={{ color: DARK.pain }}>{error}</p></Shell>;
+
+  // ---- The confirmation page --------------------------------------------
+  // A full page rather than a line inside Act VI. Submitting is the one moment
+  // the client has done something irreversible-feeling, and leaving them on the
+  // same screen with the same button — now doing nothing — reads as though it
+  // didn't work. It also says what happens next and by when: unset expectations
+  // are what make people stop checking (LIVING-PROPOSAL-PLAN.md §6b).
+  if (approved || sentBack) {
+    const pdf = data?.proposal?.pdf_url || null;
+    return (
+      <Shell>
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: "64px 0 40px", textAlign: "center" }}>
+          <div style={{
+            width: 54, height: 54, borderRadius: "50%", margin: "0 auto 22px",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: approved ? "rgba(79,191,135,0.14)" : "rgba(111,168,206,0.16)",
+            border: `1px solid ${approved ? "rgba(79,191,135,0.5)" : "rgba(111,168,206,0.5)"}`,
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                 stroke={approved ? "#4FBF87" : "#6FA8CE"} strokeWidth="2.2"
+                 strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </div>
+
+          <h1 className="lp-thanks-h" style={{ fontWeight: 500, margin: "0 0 12px", color: DARK.text }}>
+            {approved ? "Thank you — that's approved." : "Thank you — that's with us now."}
+          </h1>
+
+          <p style={{ fontSize: 15, lineHeight: 1.65, color: DARK.textSub, margin: "0 0 8px" }}>
+            {approved ? (
+              <>
+                We've let the team know. Someone will be in touch to agree a start date and
+                confirm the first steps — you don't need to do anything else here.
+              </>
+            ) : (
+              <>
+                You sent {total.answered} of {total.required}. We'll read through it and come back
+                with an updated version within two working days.
+              </>
+            )}
+          </p>
+
+          {!approved && (
+            <p style={{ fontSize: 13.5, lineHeight: 1.6, color: DARK.textMeta, margin: "0 0 26px" }}>
+              This page stays live. Anything you add still reaches us, and the updated version
+              will appear right here — the link doesn't change.
+            </p>
+          )}
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginTop: 22 }}>
+            {pdf && (
+              <a href={pdf} target="_blank" rel="noopener noreferrer"
+                 onClick={() => trackEvent("proposal_downloaded", null)}
+                 style={{ ...primaryButton, textDecoration: "none" }}>
+                Download the full proposal
+              </a>
+            )}
+            {!approved && (
+              <button onClick={() => setSentBack(false)} style={{ ...primaryButton, background: "transparent", border: `1px solid ${DARK.border}`, color: DARK.textSub }}>
+                Back to the proposal
+              </button>
+            )}
+          </div>
+        </div>
+      </Shell>
+    );
+  }
 
   if (!data?.graph) {
     return (
@@ -730,36 +821,100 @@ export default function LivingProposalPage({ token }) {
       )}
 
       {/* Act VI, day-1 form: everything outstanding, one submit, always live. */}
+      {/* Both closing moves live here. `sentBack` no longer branches — it takes
+          over the whole page now, so a confirmation inside this box would be
+          unreachable. */}
       <section style={{ ...box, marginTop: 24 }}>
-        {sentBack ? (
-          <>
-            <h2 style={{ marginTop: 0 }}>Thank you — that's with us now.</h2>
-            <p>
-              We'll go through what you've sent and come back with an updated version within two
-              working days. You can keep adding to this page in the meantime; anything you add still
-              reaches us.
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 style={{ marginTop: 0 }}>Send this back to us</h2>
-            <p style={{ color: DARK.textSub }}>
-              You have {total.answered} of {total.required} filled in. Send it whenever you're
-              ready — we'd rather have partial answers now than complete ones in three weeks.
-            </p>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Anything you want to flag? (optional)"
-              rows={4}
-              style={{ ...field, marginBottom: 10 }}
-            />
-            <button onClick={sendBack} disabled={sending} style={primaryButton}>
-              {sending ? "Sending…" : "Send back to LexOps"}
-            </button>
-          </>
-        )}
+        <h2 style={{ marginTop: 0 }}>Send this back to us</h2>
+        <p style={{ color: DARK.textSub }}>
+          You have {total.answered} of {total.required} filled in. Send it whenever you're
+          ready — we'd rather have partial answers now than complete ones in three weeks.
+        </p>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Anything you want to flag? (optional)"
+          rows={4}
+          style={{ ...field, marginBottom: 10 }}
+        />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={sendBack} disabled={sending} style={primaryButton}>
+            {sending ? "Sending…" : "Send back to LexOps"}
+          </button>
+          {/* Deliberately the quieter of the two. Approving ends the
+              conversation, so it shouldn't be the button you hit by reflex on
+              the way past — and it says what it commits you to before you do. */}
+          <button
+            onClick={approve}
+            disabled={sending}
+            style={{ ...primaryButton, background: "transparent", border: `1px solid ${DARK.border}`, color: DARK.textSub }}
+            title="Tell us you're happy with this proposal as it stands"
+          >
+            {sending ? "…" : "Approve this proposal"}
+          </button>
+        </div>
+        <p style={{ fontSize: 12.5, color: DARK.textMeta, margin: "10px 0 0", lineHeight: 1.5 }}>
+          Approving tells us you're happy to proceed and closes this round. Sending it back keeps
+          the conversation going — we'll revise and return it.
+        </p>
       </section>
+
+      {/* ------------------------------------------------------------------ *
+       * Acts III–VI, on the phone.
+       * ------------------------------------------------------------------ *
+       * These were map-only until now, and that was an oversight rather than
+       * a decision: `mapLayout()` was the sole place ProposalActs and
+       * ExplainerPlayer were ever mounted, so every narrow-screen visitor got
+       * the node list and nothing else — no roadmap, no investment figure, no
+       * maintenance options, no film. Today's actual persuasion content was
+       * the part a partner on a phone could not reach, and partners open email
+       * on phones.
+       *
+       * `NodeStory` staying map-only IS deliberate and stays that way — a
+       * story is a poor form for scanning, and this list is the accessible
+       * path. Acts and the explainer had no such argument anywhere.
+       *
+       * `scrollRoot` is null here on purpose. In the map reading the acts live
+       * inside a `position: fixed` scroller, so their IntersectionObservers
+       * have to be told to observe against that container. Here the document
+       * itself scrolls, which is the implicit root — passing a ref would break
+       * every reveal.
+       * ------------------------------------------------------------------ */}
+      {explainers.length > 0 && !activeExplainer && (
+        <section style={{ ...box, marginTop: 24 }}>
+          <p style={{ ...railHeading, marginTop: 0 }}>Watch</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {explainers.map((e) => (
+              <button key={e.id} type="button" onClick={() => startExplainer(e)} style={ghostButton}>
+                {e.title}
+                <span style={{ color: DARK.textFaint, marginLeft: 5 }}>{Math.round(e.seconds)}s</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {activeExplainer && (
+        <ExplainerPlayer
+          explainer={activeExplainer}
+          allNodes={allNodes}
+          onStage={onExplainerStage}
+          onClose={stopExplainer}
+          onEvent={onExplainerEvent}
+          inline
+        />
+      )}
+
+      <ProposalActs
+        sections={graph.sections || null}
+        deliverables={deliverables}
+        nodes={allNodes}
+        proposal={proposal}
+        scrollRoot={null}
+        rootRef={actsRef}
+        onFeedback={submitFeedback}
+        onEvent={trackEvent}
+      />
     </Shell>
   );
   }
@@ -1092,38 +1247,37 @@ export default function LivingProposalPage({ token }) {
             bottom of a scroll. */}
         {composerOpen && (
           <aside style={{ ...glass, ...composer }}>
-            {sentBack ? (
-              <>
-                <h2 style={{ margin: "0 0 8px", fontSize: 17 }}>Thank you — that's with us now.</h2>
-                <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: DARK.textSub }}>
-                  We'll go through what you've sent and come back with an updated version within two
-                  working days. You can keep adding to this page in the meantime; anything you add
-                  still reaches us.
-                </p>
-                <button onClick={() => setComposerOpen(false)} style={{ ...ghostButton, marginTop: 12 }}>Close</button>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                  <h2 style={{ margin: 0, fontSize: 17 }}>Send this back to us</h2>
-                  <button onClick={() => setComposerOpen(false)} style={closeButton} aria-label="Close">×</button>
-                </div>
-                <p style={{ margin: "6px 0 10px", fontSize: 13, color: DARK.textSub, lineHeight: 1.5 }}>
-                  You have {total.answered} of {total.required} filled in. Send it whenever you're
-                  ready — we'd rather have partial answers now than complete ones in three weeks.
-                </p>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Anything you want to flag? (optional)"
-                  rows={3}
-                  style={{ ...field, marginBottom: 10 }}
-                />
-                <button onClick={sendBack} disabled={sending} style={solidButton}>
-                  {sending ? "Sending…" : "Send back to LexOps"}
-                </button>
-              </>
-            )}
+            {/* No `sentBack` branch here either — sending takes over the page,
+                so this composer is only ever the pre-send state. */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 17 }}>Send this back to us</h2>
+              <button onClick={() => setComposerOpen(false)} style={closeButton} aria-label="Close">×</button>
+            </div>
+            <p style={{ margin: "6px 0 10px", fontSize: 13, color: DARK.textSub, lineHeight: 1.5 }}>
+              You have {total.answered} of {total.required} filled in. Send it whenever you're
+              ready — we'd rather have partial answers now than complete ones in three weeks.
+            </p>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Anything you want to flag? (optional)"
+              rows={3}
+              style={{ ...field, marginBottom: 10 }}
+            />
+            <button onClick={sendBack} disabled={sending} style={solidButton}>
+              {sending ? "Sending…" : "Send back to LexOps"}
+            </button>
+            <button
+              onClick={approve}
+              disabled={sending}
+              style={{ ...ghostButton, marginTop: 8, width: "100%" }}
+              title="Tell us you're happy with this proposal as it stands"
+            >
+              {sending ? "…" : "Approve this proposal"}
+            </button>
+            <p style={{ fontSize: 11.5, color: DARK.textMeta, margin: "8px 0 0", lineHeight: 1.45 }}>
+              Approving closes this round. Sending it back keeps it going.
+            </p>
           </aside>
         )}
 
@@ -1340,15 +1494,43 @@ const loadingBeam = {
   background: `linear-gradient(90deg, transparent, ${DARK.machine}, transparent)`,
 };
 
+// ---------------------------------------------------------------------------
+// The document reading's responsive scale.
+// ---------------------------------------------------------------------------
+// Media queries rather than a JS listener — same reasoning as ACTS_CSS in
+// ProposalActs.jsx. The reading column is 720px, so it takes a tighter ramp
+// than the site's full-bleed 20 → 32 → 48 → 80: past `sm` the column is
+// already centred with space either side, and adding 80px of padding inside it
+// would narrow the text to well under a comfortable measure.
+const PAGE_CSS = `
+.lp-shell { padding: 32px; }
+.lp-shell h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.01em; }
+.lp-thanks-h { font-size: 27px; }
+@media (max-width: ${BREAKPOINT.md - 1}px) {
+  .lp-shell { padding: 24px; }
+  .lp-shell h1 { font-size: 25px; }
+  .lp-thanks-h { font-size: 23px; }
+}
+@media (max-width: ${BREAKPOINT.sm - 1}px) {
+  .lp-shell { padding: 20px; }
+  .lp-shell h1 { font-size: 21px; line-height: 1.25; }
+  .lp-thanks-h { font-size: 20px; }
+  /* Long node labels and client names are the two strings most likely to
+     overflow a 320px column — neither is under our control. */
+  .lp-shell { overflow-wrap: anywhere; }
+}
+`;
+
 function Shell({ children }) {
   return (
-    <div style={{
-      maxWidth: 720, margin: "0 auto", padding: 24, lineHeight: 1.5,
+    <div className="lp-shell" style={{
+      maxWidth: 720, margin: "0 auto", lineHeight: 1.5,
       // No `fontFamily` — Satoshi is set on `html, body` in index.html and this
       // used to override it back to system-ui, which is why the loading and
       // error states were the one place in the flow that wasn't on brand.
       color: DARK.text, minHeight: "100vh", background: atmosphere,
     }}>
+      <style>{PAGE_CSS}</style>
       {children}
     </div>
   );

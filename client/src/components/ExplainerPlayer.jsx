@@ -38,7 +38,14 @@ const easeOut = (x) => 1 - Math.pow(1 - x, 3);
  * back to the rail, which is what has to happen the moment the film stops —
  * otherwise the map is left dimmed with no way to un-dim it.
  */
-export default function ExplainerPlayer({ explainer, allNodes, onStage, onClose, onEvent }) {
+/**
+ * @param inline  Render in document flow instead of floating over the map.
+ *                The phone reading has no canvas to float above, and a card
+ *                pinned to `bottom: 84` there covers the list the reader is
+ *                scrolling. Same player, same beats, same controls — only the
+ *                positioning differs.
+ */
+export default function ExplainerPlayer({ explainer, allNodes, onStage, onClose, onEvent, inline = false }) {
   const beats = explainer?.beats || [];
   const [now, setNow] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -153,7 +160,13 @@ export default function ExplainerPlayer({ explainer, allNodes, onStage, onClose,
   const subRise = easeOut(seg(t, 0.22, 0.44));
 
   return (
-    <div style={card} role="group" aria-label={`Explainer: ${explainer.title}`}>
+    <div
+      style={inline
+        ? { ...card, position: "static", bottom: "auto", left: "auto", width: "auto", marginTop: 24 }
+        : card}
+      role="group"
+      aria-label={`Explainer: ${explainer.title}`}
+    >
       {/* Per-beat progress segments — the film's, and the same reason: a single
           bar can't show you how many beats are left. */}
       <div style={{ display: "flex", gap: 4, marginBottom: 11 }}>

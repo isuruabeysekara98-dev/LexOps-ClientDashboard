@@ -21,7 +21,7 @@
 // number, it never derives one.
 // ---------------------------------------------------------------------------
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DARK, MOTION, RADIUS, fieldDark, eyebrow as eyebrowBase } from "./proposalCanvas/theme.js";
+import { DARK, MOTION, RADIUS, BREAKPOINT, fieldDark, eyebrow as eyebrowBase } from "./proposalCanvas/theme.js";
 
 // The accent for the acts. Named for its role, not its hue, because it used to
 // be the deck's purple `#633dc0` and the whole point of this pass is that the
@@ -134,6 +134,7 @@ export default function ProposalActs({ sections, deliverables, nodes, proposal, 
 
   return (
     <div ref={rootRef} style={wrap}>
+      <style>{ACTS_CSS}</style>
       <RoadmapAct roadmap={roadmap} deliverables={deliverables} scrollRoot={scrollRoot} />
       <InvestmentAct costing={costing} scrollRoot={scrollRoot} onEvent={onEvent} />
       <MaintenanceAct maintenance={sections?.maintenance || null} scrollRoot={scrollRoot} />
@@ -142,6 +143,55 @@ export default function ProposalActs({ sections, deliverables, nodes, proposal, 
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Responsive rules — real media queries, on the website's own breakpoints.
+// ---------------------------------------------------------------------------
+// CSS rather than a JS resize listener, for two reasons that have both already
+// bitten this file. A listener re-renders the whole act tree on every resize
+// frame, on top of a canvas that runs its own rAF loop; and it needs a
+// compositor to be sampled at all, which the verification browser doesn't
+// have — so a JS-driven layout can't be checked the way a media query can.
+//
+// Inline styles beat classes, so anything in here is deliberately NOT set
+// inline on the element. Padding lives here; colour and radius stay inline.
+//
+// Breakpoints are `BREAKPOINT` from theme.js, which is `tokens.json` verbatim:
+// 640 / 768 / 1024 / 1280, with the site's 20 → 32 → 48 → 80 gutter ramp.
+const ACTS_CSS = `
+.lp-act { padding-top: 56px; padding-bottom: 48px; padding-left: 80px; padding-right: 80px; }
+.lp-act-h { font-size: 26px; line-height: 31px; }
+.lp-lane-label { width: 158px; }
+.lp-total { flex-wrap: nowrap; }
+.lp-total-figure { font-size: 44px; }
+.lp-plan-price { font-size: 40px; }
+
+@media (max-width: ${BREAKPOINT.xl - 1}px) {
+  .lp-act { padding-left: 48px; padding-right: 48px; }
+}
+@media (max-width: ${BREAKPOINT.md - 1}px) {
+  .lp-act { padding-top: 44px; padding-bottom: 38px; padding-left: 32px; padding-right: 32px; }
+  .lp-lane-label { width: 116px; }
+  .lp-total-figure { font-size: 36px; }
+  .lp-plan-price { font-size: 34px; }
+}
+@media (max-width: ${BREAKPOINT.sm - 1}px) {
+  .lp-act { padding-top: 36px; padding-bottom: 32px; padding-left: 20px; padding-right: 20px; }
+  /* The heading clamps the way the site's do — tokens.json H3 26px steps down
+     rather than wrapping to three lines in a 375px column. */
+  .lp-act-h { font-size: 21px; line-height: 26px; }
+  /* 92px still holds a two-line lane name at 12.5px, and leaves the plot the
+     larger share of a 375px screen. Below this the labels win and the chart
+     stops being readable, which defeats the point of drawing one. */
+  .lp-lane-label { width: 92px; font-size: 11.5px; }
+  /* The total is a label and a big number side by side. On a phone that forces
+     the figure to shrink until it stops being the hero of the act, so it wraps
+     underneath at full size instead. */
+  .lp-total { flex-wrap: wrap; }
+  .lp-total-figure { font-size: 32px; }
+  .lp-plan-price { font-size: 30px; }
+}
+`;
 
 /* Act III — the Gantt draws itself in, bar by bar, then the weeks explain themselves. */
 function RoadmapAct({ roadmap, deliverables, scrollRoot }) {
@@ -183,9 +233,9 @@ function RoadmapAct({ roadmap, deliverables, scrollRoot }) {
           nothing lined up vertically and no lane could be compared to another
           by eye. The labels sit outside the grid so the rules stay continuous. */}
       <div style={{ display: "flex", gap: 12, marginTop: 20 }}>
-        <div style={laneLabelCol}>
+        <div className="lp-lane-label" style={laneLabelCol}>
           {lanes.map((l) => (
-            <span key={l.id} style={laneLabel}>{l.label}</span>
+            <span key={l.id} className="lp-lane-label" style={laneLabel}>{l.label}</span>
           ))}
         </div>
 
@@ -296,7 +346,7 @@ function InvestmentAct({ costing, scrollRoot, onEvent }) {
       </div>
 
       {total != null && (
-        <div style={totalBox}>
+        <div className="lp-total" style={totalBox}>
           <div>
             <div style={{ fontSize: 12.5, color: DARK.textSub }}>{costing.total.label}</div>
             {costing.total.was != null && (
@@ -308,7 +358,7 @@ function InvestmentAct({ costing, scrollRoot, onEvent }) {
           {/* The hero figure, on the reference's terms: large and light rather
               than large and bold. This is the single brightest thing in the act
               and it is allowed to be the only one. */}
-          <div style={{ fontSize: 44, fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.02, fontVariantNumeric: "tabular-nums", color: DARK.text }}>
+          <div className="lp-total-figure" style={{ fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.02, fontVariantNumeric: "tabular-nums", color: DARK.text }}>
             {money(ticked, costing.currency)}
             <span style={{ fontSize: 13, fontWeight: 400, color: DARK.textFaint, marginLeft: 6 }}>{costing.currency}</span>
           </div>
@@ -436,7 +486,7 @@ function PlanOption({ option: o, index, currency, shown }) {
 
       {/* The big number. One per option, because the whole point of the page is
           that a reader can compare two figures at a glance. */}
-      <p style={planPrice}>
+      <p className="lp-plan-price" style={planPrice}>
         {o.approx ? "~" : ""}${ticked.toLocaleString("en-AU")}
         <span style={planPer}> / {o.per}</span>
       </p>
@@ -528,13 +578,13 @@ function FeedbackAct({ onSubmit }) {
   }
 
   return (
-    <section style={actBase}>
+    <section className="lp-act" style={actBase}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <span style={{ width: 5, height: 5, borderRadius: "50%", background: ACCENT, flexShrink: 0 }} />
         <span style={{ ...eyebrowBase, color: ACCENT }}>Act VI</span>
       </div>
-      <h2 style={{
-        margin: "0 0 6px", fontSize: 26, lineHeight: "31px", fontWeight: 500,
+      <h2 className="lp-act-h" style={{
+        margin: "0 0 6px", fontWeight: 500,
         letterSpacing: "-0.01em", color: DARK.text,
       }}>
         Tell us what you think
@@ -589,7 +639,7 @@ function FeedbackAct({ onSubmit }) {
 function CloseAct({ proposal, onEvent }) {
   const href = proposal?.pdf_url || null;
   return (
-    <div style={{ ...actBase, borderBottom: "none", paddingBottom: 40, textAlign: "center" }}>
+    <div className="lp-act" style={{ ...actBase, borderBottom: "none", textAlign: "center" }}>
       {href ? (
         <a
           href={href}
@@ -623,13 +673,13 @@ function CloseAct({ proposal, onEvent }) {
 // an uppercase tracked eyebrow, then the heading. Title is 26/31 at 500 —
 // LexOps H3, straight off the brand type scale rather than an invented size.
 const Act = ({ anchorRef, n, title, gloss, children }) => (
-  <section ref={anchorRef} style={actBase}>
+  <section ref={anchorRef} className="lp-act" style={actBase}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: ACCENT, flexShrink: 0 }} />
       <span style={{ ...eyebrowBase, color: ACCENT }}>Act {n}</span>
     </div>
-    <h2 style={{
-      margin: "0 0 6px", fontSize: 26, lineHeight: "31px", fontWeight: 500,
+    <h2 className="lp-act-h" style={{
+      margin: "0 0 6px", fontWeight: 500,
       letterSpacing: "-0.01em", color: DARK.text,
     }}>{title}</h2>
     <p style={{ margin: "0 0 22px", fontSize: 13.5, lineHeight: 1.55, color: DARK.textFaint }}>{gloss}</p>
@@ -712,7 +762,8 @@ const wrap = {
   boxShadow: "0 -24px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(157,181,201,0.18)",
 };
 const actBase = {
-  maxWidth: 780, margin: "0 auto", padding: "56px 24px 48px",
+  maxWidth: 780, margin: "0 auto",
+  // Padding is in ACTS_CSS (.lp-act) so it can respond to the breakpoints.
   borderBottom: `1px solid ${DARK.borderFaint}`,
 };
 const lede = { margin: 0, fontSize: 15, lineHeight: 1.65, color: DARK.textSub };
@@ -724,7 +775,7 @@ const subHead = { ...eyebrowBase, margin: "0 0 6px" };
 const LANE_ROW = 26;
 
 const laneLabelCol = {
-  width: 158, flexShrink: 0,
+  flexShrink: 0,
   display: "flex", flexDirection: "column", gap: 7,
   paddingTop: 8,
 };
@@ -815,7 +866,7 @@ const recommendedTag = {
 // 300 weight, not 600. The reference sets its scores light and large; a price
 // at 600 reads as a demand, the same figure at 300 reads as a fact.
 const planPrice = {
-  margin: "14px 0 0", fontSize: 40, lineHeight: 1.02, fontWeight: 300,
+  margin: "14px 0 0", lineHeight: 1.02, fontWeight: 300,
   letterSpacing: "-0.03em", fontVariantNumeric: "tabular-nums", color: DARK.text,
 };
 const planPer = { fontSize: 14, fontWeight: 400, color: DARK.textSub, letterSpacing: 0 };
