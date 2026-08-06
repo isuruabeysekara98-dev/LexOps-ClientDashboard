@@ -40,7 +40,7 @@
 // authoring structure and copy, not a layout.
 // ---------------------------------------------------------------------------
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Trash2, Plus, ChevronDown, ChevronUp, ExternalLink, Send, AlertTriangle } from "lucide-react";
+import { Trash2, Plus, ChevronDown, ChevronUp, ExternalLink, Send, AlertTriangle, Download } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 // The compiler's own sentence splitter and line budget, not a copy of them —
@@ -306,6 +306,9 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState(null);
   const [link, setLink] = useState(null); // { url, first_opened_at } once known
+  // Deliberately not folded into `meta`: `meta` is exactly what the PATCH
+  // writes back, and pdf_url is attached by the upload script, not this form.
+  const [pdfUrl, setPdfUrl] = useState(null);
 
   const [meta, setMeta] = useState({ name: "", client_name: "", client_contact_name: "", client_email: "", state: "draft" });
   const [g, setG] = useState({
@@ -343,6 +346,7 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
         client_email: data.proposal.client_email || "",
         state: data.proposal.state || "draft",
       });
+      setPdfUrl(data.proposal.pdf_url || null);
       const graph = data.graph || {};
       setG({
         preset: graph.preset || "pipeline",
@@ -538,6 +542,13 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {saveMsg && (
             <span style={{ fontSize: 12.5, color: saveMsg.ok ? t.green : t.red }}>{saveMsg.text}</span>
+          )}
+          {/* The document the client can download, reachable from the page that
+              authors its map — so the two can be read against each other. */}
+          {pdfUrl && (
+            <a href={pdfUrl} target="_blank" rel="noopener noreferrer" style={{ ...ghostBtn, textDecoration: "none" }} title="Download the proposal the client sees">
+              <Download size={13} /> PDF
+            </a>
           )}
           {link && (
             <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ ...ghostBtn, textDecoration: "none" }}>

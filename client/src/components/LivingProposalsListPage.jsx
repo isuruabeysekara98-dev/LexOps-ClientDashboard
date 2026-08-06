@@ -23,7 +23,7 @@
 // one tracked link. See the server route's own comment for why.
 // ---------------------------------------------------------------------------
 import { useState, useEffect, useRef } from "react";
-import { Zap, ClipboardList, Trash2, Send, Eye, Pencil, Link as LinkIcon, Copy as CopyIcon } from "lucide-react";
+import { Zap, ClipboardList, Trash2, Send, Eye, Pencil, Link as LinkIcon, Copy as CopyIcon, Download } from "lucide-react";
 import { supabase } from "@/lib/supabase.js";
 import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 
@@ -343,6 +343,26 @@ export default function LivingProposalsListPage({ navigate, onLogout }) {
                   >
                     <Eye size={13} strokeWidth={2} /> Preview
                   </button>
+                  {/* The same file the client's Download button serves, so the
+                      admin is never guessing what the firm actually received.
+                      Rendered even when absent — a missing PDF is a fact worth
+                      seeing on the row, not an invisible gap. */}
+                  {p.pdf_url ? (
+                    <a
+                      href={p.pdf_url} target="_blank" rel="noopener noreferrer"
+                      style={{ ...btnBase, color: t.textSub, background: t.surface, textDecoration: "none" }}
+                      title="Download the proposal the client sees"
+                    >
+                      <Download size={13} strokeWidth={2} /> PDF
+                    </a>
+                  ) : (
+                    <span
+                      style={{ ...btnBase, color: t.textMeta, background: t.surface, opacity: 0.55, cursor: "default" }}
+                      title="No PDF attached yet — the client's Download button shows its fallback"
+                    >
+                      <Download size={13} strokeWidth={2} /> No PDF
+                    </span>
+                  )}
                   {p.link && (
                     <button
                       onClick={() => copyLink(p)}
