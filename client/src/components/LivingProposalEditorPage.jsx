@@ -41,6 +41,7 @@
 // ---------------------------------------------------------------------------
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Trash2, Plus, ChevronDown, ChevronUp, ExternalLink, Send, AlertTriangle, Download, Upload } from "lucide-react";
+import { arrangeNodes, analyseGraph } from "./proposalCanvas/arrange.js";
 import { supabase } from "@/lib/supabase.js";
 import { fetchWithTimeout, useSlowHint } from "@/lib/loadUtils.js";
 // The compiler's own sentence splitter and line budget, not a copy of them —
@@ -666,16 +667,34 @@ export default function LivingProposalEditorPage({ navigate, editId = null, onLo
   function moveNode(id, xy) {
     set({ nodes: g.nodes.map((n) => (n.id === id ? { ...n, editor_xy: xy } : n)) });
   }
+  // Layering fixes the columns and says nothing about the order *within* one.
+  // Filling each column in authored array order — which is what this used to
+  // do — is what produced the crossings: a node whose only successor sits
+  // above it forces its edge to sweep back up across whatever it passes, and
+  // every such pair reads as a crossing on the canvas.
+  //
+  // Two standard passes fix it:
+  //
+  //  1. An edge spanning more than one column gets a dummy in each column it
+  //     skips. Without them the ordering pass cannot see a long edge at all —
+  //     neither endpoint constrains what lands in between, so the curve carves
+  //     straight through it. This is the single biggest source of the mess.
+  //
+  //  2. Repeated median sweeps. Each column is reordered by the median slot of
+  //     its neighbours in the column just settled, alternating left-to-right
+  //     and right-to-left. A node with no neighbours on the fixed side holds
+  //     its place rather than collapsing to the top.
+  //
+  // The sweep is a heuristic, not a minimiser, and on some shapes a single
+  // pass makes things worse — so each arrangement is scored by actual crossing
+  // count and the best one wins. Worst case it returns the order it started
+  // with, which is the old behaviour.
+  // The algorithm lives in proposalCanvas/arrange.js so the client canvas can
+  // run the identical layout — see that file's header. This is now only the
+  // part that is genuinely the editor's: writing the result onto the nodes.
   function autoArrange() {
-    const { ids, layer } = analyseGraph(g.nodes, g.edges);
-    const rows = new Map();
-    const next = new Map();
-    for (const id of ids) {
-      const l = layer.get(id);
-      const r = rows.get(l) || 0;
-      rows.set(l, r + 1);
-      next.set(id, { x: 70 + l * 135, y: 54 + r * 62 });
-    }
+    const next = arrangeNodes(g.nodes, g.edges);
+    if (!next.size) return;
     set({ nodes: g.nodes.map((n) => (next.has(n.id) ? { ...n, editor_xy: next.get(n.id) } : n)) });
   }
 
@@ -1252,50 +1271,6 @@ function cleanSections(sections) {
 // positions on the real map are a force output and are never authored, so a
 // faithful preview would be misleading about what this form controls.
 // ---------------------------------------------------------------------------
-function analyseGraph(nodes, edges) {
-  const ids = nodes.map((n) => n.id).filter(Boolean);
-  const idSet = new Set(ids);
-  // `_i` is the index in the *authored* array. The preview draws a filtered
-  // subset, so without it a click-to-delete would remove the wrong row.
-  const valid = edges.map((e, i) => ({ ...e, _i: i })).filter((e) => idSet.has(e.from) && idSet.has(e.to));
-
-  const succs = new Map(ids.map((id) => [id, []]));
-  const preds = new Map(ids.map((id) => [id, []]));
-  for (const e of valid) { succs.get(e.from).push(e.to); preds.get(e.to).push(e.from); }
-
-  // Longest-path layering. A cycle is legal input here — the form doesn't
-  // forbid one — so the layer is clamped to the node count. Without the clamp
-  // each pass pushes a cycle's layers up by the length of the cycle, reaching
-  // O(n²) columns: a 150-node graph with one loop laid out ~22,500 columns wide.
-  const cap = Math.max(0, ids.length - 1);
-  const layer = new Map(ids.map((id) => [id, 0]));
-  for (let pass = 0; pass < ids.length; pass++) {
-    let changed = false;
-    for (const e of valid) {
-      const want = Math.min(layer.get(e.from) + 1, cap);
-      if (want > layer.get(e.to)) { layer.set(e.to, want); changed = true; }
-    }
-    if (!changed) break;
-  }
-
-  // Connected components, read undirected — two islands mean two maps.
-  const seen = new Set();
-  let islands = 0;
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    islands++;
-    const stack = [id];
-    while (stack.length) {
-      const cur = stack.pop();
-      if (seen.has(cur)) continue;
-      seen.add(cur);
-      stack.push(...succs.get(cur), ...preds.get(cur));
-    }
-  }
-
-  const orphans = ids.filter((id) => !succs.get(id).length && !preds.get(id).length);
-  return { ids, idSet, valid, layer, islands, orphans };
-}
 
 // ---------------------------------------------------------------------------
 // What the client actually did.

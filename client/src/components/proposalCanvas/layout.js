@@ -31,6 +31,7 @@ import {
   forceSimulation, forceLink, forceManyBody, forceCollide, forceX, forceY,
 } from "d3-force";
 import { radiusFor } from "./language.js";
+import { arrangeNodes } from "./arrange.js";
 
 // ---------------------------------------------------------------------------
 // Determinism
@@ -357,6 +358,103 @@ export function buildSimulation(nodes, edges, preset, width, height, scenarios) 
     .force("collide", forceCollide((d) => d.r + 12).strength(0.9))
     .alphaDecay(0.045)
     .velocityDecay(0.45);
+
+  // ---------------------------------------------------------------------------
+  // Authored positions win over the simulation.
+  // ---------------------------------------------------------------------------
+  // The admin editor has a real graph layout behind its Auto-arrange — layered
+  // columns, dummy nodes for long edges, median sweeps scored by crossing count
+  // — and it persists the result as `editor_xy` per node. The client used to
+  // ignore that entirely and re-derive its own positions from d3-force, so the
+  // same graph read as a clean left-to-right chain in the editor and as an
+  // overlapping cluster to the client. Two layouts of one graph, and the one
+  // nobody had approved was the one being sent out.
+  //
+  // Pinning with `fx`/`fy` rather than seeding `x`/`y`: a seed is only a
+  // starting point, and the forces would pull it apart again over the settling
+  // ticks. Pinned nodes ignore every force, so what the admin arranged is
+  // exactly what renders.
+  //
+  // Coordinates are used raw, in the editor's own space. They don't need
+  // rescaling because ProposalCanvas fits the graph's bounding box to whatever
+  // room the chrome leaves — so the shape is preserved and only the zoom
+  // changes. Anything else would distort the arrangement it is meant to honour.
+  const authoredXY = (n) => {
+    const p = n.src?.editor_xy;
+    if (!p) return null;
+    const x = Array.isArray(p) ? p[0] : p.x;
+    const y = Array.isArray(p) ? p[1] : p.y;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  };
+
+  // Two coherent sources of truth, and never a blend of both.
+  //
+  //  · Every node positioned → the admin arranged this graph deliberately, and
+  //    that arrangement is used exactly as saved.
+  //  · Anything missing → run the *same* algorithm the editor's Auto-arrange
+  //    runs (proposalCanvas/arrange.js) over the whole graph.
+  //
+  // Mixing them was the obvious first attempt and it is wrong: the computed
+  // layout assigns every column slot on the assumption it owns the grid, so
+  // dropping it into the gaps left by a hand-dragged arrangement puts new nodes
+  // on top of old ones. Measured on Minerva — 7 positioned, 4 not — that blend
+  // produced two overlapping pairs. Recomputing the whole thing costs a
+  // deliberate drag, which the admin can redo in one click, and never renders
+  // two bubbles on the same spot to a client.
+  //
+  // `pipeline` only: topology and program have their own deliberate geometries
+  // (anchors and orbits, swimlanes) that a column layout would destroy.
+  const fullyAuthored = simNodes.length > 0 && simNodes.every((n) => authoredXY(n));
+  const computed = !fullyAuthored && preset === "pipeline"
+    ? arrangeNodes(nodes, edges || [])
+    : new Map();
+
+  // The editor lays out on a 135 × 62 grid, drawing every node as the same
+  // small dot. The client draws real radii — up to 46 for a `system` anchor,
+  // and 62 for a `large` one — so two nodes one row apart in the editor can
+  // touch here. Measured on Minerva: two overlapping pairs at 1:1.
+  //
+  // Scaled uniformly rather than by re-spacing the rows, because a uniform
+  // scale preserves the arrangement exactly and ProposalCanvas re-fits the
+  // bounding box to the viewport afterwards — so this costs nothing visually
+  // and cannot distort the layout it is protecting.
+  const EDITOR_ROW = 62;
+  const maxR = simNodes.reduce((m, n) => Math.max(m, n.r), 0);
+  const spread = Math.max(1, (maxR * 2 + 18) / EDITOR_ROW);
+
+  const authored = [];
+  for (const n of simNodes) {
+    const p = fullyAuthored ? authoredXY(n) : computed.get(n.id);
+    if (!p) continue;
+    n.x = p.x * spread; n.y = p.y * spread;
+    n.fx = n.x; n.fy = n.y;
+    authored.push(n);
+  }
+
+  if (authored.length === simNodes.length && simNodes.length > 0) {
+    // Every node is placed. No preset force can improve on an arrangement that
+    // was authored deliberately, and running them would only burn ticks.
+    return { sim, simNodes, simLinks, clusters, lanes, maxDepth, scenarioOrder };
+  }
+
+  if (authored.length) {
+    // A partly-arranged graph: nodes added since the last Auto-arrange have no
+    // position yet. Seed each one beside its nearest authored neighbour rather
+    // than at the origin, then let the preset's forces below settle it into the
+    // gap. Without the seed they all start stacked at (0,0) and the collide
+    // force scatters them across the map, which looks like corruption.
+    const placed = new Map(authored.map((n) => [n.id, n]));
+    const meanX = authored.reduce((s, n) => s + n.x, 0) / authored.length;
+    const meanY = authored.reduce((s, n) => s + n.y, 0) / authored.length;
+    for (const n of simNodes) {
+      if (n.fx != null) continue;
+      const neighbour = simLinks
+        .map((l) => (l.source.id === n.id ? placed.get(l.target.id) : l.target.id === n.id ? placed.get(l.source.id) : null))
+        .find(Boolean);
+      n.x = (neighbour?.x ?? meanX) + (seedOf(n.id) - 0.5) * 60;
+      n.y = (neighbour?.y ?? meanY) + (seedOf(n.id) - 0.5) * 60;
+    }
+  }
 
   if (preset === "topology") {
     // Systems are anchors; everything else is pulled toward what it connects to,
