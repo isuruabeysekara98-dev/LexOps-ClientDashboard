@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AdminPanel from "./AdminPanel";
 import FlowchartTab from "./FlowchartTab.jsx";
+import ClientWalkthrough from "./ClientWalkthrough.jsx";
 import { supabase } from "@/lib/supabase.js";
 import { withTimeout, useSlowHint } from "@/lib/loadUtils.js";
 import {
@@ -8,7 +9,7 @@ import {
   Zap, FileText, PenTool, BookOpen, Link as LinkIcon, Bug, Wrench, MessageSquare,
   Mail, User, CheckCircle2, RefreshCw, Clock, FileSpreadsheet, Image as ImageIcon,
   Folder, File as FileIcon, ArrowUp, ArrowDown, Download, Upload, Plus,
-  Settings, Menu, PenLine,
+  Settings, Menu, PenLine, HelpCircle, LayoutDashboard,
 } from "lucide-react";
 
 // File-type → brand icon. Keeps document rows consistent with lucide iconography.
@@ -3466,47 +3467,6 @@ function ProjectSetupDrawer({ project, onClose, onRefresh, t, mobile }) {
 }
 
 // ---------------------------------------------------------------------------
-// Welcome Screen (first login only for clients)
-// ---------------------------------------------------------------------------
-function WelcomeScreen({ userProfile, project, t, onDismiss }) {
-  const firstName = (userProfile?.full_name || "").split(" ")[0] || "there";
-  return (
-    <div style={{
-      position:"fixed",inset:0,zIndex:500,background:t.bg,
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      fontFamily:"'Inter', sans-serif",color:t.text,padding:24,
-    }}>
-      <div style={{width:"100%",maxWidth:520,display:"flex",flexDirection:"column",alignItems:"center",gap:36}}>
-        <LogoDark h={28}/>
-        <div style={{textAlign:"center"}}>
-          <h1 style={{fontSize:36,fontWeight:600,letterSpacing:"-0.01em",margin:"0 0 16px",color:t.text,fontFamily:"'Satoshi', sans-serif"}}>
-            Welcome, {firstName}.
-          </h1>
-          {project?.client_summary ? (
-            <p style={{color:t.textSub,fontSize:15,lineHeight:1.8,margin:"0 0 16px",maxWidth:480}}>
-              {project.client_summary}
-            </p>
-          ) : null}
-          <p style={{color:t.textSub,fontSize:14,lineHeight:1.8,margin:0,maxWidth:480}}>
-            Your project is now live on LexOps. Use this portal to track progress, access documents, and stay connected with your team.
-          </p>
-        </div>
-
-        <button onClick={onDismiss} style={{
-          background:t.accent,color:"#fff",border:"none",borderRadius:10,
-          padding:"14px 36px",fontSize:15,fontWeight:600,cursor:"pointer",
-          fontFamily:"inherit",transition:"background 0.15s",letterSpacing:"0.01em",
-        }}>
-          View your project →
-        </button>
-
-        <div style={{color:t.textDim,fontSize:11}}>© 2026 LexOps · A Teams Squared Company</div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Client Overview — Status Banner
 // ---------------------------------------------------------------------------
 function ClientStatusBanner({ project, phases, t }) {
@@ -3922,65 +3882,116 @@ function ClientOverviewTab({ project, t, mobile }) {
   const overdueClient = clientTasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) < todayMidC);
   const dueSoonClient = clientTasks.filter(tk => tk.status !== "done" && tk.due_date && new Date(tk.due_date) >= todayMidC && new Date(tk.due_date) <= in7C);
 
+  const hasAttention = overdueClient.length > 0 || dueSoonClient.length > 0;
+  const hasAbout = Boolean(project.client_summary);
+  const hasBook = Boolean(project.calendly_url);
+  const hasAside = hasAbout || hasBook;
+
+  const renderAttentionCard = () => (
+    <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow, height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: t.text, fontFamily: "'Satoshi',sans-serif", letterSpacing: "-0.01em" }}>Actions Needing Attention</div>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: overdueClient.length > 0 ? "#fdf0ee" : "#fef6e8", color: overdueClient.length > 0 ? "#C9542E" : "#D97706", flexShrink: 0 }}>
+          {overdueClient.length + dueSoonClient.length} flagged
+        </span>
+      </div>
+      {overdueClient.length > 0 && (
+        <div style={{ padding: "10px 16px 6px" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#C9542E", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}><AlertTriangle size={12} strokeWidth={2.25} /> Overdue</div>
+          {overdueClient.map((tk, i) => {
+            const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
+            const daysLate = Math.floor((todayMidC - new Date(tk.due_date)) / 86400000);
+            return (
+              <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: i > 0 ? "1px solid #fdf0ee" : "none" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
+                  {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
+                </div>
+                {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
+                {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
+                  {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {dueSoonClient.length > 0 && (
+        <div style={{ padding: overdueClient.length > 0 ? "4px 16px 12px" : "10px 16px 12px" }}>
+          {overdueClient.length > 0 && <div style={{ height: 1, background: "#F4F8FB", marginBottom: 10 }} />}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#D97706", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Due Within 7 Days</div>
+          {dueSoonClient.map((tk, i) => {
+            const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
+            const daysLeft = Math.ceil((new Date(tk.due_date) - todayMidC) / 86400000);
+            return (
+              <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", borderTop: i > 0 ? "1px solid #fef6e8" : "none" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
+                  {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
+                </div>
+                {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
+                {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fef6e8", color: "#D97706", flexShrink: 0 }}>
+                  {daysLeft === 0 ? "Due today" : `Due in ${daysLeft}d`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderAboutCard = () => (
+    <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, padding: "16px 18px", boxShadow: t.shadow, flex: 1 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>About Your Engagement</div>
+      <p style={{ color: t.text, fontSize: 13, lineHeight: 1.7, margin: 0 }}>{project.client_summary}</p>
+    </div>
+  );
+
+  const renderBookCard = () => (
+    <div style={{
+      background: "#fff", borderRadius: 12, border: `1px solid ${t.border}`,
+      padding: "14px 16px", boxShadow: t.shadow,
+      display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: t.accent, color: "#fff", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {(project.manager || "L").charAt(0).toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 1 }}>Questions? Book a call with {project.manager || "your LexOps manager"}</div>
+          <div style={{ fontSize: 11, color: t.textSub }}>30 min · Video call · Typically responds within 2 hours</div>
+        </div>
+      </div>
+      <a href={project.calendly_url} target="_blank" rel="noreferrer"
+        style={{ padding: "9px 14px", background: t.accent, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, alignSelf: "stretch" }}>
+        <Calendar size={15} strokeWidth={2} /> Book a Call
+      </a>
+    </div>
+  );
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <ClientStatusBanner project={project} phases={phases} t={t} />
 
       {phases.length > 0 && (
         <ClientPhaseTimeline phases={phases} t={t} mobile={mobile} />
       )}
 
-      {(overdueClient.length > 0 || dueSoonClient.length > 0) && (
-        <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, overflow: "hidden", boxShadow: t.shadow }}>
-          <div style={{ padding: "14px 20px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, fontFamily: "'Satoshi',sans-serif", letterSpacing: "-0.01em" }}>Actions Needing Attention</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: overdueClient.length > 0 ? "#fdf0ee" : "#fef6e8", color: overdueClient.length > 0 ? "#C9542E" : "#D97706" }}>
-              {overdueClient.length + dueSoonClient.length} flagged
-            </span>
-          </div>
-          {overdueClient.length > 0 && (
-            <div style={{ padding: "10px 20px 6px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#C9542E", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}><AlertTriangle size={12} strokeWidth={2.25} /> Overdue</div>
-              {overdueClient.map((tk, i) => {
-                const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
-                const daysLate = Math.floor((todayMidC - new Date(tk.due_date)) / 86400000);
-                return (
-                  <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #fdf0ee" : "none" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
-                      {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
-                    </div>
-                    {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
-                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
-                      {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {dueSoonClient.length > 0 && (
-            <div style={{ padding: overdueClient.length > 0 ? "4px 20px 12px" : "10px 20px 12px" }}>
-              {overdueClient.length > 0 && <div style={{ height: 1, background: "#F4F8FB", marginBottom: 10 }} />}
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#D97706", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>⏳ Due Within 7 Days</div>
-              {dueSoonClient.map((tk, i) => {
-                const phaseName = phases.find(p => p.id === tk.phase_id)?.name;
-                const daysLeft = Math.ceil((new Date(tk.due_date) - todayMidC) / 86400000);
-                return (
-                  <div key={tk.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i > 0 ? "1px solid #fef6e8" : "none" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tk.title}</div>
-                      {phaseName && <div style={{ fontSize: 11, color: t.textSub, marginTop: 1 }}>{phaseName}</div>}
-                    </div>
-                    {tk.owner === "client" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#e8f0fe", color: "#2b5fcc", flexShrink: 0 }}>Client</span>}
-                    {tk.owner === "lexops" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>LexOps</span>}
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fef6e8", color: "#D97706", flexShrink: 0 }}>
-                      {daysLeft === 0 ? "Due today" : `Due in ${daysLeft}d`}
-                    </span>
-                  </div>
-                );
-              })}
+      {(hasAttention || hasAside) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: mobile || !(hasAttention && hasAside) ? "1fr" : "minmax(0, 1.7fr) minmax(0, 0.55fr)",
+          gap: 16,
+          alignItems: "stretch",
+        }}>
+          {hasAttention && renderAttentionCard()}
+          {hasAside && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+              {hasAbout && renderAboutCard()}
+              {hasBook && renderBookCard()}
             </div>
           )}
         </div>
@@ -3988,36 +3999,6 @@ function ClientOverviewTab({ project, t, mobile }) {
 
       {proposalWorkflow && proposalWorkflow.stages.length > 0 && (
         <WorkflowSnake workflow={proposalWorkflow} t={t} mobile={mobile} />
-      )}
-
-      {project.client_summary && (
-        <div style={{ background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", boxShadow: t.shadow }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>About Your Engagement</div>
-          <p style={{ color: t.text, fontSize: 13, lineHeight: 1.8, margin: 0 }}>{project.client_summary}</p>
-        </div>
-      )}
-
-      {/* Quick "Book a Call" card — visible from Overview so it's ≤1 click away */}
-      {project.calendly_url && (
-        <div style={{
-          background:"#fff",borderRadius:12,border:`1px solid ${t.border}`,
-          padding:"16px 20px",boxShadow:t.shadow,
-          display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap",rowGap:12,
-        }}>
-          <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-            <div style={{width:38,height:38,borderRadius:"50%",background:t.accent,color:"#fff",fontWeight:700,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              {(project.manager||"L").charAt(0).toUpperCase()}
-            </div>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:1}}>Questions? Book a call with {project.manager||"your LexOps manager"}</div>
-              <div style={{fontSize:11,color:t.textSub}}>30 min · Video call · Typically responds within 2 hours</div>
-            </div>
-          </div>
-          <a href={project.calendly_url} target="_blank" rel="noreferrer"
-            style={{padding:"9px 18px",background:t.accent,color:"#fff",border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textDecoration:"none",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
-            <Calendar size={15} strokeWidth={2} /> Book a Call
-          </a>
-        </div>
       )}
 
       <ClientDeliverablesGrid deliverables={deliverables} t={t} mobile={mobile} />
@@ -4168,16 +4149,15 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {toastMsg && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1a1f1e", color: "#fff", padding: "12px 20px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
           {toastMsg}
         </div>
       )}
 
-      {/* Overall progress card */}
-      <div style={{ background: "#fff", borderRadius: 12, padding: "20px 24px", border: `1px solid ${t.border}`, boxShadow: "0 1px 3px rgba(26,74,71,0.06)", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+      <div style={{ background: "#fff", borderRadius: 12, padding: mobile ? "16px 16px" : "18px 20px", border: `1px solid ${t.border}`, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Overall Engagement Progress</span>
           <span style={{ fontSize: 13, color: t.textSub }}>{doneDeliverables} of {allDeliverables.length} actions complete</span>
         </div>
@@ -4195,70 +4175,78 @@ function ClientActionsTab({ projectId, initialTasks, initialPhases, t, mobile })
         )}
       </div>
 
-      {/* ── Overdue client actions ── */}
-      {overdueClient.length > 0 && (
-        <div style={{ background: "#fff8f6", border: "1.5px solid rgba(192,57,43,0.22)", borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <AlertTriangle size={18} color="#C9542E" strokeWidth={2} style={{ flexShrink: 0 }} />
-            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#C9542E", fontFamily: "'Satoshi', sans-serif" }}>Actions on your part that require immediate attention</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#C9542E", flexShrink: 0 }}>
-              {overdueClient.length} overdue
-            </span>
-          </div>
-          {overdueClient.map((task, i) => {
-            const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
-            return (
-              <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? "1px solid rgba(192,57,43,0.1)" : "1px solid rgba(192,57,43,0.08)" }}>
-                <div onClick={() => markComplete(task)} style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: "2px solid rgba(192,57,43,0.4)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Mark complete" />
-                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#1a1f1e" }}>{task.title}</div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
-                  {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
+      {(overdueClient.length > 0 || overdueLexops.length > 0) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: mobile || !(overdueClient.length > 0 && overdueLexops.length > 0) ? "1fr" : "minmax(0, 1fr) minmax(0, 1fr)",
+          gap: 16,
+          alignItems: "stretch",
+        }}>
+          {overdueClient.length > 0 && (
+            <div style={{ background: "#fff8f6", border: "1.5px solid rgba(192,57,43,0.22)", borderRadius: 12, padding: "14px 16px", height: "100%", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <AlertTriangle size={16} color="#C9542E" strokeWidth={2} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#C9542E", fontFamily: "'Satoshi', sans-serif", lineHeight: 1.3 }}>Actions on your part that require immediate attention</div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "rgba(192,57,43,0.1)", color: "#C9542E", flexShrink: 0 }}>
+                  {overdueClient.length} overdue
                 </span>
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Overdue LexOps actions ── */}
-      {overdueLexops.length > 0 && (
-        <div style={{ background: "#f8fbfb", border: `1.5px solid ${t.border}`, borderRadius: 12, padding: "18px 22px", marginBottom: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-            <span style={{ fontSize: 18, lineHeight: 1 }}>⏳</span>
-            <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif" }}>Pending actions from Lex Ops</div>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>
-              {overdueLexops.length} delayed
-            </span>
-          </div>
-          {overdueLexops.map((task, i) => {
-            const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
-            return (
-              <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: i === 0 ? `1px solid ${t.border}` : `1px solid rgba(197,212,212,0.5)` }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${t.border}`, background: "transparent" }} />
-                <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: t.text }}>{task.title}</div>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#F4F8FB", color: "#616568", flexShrink: 0 }}>
-                  {daysLate === 0 ? "Due today" : `${daysLate}d delayed`}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Phase sections */}
-      {phases.length > 0
-        ? phases.map(ph => <PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id] || []} />)
-        : tasks.length === 0
-          ? <div style={{ background: "#fff", borderRadius: 12, padding: "40px 24px", border: `1px solid ${t.border}`, textAlign: "center" }}>
-              <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><CheckCircle2 size={30} strokeWidth={1.75} color={t.green} /></div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 5 }}>All clear for now</div>
-              <div style={{ fontSize: 12, color: t.textSub }}>No action items at this time.</div>
+              {overdueClient.map((task, i) => {
+                const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
+                return (
+                  <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: i === 0 ? "1px solid rgba(192,57,43,0.1)" : "1px solid rgba(192,57,43,0.08)" }}>
+                    <div onClick={() => markComplete(task)} style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: "2px solid rgba(192,57,43,0.4)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Mark complete" />
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#1a1f1e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</div>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#fdf0ee", color: "#C9542E", flexShrink: 0 }}>
+                      {daysLate === 0 ? "Due today" : `${daysLate}d overdue`}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          : <PhaseSection phase={{ id: "all", name: "Your Actions", status: "active" }} phaseTasks={tasks} />
-      }
-      {unphased.length > 0 && phases.length > 0 && (
-        <PhaseSection phase={{ id: "unphased", name: "Other Actions", status: "active" }} phaseTasks={unphased} />
+          )}
+
+          {overdueLexops.length > 0 && (
+            <div style={{ background: "#f8fbfb", border: `1.5px solid ${t.border}`, borderRadius: 12, padding: "14px 16px", height: "100%", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <Clock size={16} color={t.textSub} strokeWidth={2} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: t.text, fontFamily: "'Satoshi', sans-serif", lineHeight: 1.3 }}>Pending actions from Lex Ops</div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99, background: "#E7F3EC", color: "#3C7A52", flexShrink: 0 }}>
+                  {overdueLexops.length} delayed
+                </span>
+              </div>
+              {overdueLexops.map((task, i) => {
+                const daysLate = Math.floor((todayMidnight - new Date(task.due_date)) / 86400000);
+                return (
+                  <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: i === 0 ? `1px solid ${t.border}` : "1px solid rgba(197,212,212,0.5)" }}>
+                    <div style={{ width: 18, height: 18, borderRadius: "50%", flexShrink: 0, border: `2px solid ${t.border}`, background: "transparent" }} />
+                    <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: t.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</div>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 99, background: "#F4F8FB", color: "#616568", flexShrink: 0 }}>
+                      {daysLate === 0 ? "Due today" : `${daysLate}d delayed`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {phases.length > 0
+          ? phases.map(ph => <PhaseSection key={ph.id} phase={ph} phaseTasks={phaseTaskMap[ph.id] || []} />)
+          : tasks.length === 0
+            ? <div style={{ background: "#fff", borderRadius: 12, padding: "40px 24px", border: `1px solid ${t.border}`, textAlign: "center" }}>
+                <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><CheckCircle2 size={30} strokeWidth={1.75} color={t.green} /></div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 5 }}>All clear for now</div>
+                <div style={{ fontSize: 12, color: t.textSub }}>No action items at this time.</div>
+              </div>
+            : <PhaseSection phase={{ id: "all", name: "Your Actions", status: "active" }} phaseTasks={tasks} />
+        }
+        {unphased.length > 0 && phases.length > 0 && (
+          <PhaseSection phase={{ id: "unphased", name: "Other Actions", status: "active" }} phaseTasks={unphased} />
+        )}
+      </div>
     </div>
   );
 }
@@ -5211,6 +5199,94 @@ function InternalResourcesTab({ projectId, initialDocuments, t, mobile, onRefres
   );
 }
 
+const CLIENT_NAV_ITEMS = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "actions", label: "Your Actions", icon: ClipboardList, badgeKey: "actions" },
+  { id: "resources", label: "Resources", icon: Folder },
+  { id: "invoices", label: "Invoices", icon: FileText, badgeKey: "invoices" },
+  { id: "support", label: "Support", icon: MessageSquare },
+];
+
+function ClientNavSidebar({ tab, setTab, t, mobile, open, onClose, badges }) {
+  return (
+    <div style={{
+      width: mobile ? 260 : 220,
+      borderRight: `1px solid ${t.border}`,
+      background: "#FAFBFC",
+      display: "flex",
+      flexDirection: "column",
+      flexShrink: 0,
+      ...(mobile ? {
+        position: "fixed",
+        top: 72,
+        bottom: 0,
+        left: 0,
+        zIndex: 150,
+        transform: open ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform 0.25s ease",
+        boxShadow: open ? "4px 0 20px rgba(0,0,0,0.12)" : "none",
+      } : {}),
+    }}>
+      <div style={{ padding: "20px 14px 16px" }}>
+        <div style={{ color: t.textSub, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>
+          Your portal
+        </div>
+        <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {CLIENT_NAV_ITEMS.map((item) => {
+            const active = tab === item.id;
+            const Icon = item.icon;
+            const badge = item.badgeKey ? badges[item.badgeKey] : 0;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                data-tap
+                onClick={() => { setTab(item.id); if (mobile && onClose) onClose(); }}
+                style={{
+                  width: "100%",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  background: active ? "rgba(55,89,113,0.1)" : "transparent",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "10px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  color: active ? t.accent : t.text,
+                  transition: "background 0.15s ease, color 0.15s ease",
+                  minHeight: mobile ? 44 : undefined,
+                }}
+              >
+                <Icon size={18} strokeWidth={active ? 2.2 : 1.75} color={active ? t.accent : t.textSub} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: active ? 600 : 500 }}>{item.label}</span>
+                {badge > 0 && (
+                  <span style={{
+                    minWidth: 20,
+                    height: 20,
+                    borderRadius: 99,
+                    padding: "0 6px",
+                    background: item.id === "invoices" ? "#fef6e8" : "#fdf0ee",
+                    color: item.id === "invoices" ? "#D97706" : "#C9542E",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+}
+
 export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const isClient = userProfile?.role === "client";
   const isAdmin = userProfile?.role === "lexops_admin";
@@ -5228,6 +5304,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [setupOpen,setSetupOpen]=useState(false);
   const [showWelcome,setShowWelcome]=useState(false);
+  const [welcomeReplay,setWelcomeReplay]=useState(false);
   const [teamMembers,setTeamMembers]=useState([]);
   const lastLoadRef=useRef(0);
   const pendingSetupRef=useRef(null);
@@ -5277,6 +5354,7 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
         return full[0]||null;
       });
       if(isClient && userProfile && !userProfile.has_seen_welcome){
+        setWelcomeReplay(false);
         setShowWelcome(true);
       }
     } catch(err){
@@ -5292,6 +5370,16 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
   },[]);
 
   useEffect(()=>{ loadProjects(); },[loadProjects]);
+
+  useEffect(()=>{
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tour") === "1") {
+        setWelcomeReplay(true);
+        setShowWelcome(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // Won -> setup handoff: when a proposal is converted, ProposalDetailPage navigates
   // here and fires "lexops:setup-project". Reload so the new project is present, then
@@ -5377,6 +5465,13 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
     else document.title="LexOps | Client Portal";
   },[selected,adminOpen]);
 
+  const clientNavBadges = useMemo(() => {
+    if (!selected) return { actions: 0, invoices: 0 };
+    const actions = (selected.tasks || []).filter((tk) => !tk.is_internal && tk.owner === "client" && tk.status !== "done").length;
+    const invoices = (selected.invoices || []).filter((inv) => inv.status === "pending").length;
+    return { actions, invoices };
+  }, [selected?.id, selected?.tasks, selected?.invoices]);
+
   async function refreshProject(projectId){
     const related=await fetchProjectData(projectId);
     const {data:row}=await supabase.from("projects").select("*, clients(name)").eq("id",projectId).single();
@@ -5410,23 +5505,36 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
 
   async function dismissWelcome(){
     setShowWelcome(false);
-    if(userProfile?.id){
+    setWelcomeReplay(false);
+    if(userProfile?.id && isClient){
       await dbWrite("profiles","update",{has_seen_welcome:true},{id:userProfile.id});
     }
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("tour")) {
+        url.searchParams.delete("tour");
+        window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }
+    } catch { /* ignore */ }
+  }
+
+  function openWalkthrough(){
+    setWelcomeReplay(true);
+    setShowWelcome(true);
   }
 
   return (
     <div style={{background:t.bg,minHeight:"100vh",fontFamily:"'Inter', sans-serif",color:t.text,display:"flex",flexDirection:"column",letterSpacing:"0.01em"}}>
-      {showWelcome&&<WelcomeScreen userProfile={userProfile} project={selected} t={t} onDismiss={dismissWelcome}/>}
+      {showWelcome&&<ClientWalkthrough userProfile={userProfile} project={selected} t={t} replay={welcomeReplay} onDismiss={dismissWelcome}/>}
       {adminOpen&&<AdminPanel mode={mode} onClose={()=>setAdminOpen(false)}/>}
       {setupOpen&&selected&&<ProjectSetupDrawer project={selected} onClose={()=>setSetupOpen(false)} onRefresh={()=>refreshProject(selected.id)} t={t} mobile={mobile}/>}
       {/* Mobile sidebar overlay */}
-      {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}}/>}
+      {mobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,zIndex:149,background:"rgba(0,0,0,0.5)"}} aria-hidden />}
       {/* Nav bar */}
       <div style={{background:"rgba(250,251,252,0.85)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderBottom:"1px solid rgba(0,0,0,0.06)",padding:mobile?"0 14px":"0 28px",height:72,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:mobile?12:20}}>
-          {mobile&&view==="internal"&&(
-            <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:20,cursor:"pointer",padding:4,lineHeight:1,display:"flex",alignItems:"center"}}>
+          {mobile&&(view==="internal"||isClientView)&&(
+            <button onClick={()=>setSidebarOpen(s=>!s)} style={{background:"transparent",border:"none",color:t.textSub,fontSize:20,cursor:"pointer",padding:4,lineHeight:1,display:"flex",alignItems:"center"}} aria-label={sidebarOpen ? "Close menu" : "Open menu"}>
               {sidebarOpen?<X size={20} strokeWidth={2} />:<Menu size={20} strokeWidth={2} />}
             </button>
           )}
@@ -5437,9 +5545,23 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
           {isAdmin&&navigate&&<button onClick={()=>navigate("/admin/living-proposals")} style={{background:"transparent",border:`1px solid ${t.border}`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:500,cursor:"pointer",color:t.textSub,transition:"all 0.15s",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:6}}>{mobile?<ClipboardList size={15} strokeWidth={1.75}/>:<><ClipboardList size={14} strokeWidth={1.75}/> Proposals</>}</button>}{isAdmin&&<button onClick={()=>setAdminOpen(true)} style={{background:t.accentSoft,color:t.accentLight,border:`1px solid ${t.accent}30`,borderRadius:8,padding:mobile?"0 10px":"0 14px",height:34,fontSize:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s",display:"inline-flex",alignItems:"center",gap:6}}>{mobile?<Settings size={15} strokeWidth={1.75}/>:"Admin"}</button>}
           {!isClient&&<div style={{display:"flex",background:t.surfaceHigh,borderRadius:8,border:`1px solid ${t.border}`,padding:3,gap:2}}>
             {[["internal",mobile?"Int":"Internal"],["client",mobile?"Client":"Client View"]].map(([k,l])=>(
-              <button key={k} onClick={()=>{setView(k);setTab("overview");}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
+              <button key={k} onClick={()=>{setView(k);setTab("overview");setSidebarOpen(false);}} style={{background:view===k?t.accent:"transparent",color:view===k?"#fff":t.textSub,border:"none",borderRadius:6,padding:mobile?"5px 8px":"5px 14px",fontSize:mobile?11:12,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{l}</button>
             ))}
           </div>}
+          {isClientView&&(
+            <button
+              onClick={openWalkthrough}
+              title="How this portal works"
+              aria-label="How this portal works"
+              style={{
+                width:34,height:34,borderRadius:8,background:"transparent",
+                border:`1px solid ${t.border}`,color:t.textSub,cursor:"pointer",
+                display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,
+              }}
+            >
+              <HelpCircle size={16} strokeWidth={1.75} />
+            </button>
+          )}
           {/* Profile avatar + dropdown */}
           <div style={{position:"relative"}}>
             <button onClick={()=>setProfileOpen(o=>!o)} style={{
@@ -5468,6 +5590,15 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                       {userProfile?.role==="lexops_admin"?"Admin":userProfile?.role==="lexops_member"?"Team Member":"Client"}
                     </span>
                   </div>
+                  {isClientView&&(
+                    <button onClick={()=>{setProfileOpen(false);openWalkthrough();}} style={{
+                      width:"100%",padding:"12px 18px",background:"transparent",border:"none",
+                      color:t.text,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",
+                      fontFamily:"inherit",borderBottom:`1px solid ${t.border}`,
+                    }}>
+                      How this portal works
+                    </button>
+                  )}
                   {onLogout&&(
                     <button onClick={()=>{setProfileOpen(false);onLogout();}} style={{
                       width:"100%",padding:"12px 18px",background:"transparent",border:"none",
@@ -5484,6 +5615,17 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
         </div>
       </div>
       <div style={{display:"flex",flex:1,overflow:"visible",...(mobile?{minHeight:"calc(100vh - 72px)"}:{height:"calc(100vh - 72px)"})}}>
+        {isClientView&&selected&&(
+          <ClientNavSidebar
+            tab={tab}
+            setTab={setTab}
+            t={t}
+            mobile={mobile}
+            open={sidebarOpen}
+            onClose={()=>setSidebarOpen(false)}
+            badges={clientNavBadges}
+          />
+        )}
         {view==="internal"&&(
           <div style={{
             width:280,borderRight:`1px solid ${t.border}`,background:t.surface,display:"flex",flexDirection:"column",flexShrink:0,
@@ -5530,16 +5672,18 @@ export default function LexOpsDashboard({ onLogout, userProfile, navigate }) {
                   </button>}
                 </div>
               </div>
-              <div style={{borderBottom:`1px solid ${t.border}`,marginBottom:mobile?16:24,overflowX:"auto",display:"flex",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
-                <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
-                <div className="hide-scrollbar" style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",width:"100%"}}>
-                  {allTabs.map(tb=>(
-                    <button key={tb} data-tap onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:mobile?"12px 14px":"8px 18px",fontSize:mobile?13:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0,minHeight:mobile?44:undefined}}>
-                      {tabLabels[tb]}
-                    </button>
-                  ))}
+              {!isClientView&&(
+                <div style={{borderBottom:`1px solid ${t.border}`,marginBottom:mobile?16:24,overflowX:"auto",display:"flex",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+                  <style>{`.hide-scrollbar::-webkit-scrollbar{display:none}`}</style>
+                  <div className="hide-scrollbar" style={{display:"flex",overflowX:"auto",scrollbarWidth:"none",width:"100%"}}>
+                    {allTabs.map(tb=>(
+                      <button key={tb} data-tap onClick={()=>setTab(tb)} style={{background:"transparent",border:"none",borderBottom:tab===tb?`1.5px solid ${t.accent}`:"1.5px solid transparent",color:tab===tb?t.text:t.textSub,padding:mobile?"12px 14px":"8px 18px",fontSize:mobile?13:13,fontWeight:tab===tb?600:400,cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.15s",marginBottom:-1,letterSpacing:"0.01em",flexShrink:0,minHeight:mobile?44:undefined}}>
+                        {tabLabels[tb]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <style>{`@keyframes tabFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
               <div key={`${tab}-${view}`} style={{animation:"tabFade 0.22s ease-out"}}>
                 {tab==="overview"    && (isClientView
