@@ -7,9 +7,13 @@
 // DEV ONLY, and deliberately so. This page prints recipient tokens, and a token
 // is the entire credential for the proposal it belongs to — there is no second
 // factor behind it. A public listing of every client's token would hand out the
-// whole set. The guard below is the only thing standing between those two
-// states, so don't relax it to "check a header" or "check an env var I set on
-// Render". It stays off in production.
+// whole set.
+//
+// Fail-closed guard:
+//   1. Always 404 when NODE_ENV=production (even if ENABLE_REVIEW is set).
+//   2. Outside production, require ENABLE_REVIEW=true so a missing/wrong
+//      NODE_ENV on a host cannot accidentally expose tokens.
+// Never set ENABLE_REVIEW on Render/Netlify.
 //
 // Server-rendered on purpose: no client bundle, no build step, and it can be
 // deleted in one file when the real admin surface exists.
@@ -25,7 +29,9 @@ const adminSupabase = createClient(
 );
 
 function devOnly(_req: Request, res: Response, next: NextFunction) {
-  if (process.env.NODE_ENV === "production") { res.status(404).send("Not found"); return; }
+  const isProduction = process.env.NODE_ENV === "production";
+  const reviewEnabled = process.env.ENABLE_REVIEW === "true";
+  if (isProduction || !reviewEnabled) { res.status(404).send("Not found"); return; }
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   next();
 }
