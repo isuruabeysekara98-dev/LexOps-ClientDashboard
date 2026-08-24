@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { createClient } from "@supabase/supabase-js";
 import {
   sendDocumentRequest,
@@ -15,6 +15,17 @@ const adminSupabase = createClient(
   process.env.VITE_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// Any logged-in user (staff or client). Blocks anonymous curl/spam.
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  const { data: { user }, error } = await adminSupabase.auth.getUser(auth.slice(7));
+  if (error || !user) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  next();
+}
 
 // Helper: get all admin emails
 async function getAdminEmails(): Promise<string[]> {
@@ -56,7 +67,7 @@ async function getProjectName(projectId: number): Promise<string> {
 // POST /api/notify/document-request
 // Body: { project_id, title, description }
 // ---------------------------------------------------------------------------
-router.post("/document-request", async (req: Request, res: Response) => {
+router.post("/document-request", requireAuth, async (req: Request, res: Response) => {
   const { project_id, title, description } = req.body;
   if (!project_id || !title) {
     res.status(400).json({ message: "project_id and title required" });
@@ -79,7 +90,7 @@ router.post("/document-request", async (req: Request, res: Response) => {
 // POST /api/notify/document-uploaded
 // Body: { project_id, document_name, client_name }
 // ---------------------------------------------------------------------------
-router.post("/document-uploaded", async (req: Request, res: Response) => {
+router.post("/document-uploaded", requireAuth, async (req: Request, res: Response) => {
   const { project_id, document_name, client_name } = req.body;
   if (!project_id) {
     res.status(400).json({ message: "project_id required" });
@@ -102,7 +113,7 @@ router.post("/document-uploaded", async (req: Request, res: Response) => {
 // POST /api/notify/phase-complete
 // Body: { project_id, phase_name, next_phase_name }
 // ---------------------------------------------------------------------------
-router.post("/phase-complete", async (req: Request, res: Response) => {
+router.post("/phase-complete", requireAuth, async (req: Request, res: Response) => {
   const { project_id, phase_name, next_phase_name } = req.body;
   if (!project_id || !phase_name) {
     res.status(400).json({ message: "project_id and phase_name required" });
@@ -125,7 +136,7 @@ router.post("/phase-complete", async (req: Request, res: Response) => {
 // POST /api/notify/project-complete
 // Body: { project_id }
 // ---------------------------------------------------------------------------
-router.post("/project-complete", async (req: Request, res: Response) => {
+router.post("/project-complete", requireAuth, async (req: Request, res: Response) => {
   const { project_id } = req.body;
   if (!project_id) {
     res.status(400).json({ message: "project_id required" });
@@ -148,7 +159,7 @@ router.post("/project-complete", async (req: Request, res: Response) => {
 // POST /api/notify/task-assigned
 // Body: { project_id, task_title, task_description }
 // ---------------------------------------------------------------------------
-router.post("/task-assigned", async (req: Request, res: Response) => {
+router.post("/task-assigned", requireAuth, async (req: Request, res: Response) => {
   const { project_id, task_title, task_description } = req.body;
   if (!project_id || !task_title) {
     res.status(400).json({ message: "project_id and task_title required" });

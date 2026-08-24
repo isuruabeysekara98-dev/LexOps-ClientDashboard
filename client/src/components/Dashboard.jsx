@@ -518,6 +518,21 @@ async function dbWrite(table, operation, data, match) {
   return adminFetch("/db", { method: "POST", body: { table, operation, data: data ?? null, match: match ?? null } });
 }
 
+// Fire-and-forget notify emails — same Bearer token as adminFetch so /api/notify stays locked.
+async function notifyFetch(path, body) {
+  const session = await ensureSession();
+  const token = session?.access_token;
+
+  return fetch(`/api/notify${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 // Fetch a short-lived signed URL for a private file and open it.
 // kind: "documents" | "invoices". download:true forces a download instead of inline view.
 async function openSignedFile(kind, id, { download = false } = {}) {
@@ -945,10 +960,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     setSavingReq(true);
     try{await dbWrite("document_requests","insert",{project_id:projectId,title:reqForm.title,description:reqForm.description||null});}catch(error){console.error("[DocumentsTab] doc request insert error:",error.message);setUploadError(error.message);setSavingReq(false);return;}
     // Notify clients via email
-    fetch("/api/notify/document-request",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({project_id:projectId,title:reqForm.title,description:reqForm.description||""}),
-    }).catch(()=>{});
+    notifyFetch("/document-request",{project_id:projectId,title:reqForm.title,description:reqForm.description||""});
     setReqForm({title:"",description:""});
     setShowReqModal(false);
     setSavingReq(false);
@@ -1784,10 +1796,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     try{await dbWrite("phases","update",payload,{id});}catch(error){console.error("[TimelineTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     // Notify clients when phase marked complete
     if(editForm.status==="complete"){
-      fetch("/api/notify/phase-complete",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({project_id:projectId,phase_name:editForm.name}),
-      }).catch(()=>{});
+      notifyFetch("/phase-complete",{project_id:projectId,phase_name:editForm.name});
     }
     setEditingId(null);
     await loadPhases();
@@ -3544,6 +3553,22 @@ function ClientStatusBanner({ project, phases, t }) {
 // ---------------------------------------------------------------------------
 function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
   const [popup, setPopup] = useState(null);
+
+  useEffect(() => {
+    if (popup == null)
+      return;
+
+    const clear = () => setPopup(null);
+    window.addEventListener("scroll", clear, true);
+
+    return () => window.removeEventListener("scroll", clear, true);
+  }, [popup]);
+
+  const openPopup = (i, el) => {
+    const r = el.getBoundingClientRect();
+    setPopup({ index: i, x: r.left + r.width / 2, y: r.top });
+  }
+
   return (
     <div>
       <style>{`
@@ -3555,7 +3580,7 @@ function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
       <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>Engagement Phases — hover for detail</div>
       <div style={{
         background: "#fff", border: `1px solid ${t.border}`, borderRadius: 12,
-        padding: mobile ? "20px 16px" : "24px 28px", boxShadow: t.shadow,
+        padding: mobile ? "36px 16px 20px" : "40px 28px 24px", boxShadow: t.shadow,
         display: "flex", alignItems: "flex-start", overflowX: "auto",
         scrollbarWidth: "none",
       }}>
@@ -3567,7 +3592,8 @@ function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
             <div key={ph.id || i} style={{ display: "flex", alignItems: "flex-start", flex: 1 }}>
               <div
                 style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, minWidth: mobile ? 72 : 84, cursor: "pointer", position: "relative" }}
-                onMouseEnter={() => setPopup(i)} onMouseLeave={() => setPopup(null)}
+                onMouseEnter={(e) => openPopup(i, e.currentTarget)}
+                onMouseLeave={() => setPopup(null)}
                 onClick={() => onPhaseClick && onPhaseClick(ph, i)}>
                 <div style={{
                   width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -3584,10 +3610,10 @@ function ClientPhaseTimeline({ phases, t, mobile, onPhaseClick }) {
                 <div style={{ fontSize: 11, color: isActive ? t.accent : t.textSub, fontWeight: isActive ? 600 : 400 }}>
                   {isDone ? "100%" : isActive ? `${ph.progress || 0}%` : "—"}
                 </div>
-                {popup === i && (
+                {popup?.index === i && (
                   <div style={{
-                    position: "absolute", bottom: "calc(100% + 12px)", left: "50%", transform: "translateX(-50%)",
-                    background: t.text, color: "#fff", borderRadius: 10, padding: "13px 15px", width: 195, zIndex: 50,
+                    position: "fixed", left: popup.x, top: popup.y - 12, transform: "translate(-50%, -100%)",
+                    background: t.text, color: "#fff", borderRadius: 10, padding: "13px 15px", width: 195, zIndex: 400,
                     boxShadow: "0 8px 28px rgba(0,0,0,0.22)", pointerEvents: "none", lineHeight: 1.5,
                   }}>
                     <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 5 }}>Milestone {i + 1} — {ph.name}</div>
@@ -4304,10 +4330,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
         fulfilled_document_id: newDoc.id,
       },{id: req.id});
       // Notify admins that document was uploaded
-      fetch("/api/notify/document-uploaded",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({project_id:projectId,document_name:file.name}),
-      }).catch(()=>{});
+      notifyFetch("/document-uploaded",{project_id:projectId,document_name:file.name});
     }
 
     await loadDocs();
@@ -4487,7 +4510,7 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
         ) : filteredDocs.map(doc => {
           const ext = doc.file_type || doc.name?.split(".").pop()?.toUpperCase() || "FILE";
           return (
-            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
+            <div key={doc.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, boxShadow: "0 1px 3px rgba(26,74,71,0.06)", minHeight: 68, boxSizing: "border-box" }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: docBg(ext) }}>
                 <FileTypeIcon ext={ext} size={18} color={t.accent} />
               </div>
@@ -4515,6 +4538,10 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
         <div style={{ fontSize: 11, fontWeight: 600, color: t.textSub, letterSpacing: "1px", textTransform: "uppercase", marginBottom: 14, paddingBottom: 10, borderBottom: `1.5px solid ${t.border}`, display: "flex", alignItems: "center", gap: 7 }}>
           <Wrench size={14} strokeWidth={1.75} /> Tools Set Up by LexOps
         </div>
+        {/* Match Documents filter-row height so tool cards line up with doc cards */}
+        {phases.length > 0 && (
+          <div aria-hidden style={{ height: 32, marginBottom: 10 }} />
+        )}
         {loading ? (
           <div style={{ color: t.textSub, fontSize: 12, padding: "20px 0" }}>Loading…</div>
         ) : tools.length === 0 ? (
@@ -4524,16 +4551,18 @@ function ClientResourcesTab({ projectId, initialDocuments, t, mobile }) {
             <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.5, maxWidth: 240, margin: "0 auto" }}>LexOps will add tools relevant to your engagement here.</div>
           </div>
         ) : tools.map(tool => (
-          <div key={tool.id} style={{ background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "16px 18px", marginBottom: 8, display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 3px rgba(26,74,71,0.06)" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: t.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+          <div key={tool.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", borderRadius: 8, border: `1px solid ${t.border}`, padding: "14px 16px", marginBottom: 8, boxShadow: "0 1px 3px rgba(26,74,71,0.06)", minHeight: 68, boxSizing: "border-box" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: t.surface, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
               {tool.logo_emoji || "🔧"}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 2 }}>{tool.name}</div>
-              {tool.purpose && <div style={{ fontSize: 12, color: t.textSub, lineHeight: 1.4 }}>{tool.purpose}</div>}
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tool.name}</div>
+              {tool.purpose
+                ? <div style={{ fontSize: 11, color: t.textSub, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tool.purpose}</div>
+                : <div style={{ fontSize: 11, color: t.textSub, lineHeight: 1.4 }}>&nbsp;</div>}
             </div>
             {tool.url && (
-              <a href={tool.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", padding: "6px 14px", borderRadius: 8, background: t.accent, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+              <a href={tool.url} target="_blank" rel="noreferrer" style={{ padding: "4px 10px", borderRadius: 6, background: t.accent, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
                 Launch ↗
               </a>
             )}

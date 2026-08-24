@@ -20,7 +20,7 @@ export async function registerRoutes(
   app.use("/api/proposals/v2", proposalsV2Routes);
   app.use("/api/lp", livingProposalRoutes);
   // Internal graph review harness. Dev-only — it prints recipient tokens, and
-  // the router 404s itself when NODE_ENV is production.
+  // the router 404s itself in production, and unless ENABLE_REVIEW=true.
   app.use("/review", livingProposalReviewRoutes);
   app.use("/api/proposal", proposalRoutes);
   app.use("/api/notify", notifyRoutes);
