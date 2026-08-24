@@ -518,6 +518,21 @@ async function dbWrite(table, operation, data, match) {
   return adminFetch("/db", { method: "POST", body: { table, operation, data: data ?? null, match: match ?? null } });
 }
 
+// Fire-and-forget notify emails — same Bearer token as adminFetch so /api/notify stays locked.
+async function notifyFetch(path, body) {
+  const session = await ensureSession();
+  const token = session?.access_token;
+
+  return fetch(`/api/notify${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  }).catch(() => {});
+}
+
 // Fetch a short-lived signed URL for a private file and open it.
 // kind: "documents" | "invoices". download:true forces a download instead of inline view.
 async function openSignedFile(kind, id, { download = false } = {}) {
@@ -945,10 +960,7 @@ function DocumentsTab({projectId,initialDocuments,initialDocRequests,onRefresh,t
     setSavingReq(true);
     try{await dbWrite("document_requests","insert",{project_id:projectId,title:reqForm.title,description:reqForm.description||null});}catch(error){console.error("[DocumentsTab] doc request insert error:",error.message);setUploadError(error.message);setSavingReq(false);return;}
     // Notify clients via email
-    fetch("/api/notify/document-request",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({project_id:projectId,title:reqForm.title,description:reqForm.description||""}),
-    }).catch(()=>{});
+    notifyFetch("/document-request",{project_id:projectId,title:reqForm.title,description:reqForm.description||""});
     setReqForm({title:"",description:""});
     setShowReqModal(false);
     setSavingReq(false);
@@ -1784,10 +1796,7 @@ function TimelineTab({projectId,initialPhases,initialTasks,onRefresh,t}) {
     try{await dbWrite("phases","update",payload,{id});}catch(error){console.error("[TimelineTab] update error:",error.message);setFormError(error.message);setSaving(false);return;}
     // Notify clients when phase marked complete
     if(editForm.status==="complete"){
-      fetch("/api/notify/phase-complete",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({project_id:projectId,phase_name:editForm.name}),
-      }).catch(()=>{});
+      notifyFetch("/phase-complete",{project_id:projectId,phase_name:editForm.name});
     }
     setEditingId(null);
     await loadPhases();
@@ -4321,10 +4330,7 @@ function ClientDocumentsTab({ projectId, initialDocuments, initialDocRequests, o
         fulfilled_document_id: newDoc.id,
       },{id: req.id});
       // Notify admins that document was uploaded
-      fetch("/api/notify/document-uploaded",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({project_id:projectId,document_name:file.name}),
-      }).catch(()=>{});
+      notifyFetch("/document-uploaded",{project_id:projectId,document_name:file.name});
     }
 
     await loadDocs();
