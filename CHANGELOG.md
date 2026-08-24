@@ -1,5 +1,20 @@
 # LexOps Client Portal — Changelog
 
+## [79] — release/2026-08-24-v1.1.1 — 2026-08-24
+### Security
+- Locked `/api/notify/*` email endpoints (`document-request`, `document-uploaded`, `phase-complete`, `project-complete`, `task-assigned`) behind Bearer auth so anonymous callers cannot trigger client/admin emails; `/api/auth/send-password-reset` stays public
+- Dashboard notify calls now send the logged-in session token via `notifyFetch` so normal staff/client email flows keep working
+- Fail-closed `/review` harness: blocked when `NODE_ENV=production`, and outside production requires `ENABLE_REVIEW=true` (never set on hosting)
+
+### UI
+- Milestone hover tooltip uses fixed positioning so it is no longer clipped behind the top bar / overflow card
+- More top padding above engagement-phase milestone circles
+- Resources tab: Tools cards aligned with Documents (spacer for filter row + matching card height/padding)
+
+### Docs
+- Changelog entry for this release; `.env.example` notes for optional `ENABLE_REVIEW`
+
+
 ## [78] — 2026-03-31 04:50
 Added Module Library — modules CRUD, steps, workflow definitions, brief matcher via Claude API, deployment engine, Library section in admin panel with n8n integration
 
