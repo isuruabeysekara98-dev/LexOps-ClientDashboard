@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardList, Zap } from "lucide-react";
+import { ClipboardList, Zap, Radar } from "lucide-react";
 
 const t = {
   bg: "#FAFBFC", surface: "#F4F8FB", surfaceHigh: "#E4F1F8",
@@ -30,6 +30,13 @@ const TILES = [
     title: "Proposals",
     desc: "Build the interactive map, then send the one link that tracks a client's progress.",
     path: "/admin/living-proposals",
+  },
+  {
+    key: "mission-control",
+    Icon: Radar,
+    title: "Mission Control",
+    desc: "See how work actually flows — workflows, handoffs, and who decides what.",
+    path: "/mission-control",
   },
   {
     key: "projects",
