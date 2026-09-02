@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lex Ops · Process Atlas — Teams Squared</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='30' cy='30' r='14' fill='%233b5bff'/><circle cx='72' cy='45' r='9' fill='%2335c2e2'/><circle cx='42' cy='74' r='11' fill='%23e8d44d'/><line x1='30' y1='30' x2='72' y2='45' stroke='%233b5bff' stroke-width='4'/><line x1='30' y1='30' x2='42' y2='74' stroke='%233b5bff' stroke-width='4'/></svg>" />
+</head>
+<body>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 16 16" fill="none">
+          <circle cx="4" cy="4" r="2.4" fill="#fff"/>
+          <circle cx="12.5" cy="7" r="1.8" fill="#fff" opacity=".85"/>
+          <circle cx="6" cy="12.5" r="2" fill="#fff" opacity=".7"/>
+          <path d="M4 4 L12.5 7 M4 4 L6 12.5 M12.5 7 L6 12.5" stroke="#fff" stroke-width="1" opacity=".6"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">Process Atlas</div>
+        <div class="brand-sub">Lex Ops · Teams Squared</div>
+      </div>
+    </div>
+    <nav class="crumbs" id="crumbs"></nav>
+    <div class="topbar-pill"><span class="dot"></span> Live process mining</div>
+  </header>
+
+  <!-- VIEW 1 · Org graph -->
+  <section class="view" id="view-graph">
+    <svg id="graph-svg"></svg>
+
+    <aside class="graph-side">
+      <div class="gs-label">Departments</div>
+      <nav class="gs-list" id="gs-list"></nav>
+      <div class="gs-foot">Or double-click any node on the map · drag to rearrange</div>
+    </aside>
+
+    <div class="graph-legend">
+      <div class="legend-row"><span class="legend-swatch" style="background:#e9edff;border:2px solid #3b5bff"></span> Department</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#5b78ff"></span> Workflow</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#b8c2dd"></span> Person</div>
+      <div class="legend-row"><span class="legend-swatch" style="background:#e8d44d"></span> Shared tool</div>
+      <div class="legend-note"><strong>No central node</strong> — shared people and tools bind the departments into one mesh.</div>
+    </div>
+    <div class="g-tooltip" id="g-tooltip"></div>
+  </section>
+
+  <!-- VIEW 2 · Department -->
+  <section class="view" id="view-dept">
+    <div class="dept-wrap">
+      <div class="dept-head">
+        <div>
+          <div class="dept-eyebrow" id="dept-lead"></div>
+          <h1 class="dept-title" id="dept-title"></h1>
+          <p class="dept-blurb" id="dept-blurb"></p>
+        </div>
+        <div class="dept-stats" id="dept-stats"></div>
+      </div>
+      <div class="wf-grid" id="wf-grid"></div>
+    </div>
+  </section>
+
+  <!-- VIEW 3 · Workflow focus window -->
+  <div id="focus-overlay">
+    <div class="focus-window">
+      <div class="focus-head">
+        <div class="focus-titleblock">
+          <div class="focus-eyebrow" id="focus-eyebrow"></div>
+          <div class="focus-title" id="focus-title"></div>
+        </div>
+        <button class="focus-close" id="focus-close" title="Close (Esc)">✕</button>
+      </div>
+      <div class="focus-body">
+        <aside class="focus-rail" id="focus-rail"></aside>
+        <div class="process-scroll" id="process-scroll">
+          <div class="process-stage" id="process-stage"></div>
+        </div>
+        <div class="zoom-dock" role="group" aria-label="Detail level">
+          <button class="zoom-btn" id="zoom-out" title="Less detail (−)">−</button>
+          <div class="zoom-segs" id="zoom-segs"></div>
+          <button class="zoom-btn" id="zoom-in" title="More detail (+)">+</button>
+        </div>
+        <div class="detail-panel" id="detail-panel"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
