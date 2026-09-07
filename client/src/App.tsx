@@ -17,6 +17,7 @@ import ProposalPreviewPage from "@/components/ProposalPreviewPage";
 import LivingProposalPage from "@/components/LivingProposalPage";
 import LivingProposalsListPage from "@/components/LivingProposalsListPage";
 import LivingProposalEditorPage from "@/components/LivingProposalEditorPage";
+import MissionControlPage from "@/components/MissionControlPage";
 
 async function fetchUserProfile(userId: string) {
   const { data: profile, error } = await supabase
@@ -98,6 +99,7 @@ function initAdminPage(pathname: string) {
   const detailMatch = pathname.match(/^\/admin\/proposals\/([^/]+)$/);
   if (detailMatch) return { name: "proposal-detail", id: detailMatch[1] };
   if (pathname.startsWith("/admin/proposals")) return { name: "proposals", id: null as string | null };
+  if (pathname === "/mission-control") return { name: "mission-control", id: null as string | null };
   if (pathname === "/active-projects") return { name: "dashboard", id: null as string | null };
   return { name: "landing", id: null as string | null };
 }
@@ -145,6 +147,9 @@ function AdminRouter({ userProfile, onLogout }: { userProfile: any; onLogout: ()
         if (page.name === "proposal-preview") return <ProposalPreviewPage id={page.id} navigate={navigate} />;
         if (page.name === "living-proposal-new") return <LivingProposalEditorPage navigate={navigate} onLogout={onLogout} />;
         if (page.name === "living-proposal-edit") return <LivingProposalEditorPage navigate={navigate} editId={page.id} onLogout={onLogout} />;
+        // Not kept mounted: the map runs a rAF loop and a force simulation, so
+        // leaving it alive behind another page would burn frames off-screen.
+        if (page.name === "mission-control") return <MissionControlPage navigate={navigate} onLogout={onLogout} />;
         return null;
       })()}
     </>
